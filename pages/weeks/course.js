@@ -460,7 +460,7 @@ function checkPredict(arg1, arg2) {
 
   const normalize = (str) => {
     return String(str || '')
-      .replace(/\\r\\n|\\r|\\n/g, ' ')
+      .replace(/\r\n|\r|\n/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
@@ -678,3 +678,5 @@ if (document.readyState === 'loading') {
 setInterval(() => {
   document.querySelectorAll('body > [id^="mermaid-"], body > [id^="dmermaid-"], div.error-icon').forEach(el => el.remove());
 }, 500);
+
+
