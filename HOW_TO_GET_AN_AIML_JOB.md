@@ -227,3 +227,12 @@ Every project on your GitHub profile must have:
 
 ### 🏆 Summary
 You have the complete theoretical knowledge, mathematical formulations, and code architecture across all 26 weeks. By building **3 production-grade flagship projects**, mastering the **ML System Design framework**, and demonstrating **vectorized coding fluency**, you will be primed to secure competitive AI/ML engineering offers.
+
+---
+
+## 🌐 Quick Access: Online Curriculum Portals
+- [🏠 **Live Curriculum Portal**](https://raw.githack.com/AmanAnand958/ai-ml-notes/main/index.html)
+- [🗺️ **26-Week Interactive Roadmap**](https://raw.githack.com/AmanAnand958/ai-ml-notes/main/roadmap.html)
+- [📊 **Progress & XP Dashboard**](https://raw.githack.com/AmanAnand958/ai-ml-notes/main/dashboard.html)
+- [📚 **Master Resources Library**](https://raw.githack.com/AmanAnand958/ai-ml-notes/main/resources.html)
+
