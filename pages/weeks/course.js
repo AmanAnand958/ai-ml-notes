@@ -613,15 +613,44 @@ window.jumpTo = function(dayId) {
     }
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-};
+function applyTheme(theme) {
+  const isLight = theme === 'light';
+  if (isLight) {
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.documentElement.classList.add('light-theme');
+    document.body && document.body.classList.add('light-theme');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.classList.remove('light-theme');
+    document.body && document.body.classList.remove('light-theme');
+  }
+  const btn = document.getElementById('theme-btn');
+  if (btn) {
+    btn.textContent = isLight ? '🌙 Dark' : '☀️ Light';
+  }
+}
 
 window.toggleTheme = function() {
-  const isLight = document.documentElement.classList.toggle('light-theme') || document.body.classList.toggle('light-theme');
-  localStorage.setItem('course_theme_preference', isLight ? 'light' : 'dark');
+  const current = document.documentElement.getAttribute('data-theme') === 'light' || document.documentElement.classList.contains('light-theme');
+  const nextTheme = current ? 'dark' : 'light';
+  applyTheme(nextTheme);
+  try {
+    localStorage.setItem('course_theme_preference', nextTheme);
+  } catch (e) {}
   if (typeof showToast === 'function') {
-    showToast(isLight ? '☀️ Light mode enabled' : '🌙 Dark mode enabled');
+    showToast(nextTheme === 'light' ? '☀️ Light mode enabled' : '🌙 Dark mode enabled');
   }
 };
+
+// Auto-apply saved theme on load
+(function() {
+  try {
+    const saved = localStorage.getItem('course_theme_preference');
+    if (saved === 'light') {
+      applyTheme('light');
+    }
+  } catch (e) {}
+})();
 
 window.openRepl = function(codeSnippet) {
   if (typeof copyCode === 'function') {

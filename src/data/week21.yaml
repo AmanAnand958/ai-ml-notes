@@ -23,49 +23,165 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: LLM inference mein main memory bottleneck KV Cache RAM consumption hota hai. Auto-regressive generation mein pichle tokens ke Key-Value tensors grow karke GPU VRAM occupy karte hain.
-  analogy: KV Cache is like keeping your previous scratchpad notes on the desk instead of re-reading the entire book for every new sentence.
-  theory_html: ''
+  hinglish: LLM inference mein main memory bottleneck KV Cache RAM consumption hota
+    hai. Auto-regressive generation mein pichle tokens ke Key-Value tensors grow karke
+    GPU VRAM occupy karte hain.
+  analogy: KV Cache is like keeping your previous scratchpad notes on the desk instead
+    of re-reading the entire book for every new sentence.
+  theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
+    color:var(--text);">
+
+    <p>Analogy:
+
+    vLLM &amp; PagedAttention
+
+    💡 Gotcha &amp; Common Pitfall Warning:
+
+    Always double check tensor dimensions, verify data types before matrix operations,
+    and ensure feature scaling is fitted strictly on the training set to prevent data
+    leakage.</p>
+
+    </div>'
   predict:
-    question: "What happens if\n       \n        gpu-memory-utilization\n       \n       is set to 1.0?"
+    question: "What happens if\n       \n        gpu-memory-utilization\n       \n\
+      \       is set to 1.0?"
     answer: CUDA OOM
-    explanation: vLLM will allocate 100% of GPU memory to model weights and KV cache, leaving zero memory for PyTorch activation overhead or CUDA kernels, causing an immediate CUDA OOM crash.
-    code: "<span class=\"cm\"># Verification Script for Day 150</span>\n<span class=\"kw\">def</span> <span class=\"fn\">vllm_memory_allocation</span>(total_vram_gb=<span class=\"num\">24.0</span>, model_weights_gb=<span class=\"num\">14.0</span>, util_factor=<span class=\"num\">0.90</span>):\n    allocated = total_vram_gb * util_factor\n    kv_cache_gb = allocated - model_weights_gb\n    headroom_gb = total_vram_gb - allocated\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"vLLM Memory: Total={total_vram_gb}GB, Weights={model_weights_gb}GB, KV Cache={kv_cache_gb:.1f}GB, Headroom={headroom_gb:.1f}GB\"</span>)\n<span class=\"kw\">return</span> headroom_gb &gt;= <span class=\"num\">1.0</span>\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    <span class=\"kw\">assert</span> <span class=\"fn\">vllm_memory_allocation</span>(<span class=\"num\">24.0</span>, <span class=\"num\">14.0</span>, <span class=\"num\">0.90</span>) <span class=\"kw\">is</span>\
-      \ <span class=\"kw\">True</span>"
+    explanation: vLLM will allocate 100% of GPU memory to model weights and KV cache,
+      leaving zero memory for PyTorch activation overhead or CUDA kernels, causing
+      an immediate CUDA OOM crash.
+    code: "<span class=\"cm\"># Verification Script for Day 150</span>\n<span class=\"\
+      kw\">def</span> <span class=\"fn\">vllm_memory_allocation</span>(total_vram_gb=<span\
+      \ class=\"num\">24.0</span>, model_weights_gb=<span class=\"num\">14.0</span>,\
+      \ util_factor=<span class=\"num\">0.90</span>):\n    allocated = total_vram_gb\
+      \ * util_factor\n    kv_cache_gb = allocated - model_weights_gb\n    headroom_gb\
+      \ = total_vram_gb - allocated\n    <span class=\"fn\">print</span>(<span class=\"\
+      str\">f\"vLLM Memory: Total={total_vram_gb}GB, Weights={model_weights_gb}GB,\
+      \ KV Cache={kv_cache_gb:.1f}GB, Headroom={headroom_gb:.1f}GB\"</span>)\n<span\
+      \ class=\"kw\">return</span> headroom_gb &gt;= <span class=\"num\">1.0</span>\n\
+      <span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n\
+      \    <span class=\"kw\">assert</span> <span class=\"fn\">vllm_memory_allocation</span>(<span\
+      \ class=\"num\">24.0</span>, <span class=\"num\">14.0</span>, <span class=\"\
+      num\">0.90</span>) <span class=\"kw\">is</span> <span class=\"kw\">True</span>"
   tasks:
   - title: 'Task 1: Offline Batch Inference'
     badge: MEDIUM
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p>\n        Write a script using vLLM's\n        \n         LLM\n        \n        class for offline batch generation (no server).\n        <strong>\n         Bonus Task: Benchmark Throughput · MEDIUM · MED · ⏱ 45 mins\n        </strong>\n        Using locust or a simple loop, compare requests/sec for HuggingFace pipeline vs vLLM with 10 concurrent requests.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification metrics and unit tests pass.
+    prompt_html: "<p>\n        Write a script using vLLM's\n        \n         LLM\n\
+      \        \n        class for offline batch generation (no server).\n       \
+      \ <strong>\n         Bonus Task: Benchmark Throughput · MEDIUM · MED · ⏱ 45\
+      \ mins\n        </strong>\n        Using locust or a simple loop, compare requests/sec\
+      \ for HuggingFace pipeline vs vLLM with 10 concurrent requests.\n       </p>"
+    done_when: Task completed successfully when output matches expected verification
+      metrics and unit tests pass.
     git_cmd: 'git add . &amp;&amp; git commit -m "day150: complete hands-on task implementation"'
     sol_id: sol-w21d150t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "<span class=\"cm\"># Solution for Task: Offline Batch Inference</span>\n<span class=\"kw\">import</span> time\n<span class=\"kw\">from</span> typing <span class=\"kw\">import</span> List\n\n<span class=\"kw\">class</span> <span class=\"cls\">OfflineBatchInferenceEngine</span>:\n    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>, model_id: str = <span class=\"str\">\"meta-llama/Meta-Llama-3-8B\"</span>):\n        <span class=\"kw\">self</span>.model_id = model_id\n        <span class=\"fn\">print</span>(<span class=\"str\">f\"Loaded vLLM Engine instance with model: {model_id}\"</span>)\n\n<span class=\"kw\">def</span> <span class=\"fn\">generate_batch</span>(<span class=\"kw\">self</span>, prompts: List[str], max_tokens: int = <span class=\"num\">64</span>) -&gt; List[str]:\n        t0 = time.<span class=\"fn\">time</span>()\n        completions = [<span class=\"str\">f\"Generated response for prompt: '</span>{p[:<span class=\"\
-      num\">20</span>]}...<span class=\"str\">'\"</span> <span class=\"kw\">for</span> p <span class=\"kw\">in</span> prompts]\n        latency = (time.<span class=\"fn\">time</span>() - t0) * <span class=\"num\">1000</span>\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Batch Inference Completed: {len(prompts)} prompts in {latency:.2f}ms\"</span>)\n<span class=\"kw\">return</span> completions\n\nengine = <span class=\"fn\">OfflineBatchInferenceEngine</span>()\nbatch_prompts = [\n    <span class=\"str\">\"Explain PagedAttention virtual memory allocation.\"</span>,\n    <span class=\"str\">\"What is the difference between QLoRA and LoRA?\"</span>,\n    <span class=\"str\">\"How does DPO eliminate the need for a separate reward model?\"</span>,\n    <span class=\"str\">\"Compare AWQ vs GPTQ quantization algorithms.\"</span>\n]\nresults = engine.<span class=\"fn\">generate_batch</span>(batch_prompts)\n<span class=\"kw\">for</span> idx, r <span class=\"kw\">in</span> <span class=\"\
-      fn\">enumerate</span>(results, <span class=\"num\">1</span>):\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"Completion {idx}: {r}\"</span>)"
+    solution_code: "<span class=\"cm\"># Solution for Task: Offline Batch Inference</span>\n\
+      <span class=\"kw\">import</span> time\n<span class=\"kw\">from</span> typing\
+      \ <span class=\"kw\">import</span> List\n\n<span class=\"kw\">class</span> <span\
+      \ class=\"cls\">OfflineBatchInferenceEngine</span>:\n    <span class=\"kw\"\
+      >def</span> <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>,\
+      \ model_id: str = <span class=\"str\">\"meta-llama/Meta-Llama-3-8B\"</span>):\n\
+      \        <span class=\"kw\">self</span>.model_id = model_id\n        <span class=\"\
+      fn\">print</span>(<span class=\"str\">f\"Loaded vLLM Engine instance with model:\
+      \ {model_id}\"</span>)\n\n<span class=\"kw\">def</span> <span class=\"fn\">generate_batch</span>(<span\
+      \ class=\"kw\">self</span>, prompts: List[str], max_tokens: int = <span class=\"\
+      num\">64</span>) -&gt; List[str]:\n        t0 = time.<span class=\"fn\">time</span>()\n\
+      \        completions = [<span class=\"str\">f\"Generated response for prompt:\
+      \ '</span>{p[:<span class=\"num\">20</span>]}...<span class=\"str\">'\"</span>\
+      \ <span class=\"kw\">for</span> p <span class=\"kw\">in</span> prompts]\n  \
+      \      latency = (time.<span class=\"fn\">time</span>() - t0) * <span class=\"\
+      num\">1000</span>\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Batch\
+      \ Inference Completed: {len(prompts)} prompts in {latency:.2f}ms\"</span>)\n\
+      <span class=\"kw\">return</span> completions\n\nengine = <span class=\"fn\"\
+      >OfflineBatchInferenceEngine</span>()\nbatch_prompts = [\n    <span class=\"\
+      str\">\"Explain PagedAttention virtual memory allocation.\"</span>,\n    <span\
+      \ class=\"str\">\"What is the difference between QLoRA and LoRA?\"</span>,\n\
+      \    <span class=\"str\">\"How does DPO eliminate the need for a separate reward\
+      \ model?\"</span>,\n    <span class=\"str\">\"Compare AWQ vs GPTQ quantization\
+      \ algorithms.\"</span>\n]\nresults = engine.<span class=\"fn\">generate_batch</span>(batch_prompts)\n\
+      <span class=\"kw\">for</span> idx, r <span class=\"kw\">in</span> <span class=\"\
+      fn\">enumerate</span>(results, <span class=\"num\">1</span>):\n    <span class=\"\
+      fn\">print</span>(<span class=\"str\">f\"Completion {idx}: {r}\"</span>)"
     solution_lang: python
-  - title: Task 2
+  - title: 'Task 2: Implement vLLM & PagedAttention'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Simulate virtual memory block table allocation and reference counting for shared prompt prefixes.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"cm\"># Step 1: Algorithmic Implementation &amp; Core Transformations</span>\n<span class=\"kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\">class</span> <span class=\"cls\">PagedBlockManager</span>:\n    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>, block_size: int = <span class=\"num\">16</span>, num_blocks: int = <span class=\"num\">100</span>):\n        <span\
-      \ class=\"kw\">self</span>.block_size = block_size\n        <span class=\"kw\">self</span>.free_blocks = <span class=\"fn\">list</span>(<span class=\"fn\">range</span>(num_blocks))\n        <span class=\"kw\">self</span>.block_tables = {}\n        <span class=\"kw\">self</span>.ref_counts = {i: <span class=\"num\">0</span> <span class=\"kw\">for</span> i <span class=\"kw\">in</span> <span class=\"fn\">range</span>(num_blocks)}\n\n<span class=\"kw\">def</span> <span class=\"fn\">allocate</span>(<span class=\"kw\">self</span>, req_id: str, num_tokens: int):\n        num_blocks_needed = (num_tokens + <span class=\"kw\">self</span>.block_size - <span class=\"num\">1</span>) // <span class=\"kw\">self</span>.block_size\n        allocated = []\n        <span class=\"kw\">for</span> _ <span class=\"kw\">in</span> <span class=\"fn\">range</span>(num_blocks_needed):\n            blk = <span class=\"kw\">self</span>.free_blocks.<span class=\"fn\">pop</span>(<span class=\"num\">0</span>)\n  \
-      \          <span class=\"kw\">self</span>.ref_counts[blk] += <span class=\"num\">1</span>\n            allocated.<span class=\"fn\">append</span>(blk)\n        <span class=\"kw\">self</span>.block_tables[req_id] = allocated\n<span class=\"kw\">return</span> allocated\n\nmgr = <span class=\"fn\">PagedBlockManager</span>(block_size=<span class=\"num\">16</span>, num_blocks=<span class=\"num\">50</span>)\nb = mgr.<span class=\"fn\">allocate</span>(<span class=\"str\">\"req_101\"</span>, <span class=\"num\">38</span>)\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Allocated {len(b)} blocks for 38 tokens (Blocks: {b}). Remaining free: {len(mgr.free_blocks)}\"</span>)</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         Allocated 3 blocks for 38 tokens\
-      \ (Blocks: [0, 1, 2]). Remaining free: 47\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Simulate virtual memory block table allocation and reference counting\
+      \ for shared prompt prefixes.\n       </p>\n<div class=\"cb\">\n<div class=\"\
+      cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div\
+      \ class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\"\
+      >\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"\
+      runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span\
+      \ class=\"cm\"># Step 1: Algorithmic Implementation &amp; Core Transformations</span>\n\
+      <span class=\"kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span\
+      \ class=\"kw\">class</span> <span class=\"cls\">PagedBlockManager</span>:\n\
+      \    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span\
+      \ class=\"kw\">self</span>, block_size: int = <span class=\"num\">16</span>,\
+      \ num_blocks: int = <span class=\"num\">100</span>):\n        <span class=\"\
+      kw\">self</span>.block_size = block_size\n        <span class=\"kw\">self</span>.free_blocks\
+      \ = <span class=\"fn\">list</span>(<span class=\"fn\">range</span>(num_blocks))\n\
+      \        <span class=\"kw\">self</span>.block_tables = {}\n        <span class=\"\
+      kw\">self</span>.ref_counts = {i: <span class=\"num\">0</span> <span class=\"\
+      kw\">for</span> i <span class=\"kw\">in</span> <span class=\"fn\">range</span>(num_blocks)}\n\
+      \n<span class=\"kw\">def</span> <span class=\"fn\">allocate</span>(<span class=\"\
+      kw\">self</span>, req_id: str, num_tokens: int):\n        num_blocks_needed\
+      \ = (num_tokens + <span class=\"kw\">self</span>.block_size - <span class=\"\
+      num\">1</span>) // <span class=\"kw\">self</span>.block_size\n        allocated\
+      \ = []\n        <span class=\"kw\">for</span> _ <span class=\"kw\">in</span>\
+      \ <span class=\"fn\">range</span>(num_blocks_needed):\n            blk = <span\
+      \ class=\"kw\">self</span>.free_blocks.<span class=\"fn\">pop</span>(<span class=\"\
+      num\">0</span>)\n            <span class=\"kw\">self</span>.ref_counts[blk]\
+      \ += <span class=\"num\">1</span>\n            allocated.<span class=\"fn\"\
+      >append</span>(blk)\n        <span class=\"kw\">self</span>.block_tables[req_id]\
+      \ = allocated\n<span class=\"kw\">return</span> allocated\n\nmgr = <span class=\"\
+      fn\">PagedBlockManager</span>(block_size=<span class=\"num\">16</span>, num_blocks=<span\
+      \ class=\"num\">50</span>)\nb = mgr.<span class=\"fn\">allocate</span>(<span\
+      \ class=\"str\">\"req_101\"</span>, <span class=\"num\">38</span>)\n<span class=\"\
+      fn\">print</span>(<span class=\"str\">f\"Allocated {len(b)} blocks for 38 tokens\
+      \ (Blocks: {b}). Remaining free: {len(mgr.free_blocks)}\"</span>)</pre>\n</div>\n\
+      <div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05);\
+      \ border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono);\
+      \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
+      \     </strong>\n<br/>\n\n         Allocated 3 blocks for 38 tokens (Blocks:\
+      \ [0, 1, 2]). Remaining free: 47\n        \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
     solution_title: ''
     solution_code: ''
     solution_lang: python
-  - title: Task 3
+  - title: 'Task 3: Implement vLLM & PagedAttention'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Calculate exact memory requirements across precision types (FP16, INT8, INT4) and batch sizes.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"kw\">def</span> <span class=\"fn\">compute_kv_cache_gb</span>(n_layers: int, d_model: int, seq_len: int, batch_size: int, precision_bits: int = <span class=\"num\">16</span>) -&gt; float:\n    bytes_per_elem = precision_bits / <span class=\"num\">8</span>\n<span class=\"cm\"># 2 for Key and Value matrices</span>\n    total_bytes = <span class=\"num\">2</span> * n_layers * d_model * seq_len * batch_size * bytes_per_elem\n<span class=\"kw\">return</span>\
-      \ <span class=\"fn\">round</span>(total_bytes / (<span class=\"num\">1024</span> ** <span class=\"num\">3</span>), <span class=\"num\">2</span>)\n\n<span class=\"fn\">print</span>(<span class=\"str\">\"Llama-3-8B KV Cache (FP16, batch=64, ctx=4096):\", compute_kv_cache_gb(32, 4096, 4096, 64, 16), \"GB\"</span>)\n<span class=\"fn\">print</span>(<span class=\"str\">\"Llama-3-8B KV Cache (INT4, batch=64, ctx=4096):\", compute_kv_cache_gb(32, 4096, 4096, 64, 4), \"GB\"</span>)</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         Llama-3-8B KV Cache (FP16, batch=64, ctx=4096): 64.0 GB \\nLlama-3-8B KV Cache (INT4, batch=64, ctx=4096): 16.0 GB\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Calculate exact memory requirements across precision types (FP16,\
+      \ INT8, INT4) and batch sizes.\n       </p>\n<div class=\"cb\">\n<div class=\"\
+      cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div\
+      \ class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\"\
+      >\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"\
+      runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span\
+      \ class=\"kw\">def</span> <span class=\"fn\">compute_kv_cache_gb</span>(n_layers:\
+      \ int, d_model: int, seq_len: int, batch_size: int, precision_bits: int = <span\
+      \ class=\"num\">16</span>) -&gt; float:\n    bytes_per_elem = precision_bits\
+      \ / <span class=\"num\">8</span>\n<span class=\"cm\"># 2 for Key and Value matrices</span>\n\
+      \    total_bytes = <span class=\"num\">2</span> * n_layers * d_model * seq_len\
+      \ * batch_size * bytes_per_elem\n<span class=\"kw\">return</span> <span class=\"\
+      fn\">round</span>(total_bytes / (<span class=\"num\">1024</span> ** <span class=\"\
+      num\">3</span>), <span class=\"num\">2</span>)\n\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"Llama-3-8B KV Cache (FP16, batch=64, ctx=4096):\", compute_kv_cache_gb(32,\
+      \ 4096, 4096, 64, 16), \"GB\"</span>)\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"Llama-3-8B KV Cache (INT4, batch=64, ctx=4096):\", compute_kv_cache_gb(32,\
+      \ 4096, 4096, 64, 4), \"GB\"</span>)</pre>\n</div>\n<div style=\"margin-top:1rem;\
+      \ padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green);\
+      \ border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n\
+      \         Expected Verification Output:\n        </strong>\n<br/>\n\n      \
+      \   Llama-3-8B KV Cache (FP16, batch=64, ctx=4096): 64.0 GB \\nLlama-3-8B KV\
+      \ Cache (INT4, batch=64, ctx=4096): 16.0 GB\n        \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
@@ -78,7 +194,8 @@ days:
     qid: q150_1
     options:
     - letter: A
-      text: It eliminates GPU memory fragmentation by dividing the Key-Value (KV) cache into non-contiguous virtual pages, boosting throughput 2-4x.
+      text: It eliminates GPU memory fragmentation by dividing the Key-Value (KV)
+        cache into non-contiguous virtual pages, boosting throughput 2-4x.
       is_correct: true
     - letter: B
       text: It converts Python code into CUDA kernels automatically.
@@ -89,14 +206,18 @@ days:
     - letter: D
       text: It shrinks foundation model weights by 99%.
       is_correct: false
-    correct_fb: ✅ Correct! PagedAttention manages KV-cache like virtual memory pages in operating systems, eliminating up to 96% of wasted VRAM.
-    wrong_fb: ❌ Incorrect. PagedAttention solves internal and external memory fragmentation in the KV-cache, enabling massive continuous batching.
+    correct_fb: ✅ Correct! PagedAttention manages KV-cache like virtual memory pages
+      in operating systems, eliminating up to 96% of wasted VRAM.
+    wrong_fb: ❌ Incorrect. PagedAttention solves internal and external memory fragmentation
+      in the KV-cache, enabling massive continuous batching.
   - num_str: QUESTION 2 OF 4
-    question: How does Continuous (Iteration-Level) Batching differ from traditional Static Batching?
+    question: How does Continuous (Iteration-Level) Batching differ from traditional
+      Static Batching?
     qid: q150_2
     options:
     - letter: A
-      text: Continuous batching schedules new requests immediately at the token iteration level rather than waiting for an entire batch to finish generating.
+      text: Continuous batching schedules new requests immediately at the token iteration
+        level rather than waiting for an entire batch to finish generating.
       is_correct: true
     - letter: B
       text: Continuous batching only allows 1 user request at a time.
@@ -107,14 +228,18 @@ days:
     - letter: D
       text: Static batching is 10x faster than continuous batching.
       is_correct: false
-    correct_fb: ✅ Correct! Iteration-level scheduling allows newly arrived requests to join the running batch on the very next token iteration without waiting for long sequences to complete.
-    wrong_fb: ❌ Incorrect. Continuous batching evicts completed requests and injects new ones token-by-token, maximizing GPU Tensor Core saturation.
+    correct_fb: ✅ Correct! Iteration-level scheduling allows newly arrived requests
+      to join the running batch on the very next token iteration without waiting for
+      long sequences to complete.
+    wrong_fb: ❌ Incorrect. Continuous batching evicts completed requests and injects
+      new ones token-by-token, maximizing GPU Tensor Core saturation.
   - num_str: QUESTION 3 OF 4
     question: What is the consequence of setting vLLM max_model_len higher than necessary?
     qid: q150_3
     options:
     - letter: A
-      text: It reserves larger pre-allocated KV-cache slots per sequence, reducing the total number of concurrent requests the GPU can serve simultaneously.
+      text: It reserves larger pre-allocated KV-cache slots per sequence, reducing
+        the total number of concurrent requests the GPU can serve simultaneously.
       is_correct: true
     - letter: B
       text: It causes the server to download additional weights from HuggingFace.
@@ -125,14 +250,18 @@ days:
     - letter: D
       text: It permanently damages GPU memory chips.
       is_correct: false
-    correct_fb: ✅ Correct! Higher max context limits require larger memory allocations per request, reducing overall batch concurrency.
-    wrong_fb: ❌ Incorrect. Setting excessive context lengths limits the maximum number of concurrent active sequences vLLM can fit into remaining VRAM.
+    correct_fb: ✅ Correct! Higher max context limits require larger memory allocations
+      per request, reducing overall batch concurrency.
+    wrong_fb: ❌ Incorrect. Setting excessive context lengths limits the maximum number
+      of concurrent active sequences vLLM can fit into remaining VRAM.
   - num_str: QUESTION 4 OF 4
-    question: In vLLM multi-GPU serving, what parallelism strategy is typically used across GPUs on a single node?
+    question: In vLLM multi-GPU serving, what parallelism strategy is typically used
+      across GPUs on a single node?
     qid: q150_4
     options:
     - letter: A
-      text: Tensor Parallelism (TP) using NCCL All-Reduce to split matrix multiplications across GPU Tensor Cores.
+      text: Tensor Parallelism (TP) using NCCL All-Reduce to split matrix multiplications
+        across GPU Tensor Cores.
       is_correct: true
     - letter: B
       text: Data Parallelism with CPU offloading.
@@ -143,36 +272,47 @@ days:
     - letter: D
       text: Zero parallelism, running identical copies.
       is_correct: false
-    correct_fb: ✅ Correct! Tensor Parallelism splits attention heads and MLP projection matrices across local NVLink-connected GPUs with minimal communication latency.
-    wrong_fb: ❌ Incorrect. Single-node multi-GPU LLM inference uses Tensor Parallelism (TP) for real-time latency optimization.
+    correct_fb: ✅ Correct! Tensor Parallelism splits attention heads and MLP projection
+      matrices across local NVLink-connected GPUs with minimal communication latency.
+    wrong_fb: ❌ Incorrect. Single-node multi-GPU LLM inference uses Tensor Parallelism
+      (TP) for real-time latency optimization.
   flashcards:
   - front: vLLM
     back: An open-source library for fast LLM inference and serving.
   - front: PagedAttention
     back: Divides KV cache into blocks (pages) to eliminate memory fragmentation.
   - front: Continuous Batching
-    back: vLLM's ability to add new requests to an in-progress batch without waiting for all sequences to finish.
+    back: vLLM's ability to add new requests to an in-progress batch without waiting
+      for all sequences to finish.
   gotcha:
     title: '⚠️ Gotcha: Day 150 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       PagedAttention with small block sizes (e.g. block_size &lt; 16) increases virtual memory lookup overhead; standard block size 16 or 32 yields optimal GPU cache locality.\n      </p>"
+    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       PagedAttention\
+      \ with small block sizes (e.g. block_size &lt; 16) increases virtual memory\
+      \ lookup overhead; standard block size 16 or 32 yields optimal GPU cache locality.\n\
+      \      </p>"
   takeaways:
-    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Never use `transformers` pipelines in production APIs. Always use vLLM or TGI.\""
+    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Never\
+      \ use `transformers` pipelines in production APIs. Always use vLLM or TGI.\""
     bullets:
     - KV Cache grows linearly with sequence length.
     - vLLM enables massive concurrent batching.
-  resources:
-  - type: 🎬 YOUTUBE TUTORIAL
-    title: vLLM &amp; PagedAttention Deep Dive
-    desc: How vLLM eliminates memory fragmentation and increases serving throughput by 24x.
-    url: https://www.youtube.com/watch?v=80bZYTCdcwk
-  - type: ''
-    title: vLLM Blog
-    desc: Original PagedAttention blog post
-    url: https://blog.vllm.ai/2023/06/20/vllm.html
-  - type: ''
-    title: ''
-    desc: ''
-    url: '#'
+  resources: &id001
+  - type: PAPER
+    title: 'QLoRA: Efficient Finetuning of Quantized LLMs (Dettmers et al.)'
+    url: https://arxiv.org/abs/2305.14314
+    desc: NF4 quantization, Double Quantization, and Paged Optimizers
+  - type: DOCS
+    title: 'Hugging Face PEFT: State-of-the-Art Parameter-Efficient Fine-Tuning'
+    url: https://huggingface.co/docs/peft/index
+    desc: LoRA, AdaLoRA, and Prefix Tuning implementation
+  - type: TUTORIAL
+    title: Direct Preference Optimization (DPO) Training Guide
+    url: https://huggingface.co/blog/dpo-trl
+    desc: TRL alignment without a separate reward model
+  - type: BENCHMARK
+    title: EleutherAI LM Evaluation Harness
+    url: https://github.com/EleutherAI/lm-evaluation-harness
+    desc: Standardized evaluation suite for open LLMs
 - id: '151'
   day_num: 151
   title: FlashAttention & Speculative Decoding
@@ -194,47 +334,154 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: vLLM ka PagedAttention virtual memory paging ki tarah GPU VRAM ko non-contiguous 16-token physical blocks mein allocate karta hai. Isse VRAM fragmentation zero ho jaati hai.
-  analogy: PagedAttention is like computer RAM virtual paging, allocating memory blocks wherever free space exists instead of needing contiguous space.
-  theory_html: ''
+  hinglish: vLLM ka PagedAttention virtual memory paging ki tarah GPU VRAM ko non-contiguous
+    16-token physical blocks mein allocate karta hai. Isse VRAM fragmentation zero
+    ho jaati hai.
+  analogy: PagedAttention is like computer RAM virtual paging, allocating memory blocks
+    wherever free space exists instead of needing contiguous space.
+  theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
+    color:var(--text);">
+
+    <p>Analogy:
+
+    FlashAttention &amp; Speculative Decoding
+
+    💡 Gotcha &amp; Common Pitfall Warning:
+
+    Always double check tensor dimensions, verify data types before matrix operations,
+    and ensure feature scaling is fitted strictly on the training set to prevent data
+    leakage.</p>
+
+    </div>'
   predict:
     question: Does Speculative Decoding change the final output of the large model?
     answer: 'No'
-    explanation: No. Speculative decoding guarantees mathematically identical output distribution to the target model because every draft token is strictly validated by the target model's logits.
-    code: "<span class=\"cm\"># Verification Script for Day 151</span>\n<span class=\"kw\">def</span> <span class=\"fn\">speculative_verification</span>(draft_tokens: list, target_logits_accept: list):\n    accepted = [tok <span class=\"kw\">for</span> tok, acc <span class=\"kw\">in</span> <span class=\"fn\">zip</span>(draft_tokens, target_logits_accept) <span class=\"kw\">if</span> acc]\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"Speculative Decoding: Draft={draft_tokens} - Verified Accepted={accepted}\"</span>)\n<span class=\"kw\">return</span> accepted\n\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    <span class=\"kw\">assert</span> <span class=\"fn\">speculative_verification</span>([<span class=\"str\">\"The\", \"capital\", \"of\", \"France\"], [True, True, True, True]) == [\"The\", \"capital\", \"of\", \"France\"</span>]"
+    explanation: No. Speculative decoding guarantees mathematically identical output
+      distribution to the target model because every draft token is strictly validated
+      by the target model's logits.
+    code: "<span class=\"cm\"># Verification Script for Day 151</span>\n<span class=\"\
+      kw\">def</span> <span class=\"fn\">speculative_verification</span>(draft_tokens:\
+      \ list, target_logits_accept: list):\n    accepted = [tok <span class=\"kw\"\
+      >for</span> tok, acc <span class=\"kw\">in</span> <span class=\"fn\">zip</span>(draft_tokens,\
+      \ target_logits_accept) <span class=\"kw\">if</span> acc]\n    <span class=\"\
+      fn\">print</span>(<span class=\"str\">f\"Speculative Decoding: Draft={draft_tokens}\
+      \ - Verified Accepted={accepted}\"</span>)\n<span class=\"kw\">return</span>\
+      \ accepted\n\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"\
+      __main__\"</span>:\n    <span class=\"kw\">assert</span> <span class=\"fn\"\
+      >speculative_verification</span>([<span class=\"str\">\"The\", \"capital\",\
+      \ \"of\", \"France\"], [True, True, True, True]) == [\"The\", \"capital\", \"\
+      of\", \"France\"</span>]"
   tasks:
   - title: 'Task 1: vLLM Speculative Setup · MEDIUM'
     badge: EASY
     badge_class: tb-easy
     time: 45 mins
-    prompt_html: "<p>\n        Write the CLI argument for running vLLM with speculative decoding using\n        \n         speculator\n        \n        model.\n        <strong>\n         Bonus Task: Measure Attention FLOPs · MEDIUM · HARD · ⏱ 45 mins\n        </strong>\n        Calculate the theoretical FLOPs for attention on a sequence of 4096 tokens with embedding dim 4096. Show working.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification metrics and unit tests pass.
+    prompt_html: "<p>\n        Write the CLI argument for running vLLM with speculative\
+      \ decoding using\n        \n         speculator\n        \n        model.\n\
+      \        <strong>\n         Bonus Task: Measure Attention FLOPs · MEDIUM · HARD\
+      \ · ⏱ 45 mins\n        </strong>\n        Calculate the theoretical FLOPs for\
+      \ attention on a sequence of 4096 tokens with embedding dim 4096. Show working.\n\
+      \       </p>"
+    done_when: Task completed successfully when output matches expected verification
+      metrics and unit tests pass.
     git_cmd: 'git add . &amp;&amp; git commit -m "day151: complete hands-on task implementation"'
     sol_id: sol-w21d151t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "<span class=\"cm\"># Solution for Task: vLLM Speculative Setup</span>\n<span class=\"kw\">from</span> typing <span class=\"kw\">import</span> Dict\n\n<span class=\"kw\">class</span> <span class=\"cls\">vLLMSpeculativeDecodingEngine</span>:\n    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>, target_model: str, draft_model: str, k_draft_tokens: int = <span class=\"num\">5</span>):\n        <span class=\"kw\">self</span>.target = target_model\n        <span class=\"kw\">self</span>.draft = draft_model\n        <span class=\"kw\">self</span>.k = k_draft_tokens\n\n<span class=\"kw\">def</span> <span class=\"fn\">run_speculative_step</span>(<span class=\"kw\">self</span>, prompt: str) -&gt; Dict[str, float]:\n        draft_accepted_tokens = <span class=\"num\">4</span>\n        acceptance_rate = draft_accepted_tokens / <span class=\"kw\">self</span>.k\n        latency_speedup = <span class=\"num\">1.0</span> + (acceptance_rate\
-      \ * <span class=\"num\">0.8</span>)\n<span class=\"kw\">return</span> {\n            <span class=\"str\">\"draft_tokens\"</span>: <span class=\"kw\">self</span>.k,\n            <span class=\"str\">\"accepted_tokens\"</span>: draft_accepted_tokens,\n            <span class=\"str\">\"acceptance_rate\"</span>: acceptance_rate,\n            <span class=\"str\">\"speedup\"</span>: latency_speedup\n        }\n\nspec_engine = <span class=\"fn\">vLLMSpeculativeDecodingEngine</span>(<span class=\"str\">\"Llama-3-70B\", \"Llama-3-8B\"</span>, k_draft_tokens=<span class=\"num\">5</span>)\nmetrics = spec_engine.<span class=\"fn\">run_speculative_step</span>(<span class=\"str\">\"Explain FlashAttention\"</span>)\n<span class=\"fn\">print</span>(<span class=\"str\">\"=== Speculative Decoding Performance ===\"</span>)\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Acceptance Rate: {metrics['</span>acceptance_rate<span class=\"str\">']:.2%}\"</span>)\n<span class=\"fn\">print</span>(<span\
-      \ class=\"str\">f\"Inference Latency Speedup: {metrics['</span>speedup<span class=\"str\">']:.2f}x baseline\"</span>)"
+    solution_code: "<span class=\"cm\"># Solution for Task: vLLM Speculative Setup</span>\n\
+      <span class=\"kw\">from</span> typing <span class=\"kw\">import</span> Dict\n\
+      \n<span class=\"kw\">class</span> <span class=\"cls\">vLLMSpeculativeDecodingEngine</span>:\n\
+      \    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span\
+      \ class=\"kw\">self</span>, target_model: str, draft_model: str, k_draft_tokens:\
+      \ int = <span class=\"num\">5</span>):\n        <span class=\"kw\">self</span>.target\
+      \ = target_model\n        <span class=\"kw\">self</span>.draft = draft_model\n\
+      \        <span class=\"kw\">self</span>.k = k_draft_tokens\n\n<span class=\"\
+      kw\">def</span> <span class=\"fn\">run_speculative_step</span>(<span class=\"\
+      kw\">self</span>, prompt: str) -&gt; Dict[str, float]:\n        draft_accepted_tokens\
+      \ = <span class=\"num\">4</span>\n        acceptance_rate = draft_accepted_tokens\
+      \ / <span class=\"kw\">self</span>.k\n        latency_speedup = <span class=\"\
+      num\">1.0</span> + (acceptance_rate * <span class=\"num\">0.8</span>)\n<span\
+      \ class=\"kw\">return</span> {\n            <span class=\"str\">\"draft_tokens\"\
+      </span>: <span class=\"kw\">self</span>.k,\n            <span class=\"str\"\
+      >\"accepted_tokens\"</span>: draft_accepted_tokens,\n            <span class=\"\
+      str\">\"acceptance_rate\"</span>: acceptance_rate,\n            <span class=\"\
+      str\">\"speedup\"</span>: latency_speedup\n        }\n\nspec_engine = <span\
+      \ class=\"fn\">vLLMSpeculativeDecodingEngine</span>(<span class=\"str\">\"Llama-3-70B\"\
+      , \"Llama-3-8B\"</span>, k_draft_tokens=<span class=\"num\">5</span>)\nmetrics\
+      \ = spec_engine.<span class=\"fn\">run_speculative_step</span>(<span class=\"\
+      str\">\"Explain FlashAttention\"</span>)\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"=== Speculative Decoding Performance ===\"</span>)\n<span\
+      \ class=\"fn\">print</span>(<span class=\"str\">f\"Acceptance Rate: {metrics['</span>acceptance_rate<span\
+      \ class=\"str\">']:.2%}\"</span>)\n<span class=\"fn\">print</span>(<span class=\"\
+      str\">f\"Inference Latency Speedup: {metrics['</span>speedup<span class=\"str\"\
+      >']:.2f}x baseline\"</span>)"
     solution_lang: python
-  - title: Task 2
+  - title: 'Task 2: Implement FlashAttention & Speculative Decoding'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Simulate token validation comparing draft model probabilities against target model logits with rejection sampling.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"fn\">speculative_acceptance_step</span>(draft_probs: np.ndarray, target_probs: np.ndarray, tokens: list):\n    accepted = []\n    <span class=\"kw\">for</span> i, token <span class=\"kw\">in</span> <span class=\"fn\">enumerate</span>(tokens):\n        p_draft = draft_probs[i]\n        p_target = target_probs[i]\n        ratio\
-      \ = p_target / <span class=\"fn\">max</span>(<span class=\"num\">1e-5</span>, p_draft)\n        <span class=\"kw\">if</span> ratio &gt;= <span class=\"num\">1.0</span> <span class=\"kw\">or</span> np.random.<span class=\"fn\">uniform</span>(<span class=\"num\">0</span>, <span class=\"num\">1</span>) &gt; <span class=\"num\">0.5</span>:\n            <span class=\"cm\"># Resample from residual distribution</span>\n            resampled = <span class=\"fn\">max</span>(<span class=\"num\">0</span>, token - <span class=\"num\">1</span>)\n            accepted.<span class=\"fn\">append</span>(resampled)\n<span class=\"kw\">break</span>\n<span class=\"kw\">return</span> accepted\n\nnp.random.<span class=\"fn\">seed</span>(<span class=\"num\">42</span>)\nacc = <span class=\"fn\">speculative_acceptance_step</span>(np.<span class=\"fn\">array</span>([<span class=\"num\">0.8</span>, <span class=\"num\">0.7</span>, <span class=\"num\">0.4</span>]), np.<span class=\"fn\">array</span>([<span class=\"\
-      num\">0.9</span>, <span class=\"num\">0.75</span>, <span class=\"num\">0.2</span>]), [<span class=\"num\">105</span>, <span class=\"num\">204</span>, <span class=\"num\">308</span>])\n<span class=\"fn\">print</span>(<span class=\"str\">\"Accepted Speculative Tokens:\"</span>, acc)</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         Accepted Speculative Tokens: [105, 204, 307]\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Simulate token validation comparing draft model probabilities against\
+      \ target model logits with rejection sampling.\n       </p>\n<div class=\"cb\"\
+      >\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n   \
+      \      </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"\
+      copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\"\
+      \ onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n\
+      </div>\n<pre><span class=\"kw\">import</span> numpy <span class=\"kw\">as</span>\
+      \ np\n\n<span class=\"kw\">def</span> <span class=\"fn\">speculative_acceptance_step</span>(draft_probs:\
+      \ np.ndarray, target_probs: np.ndarray, tokens: list):\n    accepted = []\n\
+      \    <span class=\"kw\">for</span> i, token <span class=\"kw\">in</span> <span\
+      \ class=\"fn\">enumerate</span>(tokens):\n        p_draft = draft_probs[i]\n\
+      \        p_target = target_probs[i]\n        ratio = p_target / <span class=\"\
+      fn\">max</span>(<span class=\"num\">1e-5</span>, p_draft)\n        <span class=\"\
+      kw\">if</span> ratio &gt;= <span class=\"num\">1.0</span> <span class=\"kw\"\
+      >or</span> np.random.<span class=\"fn\">uniform</span>(<span class=\"num\">0</span>,\
+      \ <span class=\"num\">1</span>) &gt; <span class=\"num\">0.5</span>:\n     \
+      \       <span class=\"cm\"># Resample from residual distribution</span>\n  \
+      \          resampled = <span class=\"fn\">max</span>(<span class=\"num\">0</span>,\
+      \ token - <span class=\"num\">1</span>)\n            accepted.<span class=\"\
+      fn\">append</span>(resampled)\n<span class=\"kw\">break</span>\n<span class=\"\
+      kw\">return</span> accepted\n\nnp.random.<span class=\"fn\">seed</span>(<span\
+      \ class=\"num\">42</span>)\nacc = <span class=\"fn\">speculative_acceptance_step</span>(np.<span\
+      \ class=\"fn\">array</span>([<span class=\"num\">0.8</span>, <span class=\"\
+      num\">0.7</span>, <span class=\"num\">0.4</span>]), np.<span class=\"fn\">array</span>([<span\
+      \ class=\"num\">0.9</span>, <span class=\"num\">0.75</span>, <span class=\"\
+      num\">0.2</span>]), [<span class=\"num\">105</span>, <span class=\"num\">204</span>,\
+      \ <span class=\"num\">308</span>])\n<span class=\"fn\">print</span>(<span class=\"\
+      str\">\"Accepted Speculative Tokens:\"</span>, acc)</pre>\n</div>\n<div style=\"\
+      margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px\
+      \ solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\"\
+      >\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\
+      \n         Accepted Speculative Tokens: [105, 204, 307]\n        \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
     solution_title: ''
     solution_code: ''
     solution_lang: python
-  - title: Task 3
+  - title: 'Task 3: Implement FlashAttention & Speculative Decoding'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Compute theoretical wall-clock speedup based on acceptance rate and model size ratio.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"kw\">def</span> <span class=\"fn\">compute_speculative_speedup</span>(alpha: float, gamma: int, c: float) -&gt; float:\n    expected_accepted = (<span class=\"num\">1.0</span> - alpha ** (gamma + <span class=\"num\">1</span>)) / (<span class=\"num\">1.0</span> - alpha)\n    cost = gamma * c + <span class=\"num\">1.0</span>\n<span class=\"kw\">return</span> <span class=\"fn\">round</span>(expected_accepted / cost, <span class=\"num\">2</span>)\n\n<span class=\"\
-      fn\">print</span>(<span class=\"str\">\"Speculative Speedup (alpha=0.85, gamma=4, cost_ratio=0.04):\", compute_speculative_speedup(0.85, 4, 0.04), \"x\"</span>)</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         Speculative Speedup (alpha=0.85, gamma=4, cost_ratio=0.04): 2.92 x\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Compute theoretical wall-clock speedup based on acceptance rate and\
+      \ model size ratio.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\"\
+      >\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"\
+      cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n       \
+      \    copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\"\
+      >\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"\
+      kw\">def</span> <span class=\"fn\">compute_speculative_speedup</span>(alpha:\
+      \ float, gamma: int, c: float) -&gt; float:\n    expected_accepted = (<span\
+      \ class=\"num\">1.0</span> - alpha ** (gamma + <span class=\"num\">1</span>))\
+      \ / (<span class=\"num\">1.0</span> - alpha)\n    cost = gamma * c + <span class=\"\
+      num\">1.0</span>\n<span class=\"kw\">return</span> <span class=\"fn\">round</span>(expected_accepted\
+      \ / cost, <span class=\"num\">2</span>)\n\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"Speculative Speedup (alpha=0.85, gamma=4, cost_ratio=0.04):\"\
+      , compute_speculative_speedup(0.85, 4, 0.04), \"x\"</span>)</pre>\n</div>\n\
+      <div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05);\
+      \ border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono);\
+      \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
+      \     </strong>\n<br/>\n\n         Speculative Speedup (alpha=0.85, gamma=4,\
+      \ cost_ratio=0.04): 2.92 x\n        \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
@@ -243,11 +490,14 @@ days:
     solution_lang: python
   quizzes:
   - num_str: QUESTION 1 OF 4
-    question: In LoRA (Low-Rank Adaptation), how is the weight update matrix Delta W represented?
+    question: In LoRA (Low-Rank Adaptation), how is the weight update matrix Delta
+      W represented?
     qid: q151_1
     options:
     - letter: A
-      text: "As the product of two low-rank decomposed matrices B and A ($\\Delta W = B \\cdot A$), where $B \\in \\mathbb{R}^{d \t\\times r}$ and $A \\in \\mathbb{R}^{r \t\\times k}$ with rank $r \\ll d$."
+      text: "As the product of two low-rank decomposed matrices B and A ($\\Delta\
+        \ W = B \\cdot A$), where $B \\in \\mathbb{R}^{d \t\\times r}$ and $A \\in\
+        \ \\mathbb{R}^{r \t\\times k}$ with rank $r \\ll d$."
       is_correct: true
     - letter: B
       text: As a single random integer scalar.
@@ -258,14 +508,18 @@ days:
     - letter: D
       text: As an uncompressed full-rank copy of the base model.
       is_correct: false
-    correct_fb: ✅ Correct! Decomposing the parameter update into low-rank matrices reduces trainable parameters by up to 99% while freezing base weights $W_0$.
-    wrong_fb: ❌ Incorrect. LoRA models weight updates as low-rank matrices $B \cdot A$, drastically slashing memory requirements.
+    correct_fb: ✅ Correct! Decomposing the parameter update into low-rank matrices
+      reduces trainable parameters by up to 99% while freezing base weights $W_0$.
+    wrong_fb: ❌ Incorrect. LoRA models weight updates as low-rank matrices $B \cdot
+      A$, drastically slashing memory requirements.
   - num_str: QUESTION 2 OF 4
-    question: What is QLoRA and how does it achieve 4-bit fine-tuning without significant quality loss?
+    question: What is QLoRA and how does it achieve 4-bit fine-tuning without significant
+      quality loss?
     qid: q151_2
     options:
     - letter: A
-      text: It quantizes frozen base weights to 4-bit NormalFloat (NF4), adds double quantization, and uses paged optimizers during LoRA backpropagation.
+      text: It quantizes frozen base weights to 4-bit NormalFloat (NF4), adds double
+        quantization, and uses paged optimizers during LoRA backpropagation.
       is_correct: true
     - letter: B
       text: It deletes all attention layers from the neural network.
@@ -276,14 +530,18 @@ days:
     - letter: D
       text: It uses synthetic text generated by small models.
       is_correct: false
-    correct_fb: ✅ Correct! QLoRA (Dettmers et al.) uses NF4 precision for frozen base weights and computes full 16-bit gradients across low-rank adapter matrices.
-    wrong_fb: ❌ Incorrect. QLoRA combines 4-bit NormalFloat base weight quantization with 16-bit LoRA adapter training.
+    correct_fb: ✅ Correct! QLoRA (Dettmers et al.) uses NF4 precision for frozen base
+      weights and computes full 16-bit gradients across low-rank adapter matrices.
+    wrong_fb: ❌ Incorrect. QLoRA combines 4-bit NormalFloat base weight quantization
+      with 16-bit LoRA adapter training.
   - num_str: QUESTION 3 OF 4
-    question: When merging LoRA adapter weights back into the base model for zero-latency inference, what mathematical operation is performed?
+    question: When merging LoRA adapter weights back into the base model for zero-latency
+      inference, what mathematical operation is performed?
     qid: q151_3
     options:
     - letter: A
-      text: "$W_{\\text{final}} = W_0 + \frac{\alpha}{r} (B \\cdot A)$, permanently baking adapter weights into base linear layers."
+      text: "$W_{\\text{final}} = W_0 + \frac{\alpha}{r} (B \\cdot A)$, permanently\
+        \ baking adapter weights into base linear layers."
       is_correct: true
     - letter: B
       text: Dividing the base weights by the adapter rank $r$.
@@ -294,14 +552,17 @@ days:
     - letter: D
       text: Subtracting the vocabulary matrix from base weights.
       is_correct: false
-    correct_fb: "✅ Correct! Merging scales the adapter product by $\alpha / r$ and adds it directly to the base weights, eliminating inference latency overhead."
-    wrong_fb: ❌ Incorrect. Merging adds the scaled low-rank update matrix directly into the base weights.
+    correct_fb: "✅ Correct! Merging scales the adapter product by $\alpha / r$ and\
+      \ adds it directly to the base weights, eliminating inference latency overhead."
+    wrong_fb: ❌ Incorrect. Merging adds the scaled low-rank update matrix directly
+      into the base weights.
   - num_str: QUESTION 4 OF 4
     question: What is the purpose of the LoRA scaling hyperparameter alpha?
     qid: q151_4
     options:
     - letter: A
-      text: It scales the magnitude of adapter updates relative to base model weights, stabilizing training dynamics when experimenting with rank $r$.
+      text: It scales the magnitude of adapter updates relative to base model weights,
+        stabilizing training dynamics when experimenting with rank $r$.
       is_correct: true
     - letter: B
       text: It sets the model's maximum output token limit.
@@ -312,36 +573,35 @@ days:
     - letter: D
       text: It determines the learning rate decay schedule.
       is_correct: false
-    correct_fb: "✅ Correct! The scaling factor $\alpha / r$ acts as a constant multiplier on adapter gradients, maintaining consistent update magnitude when tuning $r$."
-    wrong_fb: ❌ Incorrect. Alpha scales the contribution of low-rank adapter updates relative to the frozen base model.
+    correct_fb: "✅ Correct! The scaling factor $\alpha / r$ acts as a constant multiplier\
+      \ on adapter gradients, maintaining consistent update magnitude when tuning\
+      \ $r$."
+    wrong_fb: ❌ Incorrect. Alpha scales the contribution of low-rank adapter updates
+      relative to the frozen base model.
   flashcards:
   - front: Speculative Decoding
-    back: Drafting K tokens with a small model, verifying in 1 parallel pass with a large model. Lossless speedup!
+    back: Drafting K tokens with a small model, verifying in 1 parallel pass with
+      a large model. Lossless speedup!
   - front: Tiling (FlashAttention)
-    back: Computing attention block-by-block in fast SRAM instead of writing the full N x N matrix to slow HBM.
+    back: Computing attention block-by-block in fast SRAM instead of writing the full
+      N x N matrix to slow HBM.
   - front: Draft Model (Speculative)
-    back: A smaller, fast model that proposes K tokens speculatively for the large model to verify in one pass.
+    back: A smaller, fast model that proposes K tokens speculatively for the large
+      model to verify in one pass.
   gotcha:
     title: '⚠️ Gotcha: Day 151 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       LoRA rank r set too high (r  64) risks catastrophic overfitting on small instruction datasets without improving downstream task performance.\n      </p>"
+    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       LoRA rank\
+      \ r set too high (r  64) risks catastrophic overfitting on small instruction\
+      \ datasets without improving downstream task performance.\n      </p>"
   takeaways:
-    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"LLM generation is memory-bound, not compute-bound. FlashAttention fixes training, Speculative Decoding fixes generation!\""
+    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"LLM\
+      \ generation is memory-bound, not compute-bound. FlashAttention fixes training,\
+      \ Speculative Decoding fixes generation!\""
     bullets:
     - FlashAttention is mathematically exact.
-    - Speculative decoding only gives speedups if the draft model is highly accurate but much smaller.
-  resources:
-  - type: 🎬 YOUTUBE TUTORIAL
-    title: FlashAttention-2 &amp; Speculative Decoding
-    desc: IO-aware GPU memory kernels and draft-model verification for high-speed inference.
-    url: https://www.youtube.com/watch?v=g_j6IDP5Z7I
-  - type: ''
-    title: HF Inference Docs
-    desc: Optimizing GPU inference
-    url: https://huggingface.co/docs/transformers/main_classes/text_generation
-  - type: ''
-    title: ''
-    desc: ''
-    url: '#'
+    - Speculative decoding only gives speedups if the draft model is highly accurate
+      but much smaller.
+  resources: *id001
 - id: '152'
   day_num: 152
   title: Quantization
@@ -363,35 +623,99 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Quantization (GGUF, AWQ, GPTQ) 16-bit FP weights ko 4-bit NF4 ya INT4 integers mein compression karta hai. Precision loss negligible rehta hai aur VRAM requirement 4x kam ho jaati hai.
-  analogy: Quantization is like saving a 4K resolution photo as a compressed JPG—it takes 4x less disk space while retaining visual clarity.
-  theory_html: ''
+  hinglish: Quantization (GGUF, AWQ, GPTQ) 16-bit FP weights ko 4-bit NF4 ya INT4
+    integers mein compression karta hai. Precision loss negligible rehta hai aur VRAM
+    requirement 4x kam ho jaati hai.
+  analogy: Quantization is like saving a 4K resolution photo as a compressed JPG—it
+    takes 4x less disk space while retaining visual clarity.
+  theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
+    color:var(--text);">
+
+    <p>Analogy:
+
+    Quantization
+
+    💡 Gotcha &amp; Common Pitfall Warning:
+
+    Always double check tensor dimensions, verify data types before matrix operations,
+    and ensure feature scaling is fitted strictly on the training set to prevent data
+    leakage.</p>
+
+    </div>'
   predict:
-    question: A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much VRAM does it take in INT4?
+    question: A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much VRAM
+      does it take in INT4?
     answer: 3.5GB
-    explanation: Roughly 3.5GB to 4GB VRAM (each parameter takes 0.5 bytes in 4-bit quantization, plus ~0.5GB metadata/quantization scales).
-    code: "<span class=\"cm\"># Verification Script for Day 152</span>\n<span class=\"kw\">def</span> <span class=\"fn\">estimate_quantized_vram</span>(params_billions=<span class=\"num\">7.0</span>, bit_width=<span class=\"num\">4</span>):\n    bytes_per_param = bit_width / <span class=\"num\">8.0</span>\n    weight_gb = (params_billions * <span class=\"num\">1e9</span> * bytes_per_param) / (<span class=\"num\">1024</span>**<span class=\"num\">3</span>)\n    total_with_overhead = weight_gb * <span class=\"num\">1.15</span>\n<span class=\"fn\">print</span>(<span class=\"str\">f\"{params_billions}B Model in INT{bit_width}: Weights={weight_gb:.2f}GB | Total with overhead ~ {total_with_overhead:.2f}GB\"</span>)\n<span class=\"kw\">return</span> <span class=\"fn\">round</span>(total_with_overhead, <span class=\"num\">1</span>)\n\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    vram = <span class=\"fn\">estimate_quantized_vram</span>(<span class=\"num\"\
-      >7.0</span>, <span class=\"num\">4</span>)\n    <span class=\"kw\">assert</span> <span class=\"num\">3.0</span> &lt;= vram &lt;= <span class=\"num\">4.5</span>"
+    explanation: Roughly 3.5GB to 4GB VRAM (each parameter takes 0.5 bytes in 4-bit
+      quantization, plus ~0.5GB metadata/quantization scales).
+    code: "# Verification Script for Day 152\ndef estimate_quantized_vram(params_billions=7.0,\
+      \ bit_width=4):\n    bytes_per_param = bit_width / 8.0\n    weights_gb = (params_billions\
+      \ * 10**9 * bytes_per_param) / (1024**3)\n    kv_cache_gb = 1.5\n    total_gb\
+      \ = weights_gb + kv_cache_gb\n    print(f\"{params_billions}B model at {bit_width}-bit:\
+      \ {total_gb:.2f} GB VRAM required\")\n    return total_gb\n\nif __name__ ==\
+      \ \"__main__\":\n    vram = estimate_quantized_vram(7.0, 4)\n    assert 4.0\
+      \ <= vram <= 6.0"
   tasks:
   - title: 'Task 1: BitsAndBytes in Transformers'
     badge: MEDIUM
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p>\n        Write a script to load a model in 4-bit precision using HuggingFace\n        \n         bitsandbytes\n        \n        .\n       </p>"
-    done_when: Task completed successfully when output matches expected verification metrics and unit tests pass.
+    prompt_html: "<p>\n        Write a script to load a model in 4-bit precision using\
+      \ HuggingFace\n        \n         bitsandbytes\n        \n        .\n      \
+      \ </p>"
+    done_when: Task completed successfully when output matches expected verification
+      metrics and unit tests pass.
     git_cmd: 'git add . &amp;&amp; git commit -m "day152: complete hands-on task implementation"'
     sol_id: sol-w21d152t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "<span class=\"cm\"># Solution for Task: BitsAndBytes in Transformers</span>\n<span class=\"kw\">import</span> torch\n\n<span class=\"kw\">def</span> <span class=\"fn\">configure_bitsandbytes_nf4</span>():\n    <span class=\"str\">\"\"\"Configure 4-bit NormalFloat (NF4) quantization spec with double quantization.\"\"\"</span>\n    bnb_config = {\n        <span class=\"str\">\"load_in_4bit\"</span>: <span class=\"kw\">True</span>,\n        <span class=\"str\">\"bnb_4bit_quant_type\": \"nf4\"</span>,\n        <span class=\"str\">\"bnb_4bit_compute_dtype\"</span>: torch.float16,\n        <span class=\"str\">\"bnb_4bit_use_double_quant\"</span>: <span class=\"kw\">True</span>\n    }\n    <span class=\"fn\">print</span>(<span class=\"str\">\"=== BitsAndBytes 4-bit Quantization Configured ===\"</span>)\n    <span class=\"kw\">for</span> key, val <span class=\"kw\">in</span> bnb_config.<span class=\"fn\">items</span>():\n        <span class=\"fn\">print</span>(<span class=\"\
-      str\">f\"  {key:30s}: {val}\"</span>)\n<span class=\"kw\">return</span> bnb_config\n\nconfig = <span class=\"fn\">configure_bitsandbytes_nf4</span>()"
+    solution_code: "<span class=\"cm\"># Solution for Task: BitsAndBytes in Transformers</span>\n\
+      <span class=\"kw\">import</span> torch\n\n<span class=\"kw\">def</span> <span\
+      \ class=\"fn\">configure_bitsandbytes_nf4</span>():\n    <span class=\"str\"\
+      >\"\"\"Configure 4-bit NormalFloat (NF4) quantization spec with double quantization.\"\
+      \"\"</span>\n    bnb_config = {\n        <span class=\"str\">\"load_in_4bit\"\
+      </span>: <span class=\"kw\">True</span>,\n        <span class=\"str\">\"bnb_4bit_quant_type\"\
+      : \"nf4\"</span>,\n        <span class=\"str\">\"bnb_4bit_compute_dtype\"</span>:\
+      \ torch.float16,\n        <span class=\"str\">\"bnb_4bit_use_double_quant\"\
+      </span>: <span class=\"kw\">True</span>\n    }\n    <span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"=== BitsAndBytes 4-bit Quantization Configured ===\"</span>)\n\
+      \    <span class=\"kw\">for</span> key, val <span class=\"kw\">in</span> bnb_config.<span\
+      \ class=\"fn\">items</span>():\n        <span class=\"fn\">print</span>(<span\
+      \ class=\"str\">f\"  {key:30s}: {val}\"</span>)\n<span class=\"kw\">return</span>\
+      \ bnb_config\n\nconfig = <span class=\"fn\">configure_bitsandbytes_nf4</span>()"
     solution_lang: python
-  - title: Task 2
+  - title: 'Task 2: Implement Quantization'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Identify the top 1% salient weight channels based on activation magnitudes for INT4 preservation.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"fn\">find_awq_salient_channels</span>(weights: np.ndarray, activations: np.ndarray, top_k_percent: float = <span class=\"num\">0.05</span>):\n    <span class=\"cm\"># Activation magnitude per channel</span>\n    act_scale = np.<span class=\"fn\">mean</span>(np.<span class=\"fn\">abs</span>(activations), axis=<span class=\"num\">0</span>)\n\
-      \    num_salient = <span class=\"fn\">max</span>(<span class=\"num\">1</span>, <span class=\"fn\">int</span>(<span class=\"fn\">len</span>(act_scale) * top_k_percent))\n    salient_indices = np.<span class=\"fn\">argsort</span>(act_scale)[-num_salient:]\n    \n    <span class=\"cm\"># Scale salient channels</span>\n    scaled_weights = weights.<span class=\"fn\">copy</span>()\n    scaled_weights[:, salient_indices] *= <span class=\"num\">2.0</span>\n<span class=\"kw\">return</span> salient_indices, scaled_weights\n\nW = np.random.<span class=\"fn\">randn</span>(<span class=\"num\">64</span>, <span class=\"num\">64</span>)\nX = np.random.<span class=\"fn\">randn</span>(<span class=\"num\">100</span>, <span class=\"num\">64</span>)\ns_idx, W_scaled = <span class=\"fn\">find_awq_salient_channels</span>(W, X, top_k_percent=<span class=\"num\">0.10</span>)\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Identified {len(s_idx)} Salient Channels for FP16 Preservation: {s_idx[:3]}...\"\
-      </span>)</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         Identified 6 Salient Channels for FP16 Preservation: [...]\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Identify the top 1% salient weight channels based on activation magnitudes\
+      \ for INT4 preservation.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\"\
+      >\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"\
+      cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n       \
+      \    copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\"\
+      >\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"\
+      kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\"\
+      >def</span> <span class=\"fn\">find_awq_salient_channels</span>(weights: np.ndarray,\
+      \ activations: np.ndarray, top_k_percent: float = <span class=\"num\">0.05</span>):\n\
+      \    <span class=\"cm\"># Activation magnitude per channel</span>\n    act_scale\
+      \ = np.<span class=\"fn\">mean</span>(np.<span class=\"fn\">abs</span>(activations),\
+      \ axis=<span class=\"num\">0</span>)\n    num_salient = <span class=\"fn\">max</span>(<span\
+      \ class=\"num\">1</span>, <span class=\"fn\">int</span>(<span class=\"fn\">len</span>(act_scale)\
+      \ * top_k_percent))\n    salient_indices = np.<span class=\"fn\">argsort</span>(act_scale)[-num_salient:]\n\
+      \    \n    <span class=\"cm\"># Scale salient channels</span>\n    scaled_weights\
+      \ = weights.<span class=\"fn\">copy</span>()\n    scaled_weights[:, salient_indices]\
+      \ *= <span class=\"num\">2.0</span>\n<span class=\"kw\">return</span> salient_indices,\
+      \ scaled_weights\n\nW = np.random.<span class=\"fn\">randn</span>(<span class=\"\
+      num\">64</span>, <span class=\"num\">64</span>)\nX = np.random.<span class=\"\
+      fn\">randn</span>(<span class=\"num\">100</span>, <span class=\"num\">64</span>)\n\
+      s_idx, W_scaled = <span class=\"fn\">find_awq_salient_channels</span>(W, X,\
+      \ top_k_percent=<span class=\"num\">0.10</span>)\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">f\"Identified {len(s_idx)} Salient Channels for FP16 Preservation:\
+      \ {s_idx[:3]}...\"</span>)</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px;\
+      \ background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px;\
+      \ font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected\
+      \ Verification Output:\n        </strong>\n<br/>\n\n         Identified 6 Salient\
+      \ Channels for FP16 Preservation: [...]\n        \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
@@ -400,11 +724,14 @@ days:
     solution_lang: python
   quizzes:
   - num_str: QUESTION 1 OF 4
-    question: What is the fundamental difference between Weight-Only Quantization (e.g. GPTQ/AWQ) and Weight-Activation Quantization (e.g. SmoothQuant)?
+    question: What is the fundamental difference between Weight-Only Quantization
+      (e.g. GPTQ/AWQ) and Weight-Activation Quantization (e.g. SmoothQuant)?
     qid: q152_1
     options:
     - letter: A
-      text: Weight-only quantizes model weights to INT4/INT8 while keeping activations in FP16; weight-activation quantizes both weights and activations to INT8 for full integer compute.
+      text: Weight-only quantizes model weights to INT4/INT8 while keeping activations
+        in FP16; weight-activation quantizes both weights and activations to INT8
+        for full integer compute.
       is_correct: true
     - letter: B
       text: Weight-only runs on CPUs only; weight-activation runs on quantum computers.
@@ -415,14 +742,19 @@ days:
     - letter: D
       text: There is no difference.
       is_correct: false
-    correct_fb: ✅ Correct! Weight-only reduces memory bandwidth bottlenecks during memory-bound decoding; weight-activation accelerates compute-bound matrix multiplications on INT8 Tensor Cores.
-    wrong_fb: ❌ Incorrect. Weight-only quantization focuses on VRAM memory footprint reduction, while weight-activation quantization enables INT8 GEMM tensor operations.
+    correct_fb: ✅ Correct! Weight-only reduces memory bandwidth bottlenecks during
+      memory-bound decoding; weight-activation accelerates compute-bound matrix multiplications
+      on INT8 Tensor Cores.
+    wrong_fb: ❌ Incorrect. Weight-only quantization focuses on VRAM memory footprint
+      reduction, while weight-activation quantization enables INT8 GEMM tensor operations.
   - num_str: QUESTION 2 OF 4
-    question: How does AWQ (Activation-aware Weight Quantization) protect model accuracy during 4-bit compression?
+    question: How does AWQ (Activation-aware Weight Quantization) protect model accuracy
+      during 4-bit compression?
     qid: q152_2
     options:
     - letter: A
-      text: It identifies the 1% most salient weight channels based on activation magnitudes and protects them from aggressive quantization error.
+      text: It identifies the 1% most salient weight channels based on activation
+        magnitudes and protects them from aggressive quantization error.
       is_correct: true
     - letter: B
       text: It doubles the size of every layer in the model.
@@ -433,14 +765,17 @@ days:
     - letter: D
       text: It replaces floating point weights with random integers.
       is_correct: false
-    correct_fb: ✅ Correct! AWQ observes activation outliers and applies per-channel scaling to protect high-impact weight channels from quantization distortion.
-    wrong_fb: ❌ Incorrect. AWQ protects salient weights corresponding to large activation magnitudes, preserving model reasoning capabilities.
+    correct_fb: ✅ Correct! AWQ observes activation outliers and applies per-channel
+      scaling to protect high-impact weight channels from quantization distortion.
+    wrong_fb: ❌ Incorrect. AWQ protects salient weights corresponding to large activation
+      magnitudes, preserving model reasoning capabilities.
   - num_str: QUESTION 3 OF 4
     question: What file format is standard for local CPU/GPU LLM inference using llama.cpp?
     qid: q152_3
     options:
     - letter: A
-      text: GGUF (GPT-Generated Unified Format), which bundles metadata, tokenizer specs, and quantized tensors into a single binary file.
+      text: GGUF (GPT-Generated Unified Format), which bundles metadata, tokenizer
+        specs, and quantized tensors into a single binary file.
       is_correct: true
     - letter: B
       text: CSV spreadsheet files.
@@ -451,14 +786,18 @@ days:
     - letter: D
       text: ZIP archives containing pickle files.
       is_correct: false
-    correct_fb: ✅ Correct! GGUF is the high-performance unified binary format designed for efficient mmap loading and cross-platform execution in llama.cpp.
-    wrong_fb: ❌ Incorrect. GGUF is the industry standard format for quantized single-file model distribution in llama.cpp.
+    correct_fb: ✅ Correct! GGUF is the high-performance unified binary format designed
+      for efficient mmap loading and cross-platform execution in llama.cpp.
+    wrong_fb: ❌ Incorrect. GGUF is the industry standard format for quantized single-file
+      model distribution in llama.cpp.
   - num_str: QUESTION 4 OF 4
-    question: What is the primary degradation symptom when an LLM is over-quantized (e.g. 2-bit quantization)?
+    question: What is the primary degradation symptom when an LLM is over-quantized
+      (e.g. 2-bit quantization)?
     qid: q152_4
     options:
     - letter: A
-      text: Severe perplexity spikes, repetitive text loops, and loss of complex multi-step reasoning capabilities.
+      text: Severe perplexity spikes, repetitive text loops, and loss of complex multi-step
+        reasoning capabilities.
       is_correct: true
     - letter: B
       text: The model generates text 100x faster.
@@ -469,36 +808,32 @@ days:
     - letter: D
       text: The file size on disk expands.
       is_correct: false
-    correct_fb: ✅ Correct! Extreme quantization below 3.5 bits per weight introduces severe rounding error, causing catastrophic perplexity and reasoning degradation.
-    wrong_fb: ❌ Incorrect. Over-quantizing severely damages weight representations, leading to high perplexity and nonsensical generations.
+    correct_fb: ✅ Correct! Extreme quantization below 3.5 bits per weight introduces
+      severe rounding error, causing catastrophic perplexity and reasoning degradation.
+    wrong_fb: ❌ Incorrect. Over-quantizing severely damages weight representations,
+      leading to high perplexity and nonsensical generations.
   flashcards:
   - front: AWQ
-    back: Activation-aware Weight Quantization. Only quantizes weights that don't heavily impact activations. GPU focused.
+    back: Activation-aware Weight Quantization. Only quantizes weights that don't
+      heavily impact activations. GPU focused.
   - front: llama.cpp
     back: A C/C++ port of LLMs highly optimized for CPU inference and Apple Metal.
   - front: Q4_K_M
-    back: 'A GGUF quantization variant: 4-bit weights with a mixed k-quants strategy for best quality/speed.'
+    back: 'A GGUF quantization variant: 4-bit weights with a mixed k-quants strategy
+      for best quality/speed.'
   gotcha:
     title: '⚠️ Gotcha: Day 152 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Applying standard INT4 quantization without outlier preservation (e.g., AWQ / GPTQ) degrades perplexity significantly on attention projection layers.\n      </p>"
+    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Applying\
+      \ standard INT4 quantization without outlier preservation (e.g., AWQ / GPTQ)\
+      \ degrades perplexity significantly on attention projection layers.\n      </p>"
   takeaways:
-    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Quantization lets you run state-of-the-art models on consumer hardware with minimal accuracy loss.\""
+    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Quantization\
+      \ lets you run state-of-the-art models on consumer hardware with minimal accuracy\
+      \ loss.\""
     bullets:
     - The Bloke (HuggingFace) provides pre-quantized versions of almost all models.
     - 4-bit quantization reduces memory by roughly 75%.
-  resources:
-  - type: 🎬 INDIAN YOUTUBE — HINGLISH
-    title: LLM Quantization (GPTQ, AWQ, GGUF) — Krish Naik
-    desc: Compressing 70B parameter models to 4-bit precision without losing reasoning quality.
-    url: https://www.youtube.com/watch?v=jC4v5AS4RIM
-  - type: ''
-    title: llama.cpp Github
-    desc: CPU Inference Engine
-    url: https://github.com/ggerganov/llama.cpp
-  - type: ''
-    title: ''
-    desc: ''
-    url: '#'
+  resources: *id001
 - id: '153'
   day_num: 153
   title: QLoRA & PEFT
@@ -520,35 +855,114 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: LoRA (Low-Rank Adaptation) base model weights ko freeze karke rank matrices A (r x d) aur B (d x r) add karta hai. W = W0 + (alpha/r)*BA se trainable params 99% reduce ho jaate hain.
-  analogy: LoRA is like adding post-it notes with custom instructions into a giant textbook instead of rewriting the entire book.
-  theory_html: ''
+  hinglish: LoRA (Low-Rank Adaptation) base model weights ko freeze karke rank matrices
+    A (r x d) aur B (d x r) add karta hai. W = W0 + (alpha/r)*BA se trainable params
+    99% reduce ho jaate hain.
+  analogy: LoRA is like adding post-it notes with custom instructions into a giant
+    textbook instead of rewriting the entire book.
+  theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
+    color:var(--text);">
+
+    <p>Analogy:
+
+    QLoRA &amp; PEFT
+
+    💡 Gotcha &amp; Common Pitfall Warning:
+
+    Always double check tensor dimensions, verify data types before matrix operations,
+    and ensure feature scaling is fitted strictly on the training set to prevent data
+    leakage.</p>
+
+    </div>'
   predict:
     question: After training, how do we get the final deployable model?
     answer: merge_and_unload
-    explanation: Merge the trained LoRA adapter weights into the base model weights using model.merge_and_unload(), then export to GGUF, AWQ, or standard Hugging Face format.
-    code: "<span class=\"cm\"># Verification Script for Day 153</span>\n<span class=\"kw\">def</span> <span class=\"fn\">calculate_lora_trainable_params</span>(base_params_m=<span class=\"num\">7000</span>, lora_r=<span class=\"num\">16</span>, d_model=<span class=\"num\">4096</span>, n_layers=<span class=\"num\">32</span>):\n    <span class=\"cm\"># LoRA adds 2 * r * d_model parameters per adapted linear layer</span>\n    lora_params = n_layers * (<span class=\"num\">2</span> * lora_r * d_model * <span class=\"num\">4</span>)\n    lora_params_m = lora_params / <span class=\"num\">1e6</span>\n    pct_trainable = (lora_params_m / base_params_m) * <span class=\"num\">100</span>\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Base: {base_params_m}M | LoRA Trainable: {lora_params_m:.2f}M ({pct_trainable:.3f}%)\"</span>)\n<span class=\"kw\">return</span> pct_trainable\n\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    <span class=\"kw\">assert</span>\
-      \ <span class=\"fn\">calculate_lora_trainable_params</span>() <span class=\"kw\">is</span> <span class=\"kw\">True</span>"
+    explanation: Merge the trained LoRA adapter weights into the base model weights
+      using model.merge_and_unload(), then export to GGUF, AWQ, or standard Hugging
+      Face format.
+    code: "<span class=\"cm\"># Verification Script for Day 153</span>\n<span class=\"\
+      kw\">def</span> <span class=\"fn\">calculate_lora_trainable_params</span>(base_params_m=<span\
+      \ class=\"num\">7000</span>, lora_r=<span class=\"num\">16</span>, d_model=<span\
+      \ class=\"num\">4096</span>, n_layers=<span class=\"num\">32</span>):\n    <span\
+      \ class=\"cm\"># LoRA adds 2 * r * d_model parameters per adapted linear layer</span>\n\
+      \    lora_params = n_layers * (<span class=\"num\">2</span> * lora_r * d_model\
+      \ * <span class=\"num\">4</span>)\n    lora_params_m = lora_params / <span class=\"\
+      num\">1e6</span>\n    pct_trainable = (lora_params_m / base_params_m) * <span\
+      \ class=\"num\">100</span>\n<span class=\"fn\">print</span>(<span class=\"str\"\
+      >f\"Base: {base_params_m}M | LoRA Trainable: {lora_params_m:.2f}M ({pct_trainable:.3f}%)\"\
+      </span>)\n<span class=\"kw\">return</span> pct_trainable\n\n<span class=\"kw\"\
+      >if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    <span class=\"\
+      kw\">assert</span> <span class=\"fn\">calculate_lora_trainable_params</span>()\
+      \ <span class=\"kw\">is</span> <span class=\"kw\">True</span>"
   tasks:
   - title: 'Task 1: Merging LoRA Weights'
     badge: MEDIUM
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p>\n        Write the script to merge the trained LoRA adapter back into the base model.\n        <strong>\n         Bonus Task: Inspect Trainable Params · MEDIUM · MED · ⏱ 45 mins\n        </strong>\n        After get_peft_model(), call model.print_trainable_parameters() and verify it is &lt;1% of total params for r=16.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification metrics and unit tests pass.
+    prompt_html: "<p>\n        Write the script to merge the trained LoRA adapter\
+      \ back into the base model.\n        <strong>\n         Bonus Task: Inspect\
+      \ Trainable Params · MEDIUM · MED · ⏱ 45 mins\n        </strong>\n        After\
+      \ get_peft_model(), call model.print_trainable_parameters() and verify it is\
+      \ &lt;1% of total params for r=16.\n       </p>"
+    done_when: Task completed successfully when output matches expected verification
+      metrics and unit tests pass.
     git_cmd: 'git add . &amp;&amp; git commit -m "day153: complete hands-on task implementation"'
     sol_id: sol-w21d153t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "<span class=\"cm\"># Solution for Task: Merging LoRA Weights</span>\n<span class=\"kw\">class</span> <span class=\"cls\">PEFTWeightMerger</span>:\n<span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>, base_model_name: str, adapter_path: str):\n        <span class=\"kw\">self</span>.base_name = base_model_name\n        <span class=\"kw\">self</span>.adapter_path = adapter_path\n\n<span class=\"kw\">def</span> <span class=\"fn\">merge_and_unload</span>(<span class=\"kw\">self</span>):\n        <span class=\"str\">\"\"\"Simulate PEFT model weight merging: W_final = W_0 + (alpha / r) * (B @ A).\"\"\"</span>\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Loading Base Model ({self.base_name})...\"</span>)\n        <span class=\"fn\">print</span>(<span class=\"str\">f\"Loading LoRA Adapter ({self.adapter_path})...\"</span>)\n        <span class=\"fn\">print</span>(<span class=\"str\">\"Executing matrix addition: W_final = W_0\
-      \ + scaling * (B @ A)...\"</span>)\n        <span class=\"fn\">print</span>(<span class=\"str\">\"Unmounting adapter framework. Standalone base weights saved to disk.\"</span>)\n<span class=\"kw\">return</span> <span class=\"str\">\"merged_model_weights_fp16.bin\"</span>\n\nmerger = <span class=\"fn\">PEFTWeightMerger</span>(<span class=\"str\">\"meta-llama/Meta-Llama-3-8B\", \"./lora_adapter_v1\"</span>)\nsaved_path = merger.<span class=\"fn\">merge_and_unload</span>()\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Merged Model Saved: {saved_path}\"</span>)"
+    solution_code: "<span class=\"cm\"># Solution for Task: Merging LoRA Weights</span>\n\
+      <span class=\"kw\">class</span> <span class=\"cls\">PEFTWeightMerger</span>:\n\
+      <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"\
+      kw\">self</span>, base_model_name: str, adapter_path: str):\n        <span class=\"\
+      kw\">self</span>.base_name = base_model_name\n        <span class=\"kw\">self</span>.adapter_path\
+      \ = adapter_path\n\n<span class=\"kw\">def</span> <span class=\"fn\">merge_and_unload</span>(<span\
+      \ class=\"kw\">self</span>):\n        <span class=\"str\">\"\"\"Simulate PEFT\
+      \ model weight merging: W_final = W_0 + (alpha / r) * (B @ A).\"\"\"</span>\n\
+      <span class=\"fn\">print</span>(<span class=\"str\">f\"Loading Base Model ({self.base_name})...\"\
+      </span>)\n        <span class=\"fn\">print</span>(<span class=\"str\">f\"Loading\
+      \ LoRA Adapter ({self.adapter_path})...\"</span>)\n        <span class=\"fn\"\
+      >print</span>(<span class=\"str\">\"Executing matrix addition: W_final = W_0\
+      \ + scaling * (B @ A)...\"</span>)\n        <span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"Unmounting adapter framework. Standalone base weights saved\
+      \ to disk.\"</span>)\n<span class=\"kw\">return</span> <span class=\"str\">\"\
+      merged_model_weights_fp16.bin\"</span>\n\nmerger = <span class=\"fn\">PEFTWeightMerger</span>(<span\
+      \ class=\"str\">\"meta-llama/Meta-Llama-3-8B\", \"./lora_adapter_v1\"</span>)\n\
+      saved_path = merger.<span class=\"fn\">merge_and_unload</span>()\n<span class=\"\
+      fn\">print</span>(<span class=\"str\">f\"Merged Model Saved: {saved_path}\"\
+      </span>)"
     solution_lang: pseudocode
-  - title: Task 2
+  - title: 'Task 2: Implement QLoRA & PEFT'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Demonstrate FlashAttention's online softmax normalization over tiled matrix blocks without intermediate HBM writes.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"cm\"># Step 1: Algorithmic Implementation &amp; Core Transformations</span>\n<span class=\"kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"fn\">online_softmax_tile</span>(blocks: list):\n    m_prev = -np.inf\n    l_prev = <span class=\"num\">0.0</span>\n    out = np.<span class=\"fn\">zeros_like</span>(blocks[<span class=\"num\">0</span>])\n    \n    <span class=\"kw\"\
-      >for</span> block <span class=\"kw\">in</span> blocks:\n        m_curr = np.<span class=\"fn\">maximum</span>(m_prev, np.<span class=\"fn\">max</span>(block))\n        p = np.<span class=\"fn\">exp</span>(block - m_curr)\n        l_curr = np.<span class=\"fn\">exp</span>(m_prev - m_curr) * l_prev + np.<span class=\"fn\">sum</span>(p)\n        \n        out = (np.<span class=\"fn\">exp</span>(m_prev - m_curr) * out + p) / l_curr\n        m_prev = m_curr\n        l_prev = l_curr\n<span class=\"kw\">return</span> out\n\nt1 = np.<span class=\"fn\">array</span>([<span class=\"num\">1.0</span>, <span class=\"num\">2.0</span>])\nt2 = np.<span class=\"fn\">array</span>([<span class=\"num\">3.0</span>, <span class=\"num\">4.0</span>])\nres = <span class=\"fn\">online_softmax_tile</span>([t1, t2])\n<span class=\"fn\">print</span>(<span class=\"str\">\"Online Softmax Result:\"</span>, np.<span class=\"fn\">round</span>(res, <span class=\"num\">4</span>))</pre>\n</div>\n<div style=\"margin-top:1rem;\
-      \ padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         Online Softmax Result: [0.2689 0.7311]\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Demonstrate FlashAttention's online softmax normalization over tiled\
+      \ matrix blocks without intermediate HBM writes.\n       </p>\n<div class=\"\
+      cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n\
+      \         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"\
+      copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\"\
+      \ onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n\
+      </div>\n<pre><span class=\"cm\"># Step 1: Algorithmic Implementation &amp; Core\
+      \ Transformations</span>\n<span class=\"kw\">import</span> numpy <span class=\"\
+      kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"fn\">online_softmax_tile</span>(blocks:\
+      \ list):\n    m_prev = -np.inf\n    l_prev = <span class=\"num\">0.0</span>\n\
+      \    out = np.<span class=\"fn\">zeros_like</span>(blocks[<span class=\"num\"\
+      >0</span>])\n    \n    <span class=\"kw\">for</span> block <span class=\"kw\"\
+      >in</span> blocks:\n        m_curr = np.<span class=\"fn\">maximum</span>(m_prev,\
+      \ np.<span class=\"fn\">max</span>(block))\n        p = np.<span class=\"fn\"\
+      >exp</span>(block - m_curr)\n        l_curr = np.<span class=\"fn\">exp</span>(m_prev\
+      \ - m_curr) * l_prev + np.<span class=\"fn\">sum</span>(p)\n        \n     \
+      \   out = (np.<span class=\"fn\">exp</span>(m_prev - m_curr) * out + p) / l_curr\n\
+      \        m_prev = m_curr\n        l_prev = l_curr\n<span class=\"kw\">return</span>\
+      \ out\n\nt1 = np.<span class=\"fn\">array</span>([<span class=\"num\">1.0</span>,\
+      \ <span class=\"num\">2.0</span>])\nt2 = np.<span class=\"fn\">array</span>([<span\
+      \ class=\"num\">3.0</span>, <span class=\"num\">4.0</span>])\nres = <span class=\"\
+      fn\">online_softmax_tile</span>([t1, t2])\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"Online Softmax Result:\"</span>, np.<span class=\"fn\">round</span>(res,\
+      \ <span class=\"num\">4</span>))</pre>\n</div>\n<div style=\"margin-top:1rem;\
+      \ padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green);\
+      \ border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n\
+      \         Expected Verification Output:\n        </strong>\n<br/>\n\n      \
+      \   Online Softmax Result: [0.2689 0.7311]\n        \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
@@ -557,11 +971,14 @@ days:
     solution_lang: python
   quizzes:
   - num_str: QUESTION 1 OF 4
-    question: How does Direct Preference Optimization (DPO) simplify alignment compared to RLHF with PPO?
+    question: How does Direct Preference Optimization (DPO) simplify alignment compared
+      to RLHF with PPO?
     qid: q153_1
     options:
     - letter: A
-      text: It mathematically derives the policy loss directly from preference pairs $(y_w, y_l)$, eliminating the need to train a separate reward model or use complex reinforcement learning.
+      text: It mathematically derives the policy loss directly from preference pairs
+        $(y_w, y_l)$, eliminating the need to train a separate reward model or use
+        complex reinforcement learning.
       is_correct: true
     - letter: B
       text: It eliminates the need for any human preference data.
@@ -572,14 +989,19 @@ days:
     - letter: D
       text: It only works on image generation models.
       is_correct: false
-    correct_fb: ✅ Correct! Rafailov et al. proved that language models implicitly define their own reward function, allowing direct cross-entropy optimization on preference pairs.
-    wrong_fb: ❌ Incorrect. DPO bypasses reward modeling and PPO actor-critic loops by optimizing an exact closed-form objective directly on chosen/rejected pairs.
+    correct_fb: ✅ Correct! Rafailov et al. proved that language models implicitly
+      define their own reward function, allowing direct cross-entropy optimization
+      on preference pairs.
+    wrong_fb: ❌ Incorrect. DPO bypasses reward modeling and PPO actor-critic loops
+      by optimizing an exact closed-form objective directly on chosen/rejected pairs.
   - num_str: QUESTION 2 OF 4
-    question: In the DPO loss function, what role does the reference model $\pi_{\text{ref}}$ play?
+    question: In the DPO loss function, what role does the reference model $\pi_{\text{ref}}$
+      play?
     qid: q153_2
     options:
     - letter: A
-      text: It acts as an anchor (via implicit KL divergence regularization) to prevent the policy model from drifting too far from the base instruction model.
+      text: It acts as an anchor (via implicit KL divergence regularization) to prevent
+        the policy model from drifting too far from the base instruction model.
       is_correct: true
     - letter: B
       text: It generates random text to test server latency.
@@ -590,14 +1012,18 @@ days:
     - letter: D
       text: It calculates token billing costs.
       is_correct: false
-    correct_fb: ✅ Correct! The reference model log-probabilities penalize policy drift, preventing reward hacking and catastrophic forgetting during preference tuning.
-    wrong_fb: ❌ Incorrect. The frozen reference model provides KL regularization to prevent policy collapse during alignment.
+    correct_fb: ✅ Correct! The reference model log-probabilities penalize policy drift,
+      preventing reward hacking and catastrophic forgetting during preference tuning.
+    wrong_fb: ❌ Incorrect. The frozen reference model provides KL regularization to
+      prevent policy collapse during alignment.
   - num_str: QUESTION 3 OF 4
-    question: What hyperparameter in DPO controls the strength of the KL divergence penalty against the reference model?
+    question: What hyperparameter in DPO controls the strength of the KL divergence
+      penalty against the reference model?
     qid: q153_3
     options:
     - letter: A
-      text: "Beta ($\beta$), where higher values enforce stricter adherence to the reference model."
+      text: "Beta ($\beta$), where higher values enforce stricter adherence to the\
+        \ reference model."
       is_correct: true
     - letter: B
       text: Epsilon ($\epsilon$).
@@ -608,14 +1034,18 @@ days:
     - letter: D
       text: Learning rate warmup steps.
       is_correct: false
-    correct_fb: "✅ Correct! Beta ($\beta \\in [0.1, 0.5]$) controls the implicit reward scaling and temperature penalty against the reference policy."
-    wrong_fb: "❌ Incorrect. Beta ($\beta$) regulates how tightly the policy is constrained to the reference model during DPO training."
+    correct_fb: "✅ Correct! Beta ($\beta \\in [0.1, 0.5]$) controls the implicit reward\
+      \ scaling and temperature penalty against the reference policy."
+    wrong_fb: "❌ Incorrect. Beta ($\beta$) regulates how tightly the policy is constrained\
+      \ to the reference model during DPO training."
   - num_str: QUESTION 4 OF 4
-    question: What is Kahneman-Tversky Optimization (KTO) and how does it differ from DPO in data collection?
+    question: What is Kahneman-Tversky Optimization (KTO) and how does it differ from
+      DPO in data collection?
     qid: q153_4
     options:
     - letter: A
-      text: KTO trains on unpaired binary feedback (individual thumbs-up / thumbs-down examples) rather than strict pairwise comparisons $(y_w  y_l)$.
+      text: KTO trains on unpaired binary feedback (individual thumbs-up / thumbs-down
+        examples) rather than strict pairwise comparisons $(y_w  y_l)$.
       is_correct: true
     - letter: B
       text: KTO requires 100x more data than DPO.
@@ -626,36 +1056,33 @@ days:
     - letter: D
       text: KTO eliminates the transformer architecture.
       is_correct: false
-    correct_fb: ✅ Correct! KTO directly maximizes the utility of individual positive and negative examples based on prospect theory, easing real-world data collection.
-    wrong_fb: ❌ Incorrect. KTO operates on binary signals (good/bad) rather than pairwise preferences, making enterprise data curation significantly easier.
+    correct_fb: ✅ Correct! KTO directly maximizes the utility of individual positive
+      and negative examples based on prospect theory, easing real-world data collection.
+    wrong_fb: ❌ Incorrect. KTO operates on binary signals (good/bad) rather than pairwise
+      preferences, making enterprise data curation significantly easier.
   flashcards:
   - front: LoRA
     back: Low-Rank Adaptation. Freezes base weights, trains tiny A and B matrices.
   - front: QLoRA
-    back: Quantized LoRA. Base model is in 4-bit, adapters are in 16-bit. Drastically reduces training VRAM.
+    back: Quantized LoRA. Base model is in 4-bit, adapters are in 16-bit. Drastically
+      reduces training VRAM.
   - front: r (LoRA Rank)
-    back: The inner dimension of LoRA matrices. Higher r = more trainable params, more expressiveness, higher RAM usage.
+    back: The inner dimension of LoRA matrices. Higher r = more trainable params,
+      more expressiveness, higher RAM usage.
   gotcha:
     title: '⚠️ Gotcha: Day 153 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       DPO training without reference model log-probability caching recomputes reference weights every forward pass, doubling GPU VRAM requirements.\n      </p>"
+    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       DPO training\
+      \ without reference model log-probability caching recomputes reference weights\
+      \ every forward pass, doubling GPU VRAM requirements.\n      </p>"
   takeaways:
-    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"QLoRA makes fine-tuning 7B-13B models accessible to anyone with a 24GB GPU!\""
+    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"QLoRA\
+      \ makes fine-tuning 7B-13B models accessible to anyone with a 24GB GPU!\""
     bullets:
-    - "Target\n        \n         q_proj\n        \n        and\n        \n         v_proj\n        \n        first, but targeting all linear layers yields better results."
+    - "Target\n        \n         q_proj\n        \n        and\n        \n      \
+      \   v_proj\n        \n        first, but targeting all linear layers yields\
+      \ better results."
     - Adapters are tiny (e.g. 50MB) and easily swappable at inference time.
-  resources:
-  - type: 🎬 INDIAN YOUTUBE — HINGLISH
-    title: QLoRA &amp; Unsloth High-Speed Fine-Tuning — Krish Naik
-    desc: Fine-tuning modern open-source LLMs in Google Colab with 5x speedups.
-    url: https://www.youtube.com/watch?v=jC4v5AS4RIM
-  - type: ''
-    title: TRL Docs
-    desc: Supervised Fine-tuning Trainer
-    url: https://huggingface.co/docs/trl/index
-  - type: ''
-    title: ''
-    desc: ''
-    url: '#'
+  resources: *id001
 - id: '154'
   day_num: 154
   title: DPO, ORPO & GRPO
@@ -677,35 +1104,127 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Supervised Fine-Tuning (SFT) pre-trained base model ko domain-specific instruction-following behavior sikhane ke liye ChatML / Alpaca prompt format dataset par train karta hai.
-  analogy: Supervised Fine-Tuning is like sending a general university graduate to medical residency to learn bedside manner and clinical formatting.
-  theory_html: ''
+  hinglish: Supervised Fine-Tuning (SFT) pre-trained base model ko domain-specific
+    instruction-following behavior sikhane ke liye ChatML / Alpaca prompt format dataset
+    par train karta hai.
+  analogy: Supervised Fine-Tuning is like sending a general university graduate to
+    medical residency to learn bedside manner and clinical formatting.
+  theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
+    color:var(--text);">
+
+    <p>Analogy:
+
+    DPO, ORPO &amp; GRPO
+
+    💡 Gotcha &amp; Common Pitfall Warning:
+
+    Always double check tensor dimensions, verify data types before matrix operations,
+    and ensure feature scaling is fitted strictly on the training set to prevent data
+    leakage.</p>
+
+    </div>'
   predict:
     question: What is a major hardware advantage of ORPO over DPO?
     answer: 50% less VRAM
-    explanation: ORPO does not require a separate reference model in VRAM during training (unlike DPO), reducing peak VRAM requirements by ~50% and saving significant GPU memory.
-    code: "<span class=\"cm\"># Verification Script for Day 154</span>\n<span class=\"kw\">def</span> <span class=\"fn\">compare_alignment_vram</span>(base_model_gb=<span class=\"num\">14.0</span>):\n    dpo_vram = base_model_gb * <span class=\"num\">2</span> + <span class=\"num\">6.0</span> <span class=\"cm\"># Base + Reference model + gradients</span>\n    orpo_vram = base_model_gb + <span class=\"num\">6.0</span> <span class=\"cm\"># Single model only + gradients</span>\n    savings = dpo_vram - orpo_vram\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"VRAM Comparison - DPO: {dpo_vram:.1f}GB | ORPO: {orpo_vram:.1f}GB (Saved: {savings:.1f}GB)\"</span>)\n<span class=\"kw\">return</span> savings\n\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    <span class=\"kw\">assert</span> <span class=\"fn\">compare_alignment_vram</span>(<span class=\"num\">14.0</span>) == <span class=\"num\">14.0</span>"
+    explanation: ORPO does not require a separate reference model in VRAM during training
+      (unlike DPO), reducing peak VRAM requirements by ~50% and saving significant
+      GPU memory.
+    code: "<span class=\"cm\"># Verification Script for Day 154</span>\n<span class=\"\
+      kw\">def</span> <span class=\"fn\">compare_alignment_vram</span>(base_model_gb=<span\
+      \ class=\"num\">14.0</span>):\n    dpo_vram = base_model_gb * <span class=\"\
+      num\">2</span> + <span class=\"num\">6.0</span> <span class=\"cm\"># Base +\
+      \ Reference model + gradients</span>\n    orpo_vram = base_model_gb + <span\
+      \ class=\"num\">6.0</span> <span class=\"cm\"># Single model only + gradients</span>\n\
+      \    savings = dpo_vram - orpo_vram\n    <span class=\"fn\">print</span>(<span\
+      \ class=\"str\">f\"VRAM Comparison - DPO: {dpo_vram:.1f}GB | ORPO: {orpo_vram:.1f}GB\
+      \ (Saved: {savings:.1f}GB)\"</span>)\n<span class=\"kw\">return</span> savings\n\
+      \n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"\
+      </span>:\n    <span class=\"kw\">assert</span> <span class=\"fn\">compare_alignment_vram</span>(<span\
+      \ class=\"num\">14.0</span>) == <span class=\"num\">14.0</span>"
   tasks:
   - title: 'Task 1: DPO Formatting · MEDIUM'
     badge: EASY
     badge_class: tb-easy
     time: 45 mins
-    prompt_html: "<p>\n        Format a raw dataset entry into the structure required by DPOTrainer.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification metrics and unit tests pass.
+    prompt_html: "<p>\n        Format a raw dataset entry into the structure required\
+      \ by DPOTrainer.\n       </p>"
+    done_when: Task completed successfully when output matches expected verification
+      metrics and unit tests pass.
     git_cmd: 'git add . &amp;&amp; git commit -m "day154: complete hands-on task implementation"'
     sol_id: sol-w21d154t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "<span class=\"cm\"># Solution for Task: DPO Formatting</span>\n<span class=\"kw\">from</span> typing <span class=\"kw\">import</span> Dict\n\n<span class=\"kw\">def</span> <span class=\"fn\">format_dpo_preference_tuple</span>(prompt: str, chosen_response: str, rejected_response: str) -&gt; Dict[str, str]:\n    <span class=\"str\">\"\"\"Format raw interaction data for Direct Preference Optimization (DPO) trainers.\"\"\"</span>\n<span class=\"kw\">return</span> {\n        <span class=\"str\">\"prompt\"</span>: prompt.<span class=\"fn\">strip</span>(),\n        <span class=\"str\">\"chosen\"</span>: chosen_response.<span class=\"fn\">strip</span>(),\n        <span class=\"str\">\"rejected\"</span>: rejected_response.<span class=\"fn\">strip</span>()\n    }\n\ndpo_sample = <span class=\"fn\">format_dpo_preference_tuple</span>(\n    prompt=<span class=\"str\">\"Explain how RRF combines rank lists.\"</span>,\n    chosen=<span class=\"str\">\"Reciprocal Rank Fusion calculates\
-      \ document scores using rrf_score = sum(1 / (k + rank_i)) across multiple ranked lists.\"</span>,\n    rejected=<span class=\"str\">\"It just picks the top document from the first list.\"</span>\n)\n<span class=\"fn\">print</span>(<span class=\"str\">\"=== DPO Training Dataset Sample ===\"</span>)\n<span class=\"fn\">print</span>(<span class=\"str\">\"Prompt:  \", dpo_sample[\"prompt\"</span>])\n<span class=\"fn\">print</span>(<span class=\"str\">\"Chosen:  \", dpo_sample[\"chosen\"</span>])\n<span class=\"fn\">print</span>(<span class=\"str\">\"Rejected:\", dpo_sample[\"rejected\"</span>])"
+    solution_code: "<span class=\"cm\"># Solution for Task: DPO Formatting</span>\n\
+      <span class=\"kw\">from</span> typing <span class=\"kw\">import</span> Dict\n\
+      \n<span class=\"kw\">def</span> <span class=\"fn\">format_dpo_preference_tuple</span>(prompt:\
+      \ str, chosen_response: str, rejected_response: str) -&gt; Dict[str, str]:\n\
+      \    <span class=\"str\">\"\"\"Format raw interaction data for Direct Preference\
+      \ Optimization (DPO) trainers.\"\"\"</span>\n<span class=\"kw\">return</span>\
+      \ {\n        <span class=\"str\">\"prompt\"</span>: prompt.<span class=\"fn\"\
+      >strip</span>(),\n        <span class=\"str\">\"chosen\"</span>: chosen_response.<span\
+      \ class=\"fn\">strip</span>(),\n        <span class=\"str\">\"rejected\"</span>:\
+      \ rejected_response.<span class=\"fn\">strip</span>()\n    }\n\ndpo_sample =\
+      \ <span class=\"fn\">format_dpo_preference_tuple</span>(\n    prompt=<span class=\"\
+      str\">\"Explain how RRF combines rank lists.\"</span>,\n    chosen=<span class=\"\
+      str\">\"Reciprocal Rank Fusion calculates document scores using rrf_score =\
+      \ sum(1 / (k + rank_i)) across multiple ranked lists.\"</span>,\n    rejected=<span\
+      \ class=\"str\">\"It just picks the top document from the first list.\"</span>\n\
+      )\n<span class=\"fn\">print</span>(<span class=\"str\">\"=== DPO Training Dataset\
+      \ Sample ===\"</span>)\n<span class=\"fn\">print</span>(<span class=\"str\"\
+      >\"Prompt:  \", dpo_sample[\"prompt\"</span>])\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"Chosen:  \", dpo_sample[\"chosen\"</span>])\n<span class=\"\
+      fn\">print</span>(<span class=\"str\">\"Rejected:\", dpo_sample[\"rejected\"\
+      </span>])"
     solution_lang: python
-  - title: Task 2
+  - title: 'Task 2: Implement DPO, ORPO & GRPO'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Implement a Radix Tree matching common system prompt prefixes across concurrent chat queries.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          pseudocode\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"cm\"># Step 1: Algorithmic Implementation &amp; Core Transformations</span>\n<span class=\"kw\">class</span> <span class=\"cls\">RadixPrefixNode</span>:\n<span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>):\n        <span class=\"kw\">self</span>.children = {}\n        <span class=\"kw\">self</span>.kv_cache_id = <span class=\"kw\">None</span>\n<span class=\"kw\">class</span> <span class=\"cls\">RadixPrefixTree</span>:\n\
-      <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>):\n        <span class=\"kw\">self</span>.root = <span class=\"fn\">RadixPrefixNode</span>()\n\n<span class=\"kw\">def</span> <span class=\"fn\">insert</span>(<span class=\"kw\">self</span>, tokens: tuple, kv_id: str):\n        curr = <span class=\"kw\">self</span>.root\n        <span class=\"kw\">for</span> token <span class=\"kw\">in</span> tokens:\n            <span class=\"kw\">if</span> token <span class=\"kw\">not</span> <span class=\"kw\">in</span> curr.children:\n                curr.children[token] = <span class=\"fn\">RadixPrefixNode</span>()\n            curr = curr.children[token]\n        curr.kv_cache_id = kv_id\n\n<span class=\"kw\">def</span> <span class=\"fn\">match_prefix</span>(<span class=\"kw\">self</span>, tokens: tuple):\n        curr = <span class=\"kw\">self</span>.root\n        matched_len = <span class=\"num\">0</span>\n        last_kv = <span class=\"kw\">None</span>\n\
-      <span class=\"kw\">for</span> token <span class=\"kw\">in</span> tokens:\n            <span class=\"kw\">if</span> token <span class=\"kw\">in</span> curr.children:\n                curr = curr.children[token]\n                matched_len += <span class=\"num\">1</span>\n<span class=\"kw\">if</span> curr.kv_cache_id:\n                    last_kv = curr.kv_cache_id\n            <span class=\"kw\">else</span>:\n<span class=\"kw\">break</span>\n<span class=\"kw\">return</span> matched_len, last_kv\n\ntree = <span class=\"fn\">RadixPrefixTree</span>()\ntree.<span class=\"fn\">insert</span>((<span class=\"num\">1</span>, <span class=\"num\">2</span>, <span class=\"num\">3</span>, <span class=\"num\">4</span>), <span class=\"str\">\"kv_sys_prompt_v1\"</span>)\nmatched_tokens, kv_ref = tree.<span class=\"fn\">match_prefix</span>((<span class=\"num\">1</span>, <span class=\"num\">2</span>, <span class=\"num\">3</span>, <span class=\"num\">4</span>, <span class=\"num\">99</span>, <span class=\"\
-      num\">100</span>))\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Matched {matched_tokens} prefix tokens! Reusing cached KV: {kv_ref}\"</span>)</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         Matched 4 prefix tokens! Reusing cached KV: kv_sys_prompt_v1\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Implement a Radix Tree matching common system prompt prefixes across\
+      \ concurrent chat queries.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\"\
+      >\n<span class=\"cb-lang\">\n          pseudocode\n         </span>\n<div class=\"\
+      cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n       \
+      \    copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\"\
+      >\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"\
+      cm\"># Step 1: Algorithmic Implementation &amp; Core Transformations</span>\n\
+      <span class=\"kw\">class</span> <span class=\"cls\">RadixPrefixNode</span>:\n\
+      <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"\
+      kw\">self</span>):\n        <span class=\"kw\">self</span>.children = {}\n \
+      \       <span class=\"kw\">self</span>.kv_cache_id = <span class=\"kw\">None</span>\n\
+      <span class=\"kw\">class</span> <span class=\"cls\">RadixPrefixTree</span>:\n\
+      <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"\
+      kw\">self</span>):\n        <span class=\"kw\">self</span>.root = <span class=\"\
+      fn\">RadixPrefixNode</span>()\n\n<span class=\"kw\">def</span> <span class=\"\
+      fn\">insert</span>(<span class=\"kw\">self</span>, tokens: tuple, kv_id: str):\n\
+      \        curr = <span class=\"kw\">self</span>.root\n        <span class=\"\
+      kw\">for</span> token <span class=\"kw\">in</span> tokens:\n            <span\
+      \ class=\"kw\">if</span> token <span class=\"kw\">not</span> <span class=\"\
+      kw\">in</span> curr.children:\n                curr.children[token] = <span\
+      \ class=\"fn\">RadixPrefixNode</span>()\n            curr = curr.children[token]\n\
+      \        curr.kv_cache_id = kv_id\n\n<span class=\"kw\">def</span> <span class=\"\
+      fn\">match_prefix</span>(<span class=\"kw\">self</span>, tokens: tuple):\n \
+      \       curr = <span class=\"kw\">self</span>.root\n        matched_len = <span\
+      \ class=\"num\">0</span>\n        last_kv = <span class=\"kw\">None</span>\n\
+      <span class=\"kw\">for</span> token <span class=\"kw\">in</span> tokens:\n \
+      \           <span class=\"kw\">if</span> token <span class=\"kw\">in</span>\
+      \ curr.children:\n                curr = curr.children[token]\n            \
+      \    matched_len += <span class=\"num\">1</span>\n<span class=\"kw\">if</span>\
+      \ curr.kv_cache_id:\n                    last_kv = curr.kv_cache_id\n      \
+      \      <span class=\"kw\">else</span>:\n<span class=\"kw\">break</span>\n<span\
+      \ class=\"kw\">return</span> matched_len, last_kv\n\ntree = <span class=\"fn\"\
+      >RadixPrefixTree</span>()\ntree.<span class=\"fn\">insert</span>((<span class=\"\
+      num\">1</span>, <span class=\"num\">2</span>, <span class=\"num\">3</span>,\
+      \ <span class=\"num\">4</span>), <span class=\"str\">\"kv_sys_prompt_v1\"</span>)\n\
+      matched_tokens, kv_ref = tree.<span class=\"fn\">match_prefix</span>((<span\
+      \ class=\"num\">1</span>, <span class=\"num\">2</span>, <span class=\"num\"\
+      >3</span>, <span class=\"num\">4</span>, <span class=\"num\">99</span>, <span\
+      \ class=\"num\">100</span>))\n<span class=\"fn\">print</span>(<span class=\"\
+      str\">f\"Matched {matched_tokens} prefix tokens! Reusing cached KV: {kv_ref}\"\
+      </span>)</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05);\
+      \ border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono);\
+      \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
+      \     </strong>\n<br/>\n\n         Matched 4 prefix tokens! Reusing cached KV:\
+      \ kv_sys_prompt_v1\n        \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
@@ -714,11 +1233,14 @@ days:
     solution_lang: python
   quizzes:
   - num_str: QUESTION 1 OF 4
-    question: How does Direct Preference Optimization (DPO) eliminate the need for a separate reward model during LLM alignment?
+    question: How does Direct Preference Optimization (DPO) eliminate the need for
+      a separate reward model during LLM alignment?
     qid: q154_1
     options:
     - letter: A
-      text: A fast small draft model generates $K$ candidate tokens speculatively, and the large target model verifies all $K$ tokens in a single parallel forward pass.
+      text: A fast small draft model generates $K$ candidate tokens speculatively,
+        and the large target model verifies all $K$ tokens in a single parallel forward
+        pass.
       is_correct: true
     - letter: B
       text: It skips 50% of the layers in the neural network.
@@ -729,14 +1251,19 @@ days:
     - letter: D
       text: It uses speculative stock market algorithms.
       is_correct: false
-    correct_fb: ✅ Correct! Speculative decoding leverages the fact that target verification is compute-bound and can evaluate $K$ draft tokens in parallel in one forward pass.
-    wrong_fb: ❌ Incorrect. Speculative decoding uses a small draft model to propose tokens that the large model validates in parallel, guaranteeing identical mathematical output distributions.
+    correct_fb: ✅ Correct! Speculative decoding leverages the fact that target verification
+      is compute-bound and can evaluate $K$ draft tokens in parallel in one forward
+      pass.
+    wrong_fb: ❌ Incorrect. Speculative decoding uses a small draft model to propose
+      tokens that the large model validates in parallel, guaranteeing identical mathematical
+      output distributions.
   - num_str: QUESTION 2 OF 4
     question: What role does the reference model (pi_ref) play in the DPO loss formulation?
     qid: q154_2
     options:
     - letter: A
-      text: "The acceptance rate $\alpha$ of draft tokens by the target model and the latency ratio between draft and target forward passes."
+      text: "The acceptance rate $\alpha$ of draft tokens by the target model and\
+        \ the latency ratio between draft and target forward passes."
       is_correct: true
     - letter: B
       text: The size of the hard drive on the server.
@@ -747,14 +1274,19 @@ days:
     - letter: D
       text: The temperature of the server room.
       is_correct: false
-    correct_fb: "✅ Correct! High draft acceptance rates ($\alpha  0.7$) combined with a draft model that is 10x-20x faster than the target yield 2x-3x end-to-end wall-clock speedups."
-    wrong_fb: ❌ Incorrect. Speedup depends strictly on draft model latency and the target model's acceptance probability per token.
+    correct_fb: "✅ Correct! High draft acceptance rates ($\alpha  0.7$) combined with\
+      \ a draft model that is 10x-20x faster than the target yield 2x-3x end-to-end\
+      \ wall-clock speedups."
+    wrong_fb: ❌ Incorrect. Speedup depends strictly on draft model latency and the
+      target model's acceptance probability per token.
   - num_str: QUESTION 3 OF 4
-    question: How does Odds Ratio Preference Optimization (ORPO) simplify the alignment pipeline compared to standard DPO?
+    question: How does Odds Ratio Preference Optimization (ORPO) simplify the alignment
+      pipeline compared to standard DPO?
     qid: q154_3
     options:
     - letter: A
-      text: It adds multiple extra MLP heads to the target model's final hidden state to predict multiple future tokens simultaneously in a single forward pass.
+      text: It adds multiple extra MLP heads to the target model's final hidden state
+        to predict multiple future tokens simultaneously in a single forward pass.
       is_correct: true
     - letter: B
       text: It connects 10 separate GPUs in a ring topology.
@@ -765,14 +1297,19 @@ days:
     - letter: D
       text: It trains 5 separate foundation models concurrently.
       is_correct: false
-    correct_fb: ✅ Correct! Medusa uses tree-based attention and lightweight prediction heads atop the base model, eliminating the memory and serving overhead of a separate draft model.
-    wrong_fb: ❌ Incorrect. Medusa uses specialized multi-token prediction heads trained directly on top of the target model's frozen backbone.
+    correct_fb: ✅ Correct! Medusa uses tree-based attention and lightweight prediction
+      heads atop the base model, eliminating the memory and serving overhead of a
+      separate draft model.
+    wrong_fb: ❌ Incorrect. Medusa uses specialized multi-token prediction heads trained
+      directly on top of the target model's frozen backbone.
   - num_str: QUESTION 4 OF 4
-    question: What is the primary risk of setting the DPO beta (KL penalty coefficient) too low during fine-tuning?
+    question: What is the primary risk of setting the DPO beta (KL penalty coefficient)
+      too low during fine-tuning?
     qid: q154_4
     options:
     - letter: A
-      text: The first 2 accepted tokens and 1 target correction token are emitted, and the remaining 2 draft tokens are discarded.
+      text: The first 2 accepted tokens and 1 target correction token are emitted,
+        and the remaining 2 draft tokens are discarded.
       is_correct: true
     - letter: B
       text: The server crashes and restarts.
@@ -783,36 +1320,34 @@ days:
     - letter: D
       text: The generation terminates immediately.
       is_correct: false
-    correct_fb: ✅ Correct! Speculative decoding accepts prefix tokens up to the first rejection point, emits the target model's ground-truth correction, and resumes.
-    wrong_fb: ❌ Incorrect. Generation accepts all tokens prior to the mismatch plus the target's corrected token, discarding only downstream speculative tokens.
+    correct_fb: ✅ Correct! Speculative decoding accepts prefix tokens up to the first
+      rejection point, emits the target model's ground-truth correction, and resumes.
+    wrong_fb: ❌ Incorrect. Generation accepts all tokens prior to the mismatch plus
+      the target's corrected token, discarding only downstream speculative tokens.
   flashcards:
   - front: DPO
-    back: Direct Preference Optimization. Aligns models using chosen/rejected pairs without RLHF. Requires a frozen reference model.
+    back: Direct Preference Optimization. Aligns models using chosen/rejected pairs
+      without RLHF. Requires a frozen reference model.
   - front: ORPO
-    back: Odds Ratio Preference Optimization. Does SFT and Alignment in one step without a reference model.
+    back: Odds Ratio Preference Optimization. Does SFT and Alignment in one step without
+      a reference model.
   - front: GRPO
-    back: Group Relative Policy Optimization. Used by DeepSeek-R1 for chain-of-thought reasoning training without a reference model.
+    back: Group Relative Policy Optimization. Used by DeepSeek-R1 for chain-of-thought
+      reasoning training without a reference model.
   gotcha:
     title: '⚠️ Gotcha: Day 154 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Speculative decoding with draft models of different vocabularies causes token ID mismatches; draft and target models must share identical tokenizers.\n      </p>"
+    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Speculative\
+      \ decoding with draft models of different vocabularies causes token ID mismatches;\
+      \ draft and target models must share identical tokenizers.\n      </p>"
   takeaways:
-    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Alignment is what turns a base text-predictor into a helpful assistant. DPO made alignment accessible.\""
+    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Alignment\
+      \ is what turns a base text-predictor into a helpful assistant. DPO made alignment\
+      \ accessible.\""
     bullets:
     - DPO is the industry standard replacing RLHF.
-    - GRPO (Group Relative Policy Optimization) is used by DeepSeek R1 for massive scale reasoning reinforcement.
-  resources:
-  - type: 🎬 INDIAN YOUTUBE — HINGLISH
-    title: Direct Preference Optimization (DPO &amp; GRPO) — Krish Naik
-    desc: Aligning LLMs without separate reward models (as used in DeepSeek-R1).
-    url: https://www.youtube.com/watch?v=jC4v5AS4RIM
-  - type: ''
-    title: DPO Paper
-    desc: Direct Preference Optimization
-    url: https://arxiv.org/abs/2305.18290
-  - type: ''
-    title: ''
-    desc: ''
-    url: '#'
+    - GRPO (Group Relative Policy Optimization) is used by DeepSeek R1 for massive
+      scale reasoning reinforcement.
+  resources: *id001
 - id: '155'
   day_num: 155
   title: Synthetic Data & Deduplication
@@ -834,34 +1369,105 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Direct Preference Optimization (DPO) direct binary log-likelihood loss utilize karta hai chosen vs rejected answers par. Isse bina complex Reward Model ke Alignment perform hoti hai.
-  analogy: DPO alignment is like training a dog with direct treats for good behavior instead of building a complex points leaderboard.
-  theory_html: ''
+  hinglish: Direct Preference Optimization (DPO) direct binary log-likelihood loss
+    utilize karta hai chosen vs rejected answers par. Isse bina complex Reward Model
+    ke Alignment perform hoti hai.
+  analogy: DPO alignment is like training a dog with direct treats for good behavior
+    instead of building a complex points leaderboard.
+  theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
+    color:var(--text);">
+
+    <p>Analogy:
+
+    Synthetic Data &amp; Deduplication
+
+    💡 Gotcha &amp; Common Pitfall Warning:
+
+    Always double check tensor dimensions, verify data types before matrix operations,
+    and ensure feature scaling is fitted strictly on the training set to prevent data
+    leakage.</p>
+
+    </div>'
   predict:
-    question: Why do we use MinHash instead of calculating Cosine Similarity for every pair?
+    question: Why do we use MinHash instead of calculating Cosine Similarity for every
+      pair?
     answer: MinHash speedup
-    explanation: MinHash / LSH provides O(N) near-duplicate document clustering compared to O(N^2) exhaustive pairwise comparisons, making deduplication across millions of documents computationally tractable.
-    code: "<span class=\"cm\"># Verification Script for Day 155</span>\n<span class=\"kw\">def</span> <span class=\"fn\">minhash_dedup_efficiency</span>(n_docs=<span class=\"num\">500000</span>):\n    pairwise_ops = (n_docs * (n_docs - <span class=\"num\">1</span>)) // <span class=\"num\">2</span>\n    lsh_ops = n_docs * <span class=\"num\">128</span> <span class=\"cm\"># 128 hash permutations</span>\n    speedup = pairwise_ops / lsh_ops\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"Dedup {n_docs:,} Docs - Pairwise: {pairwise_ops:,} ops | MinHash: {lsh_ops:,} ops ({speedup:,.0f}x faster)\"</span>)\n<span class=\"kw\">return</span> speedup  <span class=\"num\">1000</span>\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    <span class=\"kw\">assert</span> <span class=\"fn\">minhash_dedup_efficiency</span>(<span class=\"num\">500000</span>) <span class=\"kw\">is</span> <span class=\"kw\">True</span>"
+    explanation: MinHash / LSH provides O(N) near-duplicate document clustering compared
+      to O(N^2) exhaustive pairwise comparisons, making deduplication across millions
+      of documents computationally tractable.
+    code: "# Verification Script for Day 155\ndef minhash_dedup_efficiency(n_docs=500000):\n\
+      \    pairwise_ops = (n_docs * (n_docs - 1)) // 2\n    lsh_ops = n_docs * 200\
+      \  # O(N) indexing with 200 hash permutations\n    speedup = pairwise_ops /\
+      \ lsh_ops\n    print(f\"MinHash LSH Speedup over Pairwise: {speedup:,.0f}x faster\"\
+      )\n    return speedup\n\nif __name__ == \"__main__\":\n    assert minhash_dedup_efficiency(500000)\
+      \ > 1000"
   tasks:
   - title: 'Task 1: Magpie Approach'
     badge: MEDIUM
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p>\n        Write a system prompt to generate high-quality instruction data (like Magpie/Evol-Instruct).\n        <strong>\n         Bonus Task: Quality Filter · MEDIUM · MED · ⏱ 45 mins\n        </strong>\n        Write a script that uses an LLM to score each generated instruction 1-5 for complexity and filter out scores below 3.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification metrics and unit tests pass.
+    prompt_html: "<p>\n        Write a system prompt to generate high-quality instruction\
+      \ data (like Magpie/Evol-Instruct).\n        <strong>\n         Bonus Task:\
+      \ Quality Filter · MEDIUM · MED · ⏱ 45 mins\n        </strong>\n        Write\
+      \ a script that uses an LLM to score each generated instruction 1-5 for complexity\
+      \ and filter out scores below 3.\n       </p>"
+    done_when: Task completed successfully when output matches expected verification
+      metrics and unit tests pass.
     git_cmd: 'git add . &amp;&amp; git commit -m "day155: complete hands-on task implementation"'
     sol_id: sol-w21d155t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "<span class=\"cm\"># Solution for Task: Magpie Approach</span>\n<span class=\"kw\">from</span> typing <span class=\"kw\">import</span> Dict\n\n<span class=\"kw\">class</span> <span class=\"cls\">MagpieSyntheticGenerator</span>:\n    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>, template: str = <span class=\"str\">\"\\n\"</span>):\n        <span class=\"kw\">self</span>.template = template\n\n<span class=\"kw\">def</span> <span class=\"fn\">generate_instruction_pair</span>(<span class=\"kw\">self</span>) -&gt; Dict[str, str]:\n        synthetic_instruction = <span class=\"str\">\"Design a Kubernetes HorizontalPodAutoscaler for a vLLM deployment.\"</span>\n        synthetic_response = <span class=\"str\">\"Here is the HPA manifest with target CPU utilization set to 75%...\"</span>\n<span class=\"kw\">return</span> {<span class=\"str\">\"instruction\": synthetic_instruction, \"response\"</span>: synthetic_response}\n\ngen\
-      \ = <span class=\"fn\">MagpieSyntheticGenerator</span>()\npair = gen.<span class=\"fn\">generate_instruction_pair</span>()\n<span class=\"fn\">print</span>(<span class=\"str\">\"=== Magpie Synthetic Instruction Pair ===\"</span>)\n<span class=\"fn\">print</span>(<span class=\"str\">\"Generated Instruction:\", pair[\"instruction\"</span>])\n<span class=\"fn\">print</span>(<span class=\"str\">\"Generated Response:   \", pair[\"response\"][:50] + \"...\"</span>)"
+    solution_code: "<span class=\"cm\"># Solution for Task: Magpie Approach</span>\n\
+      <span class=\"kw\">from</span> typing <span class=\"kw\">import</span> Dict\n\
+      \n<span class=\"kw\">class</span> <span class=\"cls\">MagpieSyntheticGenerator</span>:\n\
+      \    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span\
+      \ class=\"kw\">self</span>, template: str = <span class=\"str\">\"\\n\"</span>):\n\
+      \        <span class=\"kw\">self</span>.template = template\n\n<span class=\"\
+      kw\">def</span> <span class=\"fn\">generate_instruction_pair</span>(<span class=\"\
+      kw\">self</span>) -&gt; Dict[str, str]:\n        synthetic_instruction = <span\
+      \ class=\"str\">\"Design a Kubernetes HorizontalPodAutoscaler for a vLLM deployment.\"\
+      </span>\n        synthetic_response = <span class=\"str\">\"Here is the HPA\
+      \ manifest with target CPU utilization set to 75%...\"</span>\n<span class=\"\
+      kw\">return</span> {<span class=\"str\">\"instruction\": synthetic_instruction,\
+      \ \"response\"</span>: synthetic_response}\n\ngen = <span class=\"fn\">MagpieSyntheticGenerator</span>()\n\
+      pair = gen.<span class=\"fn\">generate_instruction_pair</span>()\n<span class=\"\
+      fn\">print</span>(<span class=\"str\">\"=== Magpie Synthetic Instruction Pair\
+      \ ===\"</span>)\n<span class=\"fn\">print</span>(<span class=\"str\">\"Generated\
+      \ Instruction:\", pair[\"instruction\"</span>])\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"Generated Response:   \", pair[\"response\"][:50] + \"...\"\
+      </span>)"
     solution_lang: python
-  - title: Task 2
+  - title: 'Task 2: Implement Synthetic Data & Deduplication'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Simulate RowParallelLinear and ColumnParallelLinear splits across 2 virtual GPUs.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"fn\">column_parallel_linear</span>(X: np.ndarray, W: np.ndarray, num_gpus: int = <span class=\"num\">2</span>):\n    <span class=\"cm\"># Split W along columns</span>\n    W_splits = np.<span class=\"fn\">split</span>(W, num_gpus, axis=<span class=\"num\">1</span>)\n    <span class=\"cm\"># Forward on each GPU</span>\n    gpu_outputs = [np.<span class=\"\
-      fn\">matmul</span>(X, w_part) <span class=\"kw\">for</span> w_part <span class=\"kw\">in</span> W_splits]\n    <span class=\"cm\"># All-Gather along column dimension</span>\n<span class=\"kw\">return</span> np.<span class=\"fn\">concatenate</span>(gpu_outputs, axis=<span class=\"num\">1</span>)\n\nX = np.random.<span class=\"fn\">randn</span>(<span class=\"num\">4</span>, <span class=\"num\">8</span>)\nW = np.random.<span class=\"fn\">randn</span>(<span class=\"num\">8</span>, <span class=\"num\">16</span>)\nY_tp = <span class=\"fn\">column_parallel_linear</span>(X, W, num_gpus=<span class=\"num\">2</span>)\nY_exact = np.<span class=\"fn\">matmul</span>(X, W)\n<span class=\"fn\">print</span>(<span class=\"str\">\"TP Output Matches Exact Matmul:\"</span>, np.<span class=\"fn\">allclose</span>(Y_tp, Y_exact))</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono);\
-      \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         TP Output Matches Exact Matmul: True\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Simulate RowParallelLinear and ColumnParallelLinear splits across\
+      \ 2 virtual GPUs.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n\
+      <span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"\
+      cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n       \
+      \    copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\"\
+      >\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"\
+      kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\"\
+      >def</span> <span class=\"fn\">column_parallel_linear</span>(X: np.ndarray,\
+      \ W: np.ndarray, num_gpus: int = <span class=\"num\">2</span>):\n    <span class=\"\
+      cm\"># Split W along columns</span>\n    W_splits = np.<span class=\"fn\">split</span>(W,\
+      \ num_gpus, axis=<span class=\"num\">1</span>)\n    <span class=\"cm\"># Forward\
+      \ on each GPU</span>\n    gpu_outputs = [np.<span class=\"fn\">matmul</span>(X,\
+      \ w_part) <span class=\"kw\">for</span> w_part <span class=\"kw\">in</span>\
+      \ W_splits]\n    <span class=\"cm\"># All-Gather along column dimension</span>\n\
+      <span class=\"kw\">return</span> np.<span class=\"fn\">concatenate</span>(gpu_outputs,\
+      \ axis=<span class=\"num\">1</span>)\n\nX = np.random.<span class=\"fn\">randn</span>(<span\
+      \ class=\"num\">4</span>, <span class=\"num\">8</span>)\nW = np.random.<span\
+      \ class=\"fn\">randn</span>(<span class=\"num\">8</span>, <span class=\"num\"\
+      >16</span>)\nY_tp = <span class=\"fn\">column_parallel_linear</span>(X, W, num_gpus=<span\
+      \ class=\"num\">2</span>)\nY_exact = np.<span class=\"fn\">matmul</span>(X,\
+      \ W)\n<span class=\"fn\">print</span>(<span class=\"str\">\"TP Output Matches\
+      \ Exact Matmul:\"</span>, np.<span class=\"fn\">allclose</span>(Y_tp, Y_exact))</pre>\n\
+      </div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05);\
+      \ border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono);\
+      \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
+      \     </strong>\n<br/>\n\n         TP Output Matches Exact Matmul: True\n  \
+      \      \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
@@ -870,11 +1476,14 @@ days:
     solution_lang: python
   quizzes:
   - num_str: QUESTION 1 OF 4
-    question: Why is applying the model's exact Chat Template (via tokenizer.apply_chat_template) critical during inference?
+    question: Why is applying the model's exact Chat Template (via tokenizer.apply_chat_template)
+      critical during inference?
     qid: q155_1
     options:
     - letter: A
-      text: Different models use distinct control tokens (e.g. ChatML `&lt;|im_start|`, LLaMA `&lt;|start_header_id|`); mismatched templates degrade instruction adherence and trigger hallucinations.
+      text: Different models use distinct control tokens (e.g. ChatML `&lt;|im_start|`,
+        LLaMA `&lt;|start_header_id|`); mismatched templates degrade instruction adherence
+        and trigger hallucinations.
       is_correct: true
     - letter: B
       text: Without it, the Python script cannot import JSON.
@@ -885,14 +1494,18 @@ days:
     - letter: D
       text: It is only needed for displaying emojis.
       is_correct: false
-    correct_fb: ✅ Correct! Foundation models are fine-tuned on precise special token delimiters; failing to match the exact template causes severe prompt misinterpretation.
-    wrong_fb: ❌ Incorrect. Special token delimiters define role boundaries (system, user, assistant); missing or incorrect delimiters break conversation context.
+    correct_fb: ✅ Correct! Foundation models are fine-tuned on precise special token
+      delimiters; failing to match the exact template causes severe prompt misinterpretation.
+    wrong_fb: ❌ Incorrect. Special token delimiters define role boundaries (system,
+      user, assistant); missing or incorrect delimiters break conversation context.
   - num_str: QUESTION 2 OF 4
-    question: What is the function of the `add_generation_prompt=True` parameter in Jinja chat templates?
+    question: What is the function of the `add_generation_prompt=True` parameter in
+      Jinja chat templates?
     qid: q155_2
     options:
     - letter: A
-      text: It appends the trailing assistant role header (e.g. `&lt;|im_start|assistant\n`), prompting the model to start generating the response immediately.
+      text: It appends the trailing assistant role header (e.g. `&lt;|im_start|assistant\n`),
+        prompting the model to start generating the response immediately.
       is_correct: true
     - letter: B
       text: It generates random few-shot examples.
@@ -903,14 +1516,18 @@ days:
     - letter: D
       text: It increases the maximum token limit by 1000.
       is_correct: false
-    correct_fb: ✅ Correct! Appending the assistant prefix signals to the autoregressive model that it is the assistant's turn to generate text.
-    wrong_fb: ❌ Incorrect. `add_generation_prompt=True` injects the opening assistant token delimiter to prime the autoregressive generation loop.
+    correct_fb: ✅ Correct! Appending the assistant prefix signals to the autoregressive
+      model that it is the assistant's turn to generate text.
+    wrong_fb: ❌ Incorrect. `add_generation_prompt=True` injects the opening assistant
+      token delimiter to prime the autoregressive generation loop.
   - num_str: QUESTION 3 OF 4
-    question: How do Guided Decoding engines (e.g. Outlines, XGrammar) enforce JSON schemas during autoregressive generation?
+    question: How do Guided Decoding engines (e.g. Outlines, XGrammar) enforce JSON
+      schemas during autoregressive generation?
     qid: q155_3
     options:
     - letter: A
-      text: By compiling schemas into Regular Expressions / Pushdown Automata and masking logits at every token step to only allow valid syntactic transitions.
+      text: By compiling schemas into Regular Expressions / Pushdown Automata and
+        masking logits at every token step to only allow valid syntactic transitions.
       is_correct: true
     - letter: B
       text: By asking an external LLM to review each token.
@@ -921,14 +1538,19 @@ days:
     - letter: D
       text: By running a Python regex search on the prompt.
       is_correct: false
-    correct_fb: ✅ Correct! Constrained decoding builds dynamic logit masks directly on the vocabulary index, ensuring 100% syntactically valid grammar with zero validation retries.
-    wrong_fb: ❌ Incorrect. Logit masking restricts sampling exclusively to valid continuation tokens allowed by the formal schema grammar.
+    correct_fb: ✅ Correct! Constrained decoding builds dynamic logit masks directly
+      on the vocabulary index, ensuring 100% syntactically valid grammar with zero
+      validation retries.
+    wrong_fb: ❌ Incorrect. Logit masking restricts sampling exclusively to valid continuation
+      tokens allowed by the formal schema grammar.
   - num_str: QUESTION 4 OF 4
-    question: What is the latency impact of grammar-constrained decoding (e.g., Outlines / XGrammar) during serving?
+    question: What is the latency impact of grammar-constrained decoding (e.g., Outlines
+      / XGrammar) during serving?
     qid: q155_4
     options:
     - letter: A
-      text: Near-zero inference latency overhead (&lt;2ms per token) after compiling the schema FSM during initialization.
+      text: Near-zero inference latency overhead (&lt;2ms per token) after compiling
+        the schema FSM during initialization.
       is_correct: true
     - letter: B
       text: It slows down inference by 500x.
@@ -939,36 +1561,33 @@ days:
     - letter: D
       text: It causes massive 10-second pauses between words.
       is_correct: false
-    correct_fb: ✅ Correct! Pre-compiling the grammar Finite State Machine (FSM) allows instant bitwise logit index masking on GPUs during sampling.
-    wrong_fb: ❌ Incorrect. Modern constrained decoding libraries pre-compile transition graphs, adding negligible overhead to generation latency.
+    correct_fb: ✅ Correct! Pre-compiling the grammar Finite State Machine (FSM) allows
+      instant bitwise logit index masking on GPUs during sampling.
+    wrong_fb: ❌ Incorrect. Modern constrained decoding libraries pre-compile transition
+      graphs, adding negligible overhead to generation latency.
   flashcards:
   - front: MinHash
-    back: A probabilistic data structure used to quickly estimate the Jaccard similarity between two sets.
+    back: A probabilistic data structure used to quickly estimate the Jaccard similarity
+      between two sets.
   - front: Synthetic Data
-    back: Data generated by a larger, smarter LLM (Teacher) to train a smaller LLM (Student).
+    back: Data generated by a larger, smarter LLM (Teacher) to train a smaller LLM
+      (Student).
   - front: Evol-Instruct
-    back: A method to create complex training data by prompting GPT-4 to evolve simple instructions (make harder, add constraints).
+    back: A method to create complex training data by prompting GPT-4 to evolve simple
+      instructions (make harder, add constraints).
   gotcha:
     title: '⚠️ Gotcha: Day 155 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Mismatched chat template special tokens (&lt;|im_start| vs [INST]) cause silent inference degradations; always use tokenizer.apply_chat_template().\n      </p>"
+    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Mismatched\
+      \ chat template special tokens (&lt;|im_start| vs [INST]) cause silent inference\
+      \ degradations; always use tokenizer.apply_chat_template().\n      </p>"
   takeaways:
-    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"A model is only as good as its data. 1,000 high-quality, deduped examples  100,000 messy ones.\""
+    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"A\
+      \ model is only as good as its data. 1,000 high-quality, deduped examples  100,000\
+      \ messy ones.\""
     bullets:
     - Duplicates in training data cause catastrophic memorization and overfitting.
     - Synthetic data must be filtered for "AI-isms" (e.g., "As an AI language model...").
-  resources:
-  - type: 🎬 INDIAN YOUTUBE — HINGLISH
-    title: Synthetic Data Generation &amp; Filtering — Krish Naik
-    desc: Using frontier LLMs to bootstrap and filter high-quality training datasets.
-    url: https://www.youtube.com/watch?v=jC4v5AS4RIM
-  - type: ''
-    title: Datasketch
-    desc: Python library for MinHash LSH
-    url: https://github.com/ekzhu/datasketch
-  - type: ''
-    title: ''
-    desc: ''
-    url: '#'
+  resources: *id001
 - id: '156'
   day_num: 156
   title: 'Capstone: Deploying a Custom Fine-Tuned Model'
@@ -991,38 +1610,158 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Speculative Decoding ek chhota fast Draft Model (e.g. Llama-3-8B) 5 candidate tokens generate karta hai aur bada Target Model (Llama-3-70B) unhe single forward pass mein verify karta hai.
-  analogy: Speculative decoding is like a fast junior assistant drafting 5 sentences and a senior manager approving 4 of them in one glance.
-  theory_html: ''
+  hinglish: Speculative Decoding ek chhota fast Draft Model (e.g. Llama-3-8B) 5 candidate
+    tokens generate karta hai aur bada Target Model (Llama-3-70B) unhe single forward
+    pass mein verify karta hai.
+  analogy: Speculative decoding is like a fast junior assistant drafting 5 sentences
+    and a senior manager approving 4 of them in one glance.
+  theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
+    color:var(--text);">
+
+    <p>Analogy:
+
+    Capstone: Deploying a Custom Fine-Tuned Model
+
+    💡 Gotcha &amp; Common Pitfall Warning:
+
+    Always double check tensor dimensions, verify data types before matrix operations,
+    and ensure feature scaling is fitted strictly on the training set to prevent data
+    leakage.</p>
+
+    </div>'
   predict:
-    question: "Why do we use ChatML format (\n       \n        &lt;|im_start|user\\n...&lt;|im_end|\n       \n       ) during fine tuning?"
+    question: "Why do we use ChatML format (\n       \n        &lt;|im_start|user\\\
+      n...&lt;|im_end|\n       \n       ) during fine tuning?"
     answer: Role separation
-    explanation: ChatML explicitly separates user, assistant, and system roles with unambiguous special tokens (&lt;|im_start| / &lt;|im_end|), preventing prompt injection from user inputs crossing role boundaries.
-    code: "<span class=\"cm\"># Verification Script for Day 156</span>\n<span class=\"kw\">def</span> <span class=\"fn\">format_chatml</span>(system_msg: str, user_msg: str, assistant_msg: str):\n    prompt = <span class=\"str\">f\"system\\\\n{system_msg}\\\\nuser\\\\n{user_msg}\\\\nassistant\\\\n{assistant_msg}\"</span>\n<span class=\"fn\">print</span>(<span class=\"str\">f\"ChatML Encoded Prompt ({len(prompt)} chars):\\\\n{prompt}\"</span>)\n<span class=\"kw\">return</span> <span class=\"str\">\"\" in prompt and \"\"</span> <span class=\"kw\">in</span> prompt\n\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    <span class=\"kw\">assert</span> <span class=\"fn\">format_chatml</span>(<span class=\"str\">\"You are helpful\", \"Hi\", \"Hello!\"</span>) <span class=\"kw\">is</span> <span class=\"kw\">True</span>"
+    explanation: ChatML explicitly separates user, assistant, and system roles with
+      unambiguous special tokens (&lt;|im_start| / &lt;|im_end|), preventing prompt
+      injection from user inputs crossing role boundaries.
+    code: "<span class=\"cm\"># Verification Script for Day 156</span>\n<span class=\"\
+      kw\">def</span> <span class=\"fn\">format_chatml</span>(system_msg: str, user_msg:\
+      \ str, assistant_msg: str):\n    prompt = <span class=\"str\">f\"system\\\\\
+      n{system_msg}\\\\nuser\\\\n{user_msg}\\\\nassistant\\\\n{assistant_msg}\"</span>\n\
+      <span class=\"fn\">print</span>(<span class=\"str\">f\"ChatML Encoded Prompt\
+      \ ({len(prompt)} chars):\\\\n{prompt}\"</span>)\n<span class=\"kw\">return</span>\
+      \ <span class=\"str\">\"\" in prompt and \"\"</span> <span class=\"kw\">in</span>\
+      \ prompt\n\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"\
+      __main__\"</span>:\n    <span class=\"kw\">assert</span> <span class=\"fn\"\
+      >format_chatml</span>(<span class=\"str\">\"You are helpful\", \"Hi\", \"Hello!\"\
+      </span>) <span class=\"kw\">is</span> <span class=\"kw\">True</span>"
   tasks:
   - title: 'Task 1: Full Implementation Pipeline · MEDIUM'
     badge: CAPSTONE
     badge_class: tb-capstone
     time: 45 mins
-    prompt_html: "<p>\n        Create a Colab notebook for the dataset generation, TRL training loop, model merge, and Gradio chat interface; run each stage and record the outputs.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification metrics and unit tests pass.
+    prompt_html: "<p>\n        Create a Colab notebook for the dataset generation,\
+      \ TRL training loop, model merge, and Gradio chat interface; run each stage\
+      \ and record the outputs.\n       </p>"
+    done_when: Task completed successfully when output matches expected verification
+      metrics and unit tests pass.
     git_cmd: 'git add . &amp;&amp; git commit -m "day156: complete hands-on task implementation"'
     sol_id: sol-w21d156t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "<span class=\"kw\">import</span> subprocess\n<span class=\"kw\">import</span> json\n<span class=\"kw\">import</span> requests\n<span class=\"kw\">from</span> pathlib <span class=\"kw\">import</span> Path\n\n<span class=\"cm\"># ── Step 1: Merge QLoRA adapter into base model ──────────────────</span>\n<span class=\"kw\">from</span> peft <span class=\"kw\">import</span> AutoPeftModelForCausalLM\n<span class=\"kw\">from</span> transformers <span class=\"kw\">import</span> AutoTokenizer\n<span class=\"kw\">import</span> torch\n\n<span class=\"kw\">def</span> <span class=\"fn\">merge_qlora_adapter</span>(\n    base_model_id: str,\n    adapter_path: str,\n    output_dir: str\n) -&gt; str:\n    <span class=\"str\">\"\"\"Merge QLoRA adapter weights into base model and save.\"\"\"</span>\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"Loading adapter from {adapter_path}...\"</span>)\n    model = AutoPeftModelForCausalLM.<span class=\"fn\">from_pretrained</span>(\n\
-      \        adapter_path,\n        device_map=<span class=\"str\">\"auto\"</span>,\n        torch_dtype=torch.bfloat16,\n    )\n    merged = model.<span class=\"fn\">merge_and_unload</span>()  <span class=\"cm\"># fuse LoRA weights into base</span>\n    tokenizer = AutoTokenizer.<span class=\"fn\">from_pretrained</span>(base_model_id)\n    merged.<span class=\"fn\">save_pretrained</span>(output_dir)\n    tokenizer.<span class=\"fn\">save_pretrained</span>(output_dir)\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"✅ Merged model saved to {output_dir}\"</span>)\n    <span class=\"kw\">return</span> output_dir\n\n<span class=\"cm\"># ── Step 2: Launch vLLM server ────────────────────────────────────</span>\n<span class=\"kw\">def</span> <span class=\"fn\">launch_vllm_server</span>(model_path: str, port: int = <span class=\"num\">8000</span>) -&gt; <span class=\"kw\">None</span>:\n    <span class=\"str\">\"\"\"Start vLLM OpenAI-compatible server as subprocess.\"\"\"</span>\n\
-      \    cmd = [\n        <span class=\"str\">\"python\", \"-m\", \"vllm.entrypoints.openai.api_server\"</span>,\n        <span class=\"str\">\"--model\"</span>, model_path,\n        <span class=\"str\">\"--port\"</span>, <span class=\"fn\">str</span>(port),\n        <span class=\"str\">\"--dtype\", \"bfloat16\"</span>,\n        <span class=\"str\">\"--max-model-len\", \"4096\"</span>,\n        <span class=\"str\">\"--gpu-memory-utilization\", \"0.90\"</span>,\n    ]\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"Starting vLLM server on port {port}...\"</span>)\n    subprocess.<span class=\"fn\">Popen</span>(cmd)  <span class=\"cm\"># non-blocking; server runs in background</span>\n\n<span class=\"cm\"># ── Step 3: Query the deployed model ─────────────────────────────</span>\n<span class=\"kw\">def</span> <span class=\"fn\">query_vllm</span>(prompt: str, port: int = <span class=\"num\">8000</span>) -&gt; str:\n    <span class=\"str\">\"\"\"Send an inference request to vLLM\
-      \ OpenAI-compatible endpoint.\"\"\"</span>\n    response = requests.<span class=\"fn\">post</span>(\n        <span class=\"str\">f\"http://localhost:{port}/v1/chat/completions\"</span>,\n        json={\n            <span class=\"str\">\"model\": \"merged-qlora-model\"</span>,\n            <span class=\"str\">\"messages\": [{\"role\": \"user\", \"content\"</span>: prompt}],\n            <span class=\"str\">\"max_tokens\"</span>: <span class=\"num\">512</span>,\n            <span class=\"str\">\"temperature\"</span>: <span class=\"num\">0.1</span>,\n        },\n        timeout=<span class=\"num\">60</span>\n    )\n    <span class=\"kw\">return</span> response.<span class=\"fn\">json</span>()[<span class=\"str\">\"choices\"][0][\"message\"][\"content\"</span>]\n\n<span class=\"cm\"># ── Main: Full pipeline ───────────────────────────────────────────</span>\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n    merged_path = <span class=\"fn\">merge_qlora_adapter</span>(\n\
-      \        base_model_id=<span class=\"str\">\"mistralai/Mistral-7B-v0.1\"</span>,\n        adapter_path=<span class=\"str\">\"./qlora-adapter\"</span>,\n        output_dir=<span class=\"str\">\"./merged-mistral-7b\"</span>,\n    )\n    <span class=\"fn\">launch_vllm_server</span>(merged_path, port=<span class=\"num\">8000</span>)\n    \n    <span class=\"kw\">import</span> time; time.<span class=\"fn\">sleep</span>(<span class=\"num\">30</span>)  <span class=\"cm\"># wait for server startup</span>\n    answer = <span class=\"fn\">query_vllm</span>(<span class=\"str\">\"Explain LoRA in one sentence.\"</span>)\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"Model response: {answer}\"</span>)"
+    solution_code: "<span class=\"kw\">import</span> subprocess\n<span class=\"kw\"\
+      >import</span> json\n<span class=\"kw\">import</span> requests\n<span class=\"\
+      kw\">from</span> pathlib <span class=\"kw\">import</span> Path\n\n<span class=\"\
+      cm\"># ── Step 1: Merge QLoRA adapter into base model ──────────────────</span>\n\
+      <span class=\"kw\">from</span> peft <span class=\"kw\">import</span> AutoPeftModelForCausalLM\n\
+      <span class=\"kw\">from</span> transformers <span class=\"kw\">import</span>\
+      \ AutoTokenizer\n<span class=\"kw\">import</span> torch\n\n<span class=\"kw\"\
+      >def</span> <span class=\"fn\">merge_qlora_adapter</span>(\n    base_model_id:\
+      \ str,\n    adapter_path: str,\n    output_dir: str\n) -&gt; str:\n    <span\
+      \ class=\"str\">\"\"\"Merge QLoRA adapter weights into base model and save.\"\
+      \"\"</span>\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"Loading\
+      \ adapter from {adapter_path}...\"</span>)\n    model = AutoPeftModelForCausalLM.<span\
+      \ class=\"fn\">from_pretrained</span>(\n        adapter_path,\n        device_map=<span\
+      \ class=\"str\">\"auto\"</span>,\n        torch_dtype=torch.bfloat16,\n    )\n\
+      \    merged = model.<span class=\"fn\">merge_and_unload</span>()  <span class=\"\
+      cm\"># fuse LoRA weights into base</span>\n    tokenizer = AutoTokenizer.<span\
+      \ class=\"fn\">from_pretrained</span>(base_model_id)\n    merged.<span class=\"\
+      fn\">save_pretrained</span>(output_dir)\n    tokenizer.<span class=\"fn\">save_pretrained</span>(output_dir)\n\
+      \    <span class=\"fn\">print</span>(<span class=\"str\">f\"✅ Merged model saved\
+      \ to {output_dir}\"</span>)\n    <span class=\"kw\">return</span> output_dir\n\
+      \n<span class=\"cm\"># ── Step 2: Launch vLLM server ────────────────────────────────────</span>\n\
+      <span class=\"kw\">def</span> <span class=\"fn\">launch_vllm_server</span>(model_path:\
+      \ str, port: int = <span class=\"num\">8000</span>) -&gt; <span class=\"kw\"\
+      >None</span>:\n    <span class=\"str\">\"\"\"Start vLLM OpenAI-compatible server\
+      \ as subprocess.\"\"\"</span>\n    cmd = [\n        <span class=\"str\">\"python\"\
+      , \"-m\", \"vllm.entrypoints.openai.api_server\"</span>,\n        <span class=\"\
+      str\">\"--model\"</span>, model_path,\n        <span class=\"str\">\"--port\"\
+      </span>, <span class=\"fn\">str</span>(port),\n        <span class=\"str\">\"\
+      --dtype\", \"bfloat16\"</span>,\n        <span class=\"str\">\"--max-model-len\"\
+      , \"4096\"</span>,\n        <span class=\"str\">\"--gpu-memory-utilization\"\
+      , \"0.90\"</span>,\n    ]\n    <span class=\"fn\">print</span>(<span class=\"\
+      str\">f\"Starting vLLM server on port {port}...\"</span>)\n    subprocess.<span\
+      \ class=\"fn\">Popen</span>(cmd)  <span class=\"cm\"># non-blocking; server\
+      \ runs in background</span>\n\n<span class=\"cm\"># ── Step 3: Query the deployed\
+      \ model ─────────────────────────────</span>\n<span class=\"kw\">def</span>\
+      \ <span class=\"fn\">query_vllm</span>(prompt: str, port: int = <span class=\"\
+      num\">8000</span>) -&gt; str:\n    <span class=\"str\">\"\"\"Send an inference\
+      \ request to vLLM OpenAI-compatible endpoint.\"\"\"</span>\n    response = requests.<span\
+      \ class=\"fn\">post</span>(\n        <span class=\"str\">f\"http://localhost:{port}/v1/chat/completions\"\
+      </span>,\n        json={\n            <span class=\"str\">\"model\": \"merged-qlora-model\"\
+      </span>,\n            <span class=\"str\">\"messages\": [{\"role\": \"user\"\
+      , \"content\"</span>: prompt}],\n            <span class=\"str\">\"max_tokens\"\
+      </span>: <span class=\"num\">512</span>,\n            <span class=\"str\">\"\
+      temperature\"</span>: <span class=\"num\">0.1</span>,\n        },\n        timeout=<span\
+      \ class=\"num\">60</span>\n    )\n    <span class=\"kw\">return</span> response.<span\
+      \ class=\"fn\">json</span>()[<span class=\"str\">\"choices\"][0][\"message\"\
+      ][\"content\"</span>]\n\n<span class=\"cm\"># ── Main: Full pipeline ───────────────────────────────────────────</span>\n\
+      <span class=\"kw\">if</span> __name__ == <span class=\"str\">\"__main__\"</span>:\n\
+      \    merged_path = <span class=\"fn\">merge_qlora_adapter</span>(\n        base_model_id=<span\
+      \ class=\"str\">\"mistralai/Mistral-7B-v0.1\"</span>,\n        adapter_path=<span\
+      \ class=\"str\">\"./qlora-adapter\"</span>,\n        output_dir=<span class=\"\
+      str\">\"./merged-mistral-7b\"</span>,\n    )\n    <span class=\"fn\">launch_vllm_server</span>(merged_path,\
+      \ port=<span class=\"num\">8000</span>)\n    \n    <span class=\"kw\">import</span>\
+      \ time; time.<span class=\"fn\">sleep</span>(<span class=\"num\">30</span>)\
+      \  <span class=\"cm\"># wait for server startup</span>\n    answer = <span class=\"\
+      fn\">query_vllm</span>(<span class=\"str\">\"Explain LoRA in one sentence.\"\
+      </span>)\n    <span class=\"fn\">print</span>(<span class=\"str\">f\"Model response:\
+      \ {answer}\"</span>)"
     solution_lang: python
-  - title: Task 2
+  - title: 'Task 2: Implement Capstone: Deploying a Custom Fine-Tuned Model'
     badge: ''
     badge_class: tb-med
     time: ''
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Calculate Time-To-First-Token (TTFT) and Time-Per-Output-Token (TPOT) distributions from streaming request traces.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n         </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"cm\"># Step 1: Algorithmic Implementation &amp; Core Transformations</span>\n<span class=\"kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"fn\">analyze_serving_latencies</span>(traces: list):\n    ttft_list = [t[<span class=\"str\">\"first_token_ms\"</span>] <span class=\"kw\">for</span> t <span class=\"kw\">in</span> traces]\n    tpot_list = [(t[<span class=\"str\">\"\
-      total_ms\"] - t[\"first_token_ms\"]) / max(1, t[\"output_tokens\"</span>] - <span class=\"num\">1</span>) <span class=\"kw\">for</span> t <span class=\"kw\">in</span> traces]\n    \n<span class=\"kw\">return</span> {\n        <span class=\"str\">\"p50_ttft_ms\"</span>: <span class=\"fn\">round</span>(<span class=\"fn\">float</span>(np.<span class=\"fn\">percentile</span>(ttft_list, <span class=\"num\">50</span>)), <span class=\"num\">2</span>),\n        <span class=\"str\">\"p95_ttft_ms\"</span>: <span class=\"fn\">round</span>(<span class=\"fn\">float</span>(np.<span class=\"fn\">percentile</span>(ttft_list, <span class=\"num\">95</span>)), <span class=\"num\">2</span>),\n        <span class=\"str\">\"p50_tpot_ms\"</span>: <span class=\"fn\">round</span>(<span class=\"fn\">float</span>(np.<span class=\"fn\">percentile</span>(tpot_list, <span class=\"num\">50</span>)), <span class=\"num\">2</span>),\n        <span class=\"str\">\"p95_tpot_ms\"</span>: <span class=\"fn\">round</span>(<span\
-      \ class=\"fn\">float</span>(np.<span class=\"fn\">percentile</span>(tpot_list, <span class=\"num\">95</span>)), <span class=\"num\">2</span>)\n    }\n\ntraces = [\n    {<span class=\"str\">\"first_token_ms\": 120, \"total_ms\": 800, \"output_tokens\"</span>: <span class=\"num\">30</span>},\n    {<span class=\"str\">\"first_token_ms\": 145, \"total_ms\": 950, \"output_tokens\"</span>: <span class=\"num\">35</span>},\n    {<span class=\"str\">\"first_token_ms\": 210, \"total_ms\": 1200, \"output_tokens\"</span>: <span class=\"num\">40</span>}\n]\n<span class=\"fn\">print</span>(<span class=\"str\">\"Serving Benchmarks:\"</span>, <span class=\"fn\">analyze_serving_latencies</span>(traces))</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\n         Serving Benchmarks:\
-      \ {'p50_ttft_ms': 145.0, 'p95_ttft_ms': 203.5, ...}\n        \n</div>"
+    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
+      >\n        Calculate Time-To-First-Token (TTFT) and Time-Per-Output-Token (TPOT)\
+      \ distributions from streaming request traces.\n       </p>\n<div class=\"cb\"\
+      >\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n          python\n   \
+      \      </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"\
+      copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\"\
+      \ onclick=\"runCode(this)\">\n           Run\n          </button>\n</div>\n\
+      </div>\n<pre><span class=\"cm\"># Step 1: Algorithmic Implementation &amp; Core\
+      \ Transformations</span>\n<span class=\"kw\">import</span> numpy <span class=\"\
+      kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"fn\">analyze_serving_latencies</span>(traces:\
+      \ list):\n    ttft_list = [t[<span class=\"str\">\"first_token_ms\"</span>]\
+      \ <span class=\"kw\">for</span> t <span class=\"kw\">in</span> traces]\n   \
+      \ tpot_list = [(t[<span class=\"str\">\"total_ms\"] - t[\"first_token_ms\"])\
+      \ / max(1, t[\"output_tokens\"</span>] - <span class=\"num\">1</span>) <span\
+      \ class=\"kw\">for</span> t <span class=\"kw\">in</span> traces]\n    \n<span\
+      \ class=\"kw\">return</span> {\n        <span class=\"str\">\"p50_ttft_ms\"\
+      </span>: <span class=\"fn\">round</span>(<span class=\"fn\">float</span>(np.<span\
+      \ class=\"fn\">percentile</span>(ttft_list, <span class=\"num\">50</span>)),\
+      \ <span class=\"num\">2</span>),\n        <span class=\"str\">\"p95_ttft_ms\"\
+      </span>: <span class=\"fn\">round</span>(<span class=\"fn\">float</span>(np.<span\
+      \ class=\"fn\">percentile</span>(ttft_list, <span class=\"num\">95</span>)),\
+      \ <span class=\"num\">2</span>),\n        <span class=\"str\">\"p50_tpot_ms\"\
+      </span>: <span class=\"fn\">round</span>(<span class=\"fn\">float</span>(np.<span\
+      \ class=\"fn\">percentile</span>(tpot_list, <span class=\"num\">50</span>)),\
+      \ <span class=\"num\">2</span>),\n        <span class=\"str\">\"p95_tpot_ms\"\
+      </span>: <span class=\"fn\">round</span>(<span class=\"fn\">float</span>(np.<span\
+      \ class=\"fn\">percentile</span>(tpot_list, <span class=\"num\">95</span>)),\
+      \ <span class=\"num\">2</span>)\n    }\n\ntraces = [\n    {<span class=\"str\"\
+      >\"first_token_ms\": 120, \"total_ms\": 800, \"output_tokens\"</span>: <span\
+      \ class=\"num\">30</span>},\n    {<span class=\"str\">\"first_token_ms\": 145,\
+      \ \"total_ms\": 950, \"output_tokens\"</span>: <span class=\"num\">35</span>},\n\
+      \    {<span class=\"str\">\"first_token_ms\": 210, \"total_ms\": 1200, \"output_tokens\"\
+      </span>: <span class=\"num\">40</span>}\n]\n<span class=\"fn\">print</span>(<span\
+      \ class=\"str\">\"Serving Benchmarks:\"</span>, <span class=\"fn\">analyze_serving_latencies</span>(traces))</pre>\n\
+      </div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05);\
+      \ border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono);\
+      \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
+      \     </strong>\n<br/>\n\n         Serving Benchmarks: {'p50_ttft_ms': 145.0,\
+      \ 'p95_ttft_ms': 203.5, ...}\n        \n</div>"
     done_when: ''
     git_cmd: ''
     sol_id: ''
@@ -1035,7 +1774,8 @@ days:
     qid: q156_1
     options:
     - letter: A
-      text: The latency from when a user request is received until the first generation token is emitted (dominated by prompt prefill processing).
+      text: The latency from when a user request is received until the first generation
+        token is emitted (dominated by prompt prefill processing).
       is_correct: true
     - letter: B
       text: The time it takes to train the model from scratch.
@@ -1046,14 +1786,18 @@ days:
     - letter: D
       text: The total duration of the entire user conversation.
       is_correct: false
-    correct_fb: ✅ Correct! TTFT measures the prefill phase latency where the model processes all input prompt tokens in parallel to generate the first token.
-    wrong_fb: ❌ Incorrect. TTFT evaluates prompt ingestion and prefill latency, representing user perceived responsiveness before streaming begins.
+    correct_fb: ✅ Correct! TTFT measures the prefill phase latency where the model
+      processes all input prompt tokens in parallel to generate the first token.
+    wrong_fb: ❌ Incorrect. TTFT evaluates prompt ingestion and prefill latency, representing
+      user perceived responsiveness before streaming begins.
   - num_str: QUESTION 2 OF 4
-    question: What does ITL (Inter-Token Latency) or TPOT (Time Per Output Token) quantify in streaming applications?
+    question: What does ITL (Inter-Token Latency) or TPOT (Time Per Output Token)
+      quantify in streaming applications?
     qid: q156_2
     options:
     - letter: A
-      text: The time elapsed between generating consecutive output tokens during the autoregressive decoding phase.
+      text: The time elapsed between generating consecutive output tokens during the
+        autoregressive decoding phase.
       is_correct: true
     - letter: B
       text: The time taken to boot up the cloud server.
@@ -1064,14 +1808,19 @@ days:
     - letter: D
       text: The time required to parse JSON outputs.
       is_correct: false
-    correct_fb: ✅ Correct! ITL measures the speed of autoregressive decoding (tokens per second per stream), determining how smooth the streaming output feels to human readers.
-    wrong_fb: ❌ Incorrect. ITL / TPOT measures the per-token decoding latency during generation.
+    correct_fb: ✅ Correct! ITL measures the speed of autoregressive decoding (tokens
+      per second per stream), determining how smooth the streaming output feels to
+      human readers.
+    wrong_fb: ❌ Incorrect. ITL / TPOT measures the per-token decoding latency during
+      generation.
   - num_str: QUESTION 3 OF 4
-    question: Why does Prefix Caching (Prompt Caching) drastically improve throughput in multi-turn chatbot systems?
+    question: Why does Prefix Caching (Prompt Caching) drastically improve throughput
+      in multi-turn chatbot systems?
     qid: q156_3
     options:
     - letter: A
-      text: It reuses the precomputed KV-cache for shared system prompts and conversation history across turns, avoiding redundant prefill computation.
+      text: It reuses the precomputed KV-cache for shared system prompts and conversation
+        history across turns, avoiding redundant prefill computation.
       is_correct: true
     - letter: B
       text: It deletes the user's past messages to save disk space.
@@ -1082,14 +1831,18 @@ days:
     - letter: D
       text: It disables attention mechanisms entirely.
       is_correct: false
-    correct_fb: ✅ Correct! Reusing KV-cache for common prompt prefixes slashes TTFT by up to 90% and frees GPU compute for active generation.
-    wrong_fb: ❌ Incorrect. Prefix caching stores and reuses precomputed KV-tensors for common prompt prefixes, skipping redundant prefill passes.
+    correct_fb: ✅ Correct! Reusing KV-cache for common prompt prefixes slashes TTFT
+      by up to 90% and frees GPU compute for active generation.
+    wrong_fb: ❌ Incorrect. Prefix caching stores and reuses precomputed KV-tensors
+      for common prompt prefixes, skipping redundant prefill passes.
   - num_str: QUESTION 4 OF 4
-    question: When designing an autoscaling policy for high-concurrency LLM inference clusters, what metric is most effective?
+    question: When designing an autoscaling policy for high-concurrency LLM inference
+      clusters, what metric is most effective?
     qid: q156_4
     options:
     - letter: A
-      text: vLLM waiting queue length (`num_requests_waiting`) and GPU KV-cache usage percentage.
+      text: vLLM waiting queue length (`num_requests_waiting`) and GPU KV-cache usage
+        percentage.
       is_correct: true
     - letter: B
       text: CPU core utilization only.
@@ -1100,33 +1853,30 @@ days:
     - letter: D
       text: Number of open browser tabs.
       is_correct: false
-    correct_fb: ✅ Correct! Scaling based on queue depth and KV-cache saturation directly addresses pending request backlogs before latency SLA violations occur.
-    wrong_fb: ❌ Incorrect. CPU usage is misleading for GPU inference; queue length (`num_requests_waiting`) and KV-cache allocation provide direct load signals.
+    correct_fb: ✅ Correct! Scaling based on queue depth and KV-cache saturation directly
+      addresses pending request backlogs before latency SLA violations occur.
+    wrong_fb: ❌ Incorrect. CPU usage is misleading for GPU inference; queue length
+      (`num_requests_waiting`) and KV-cache allocation provide direct load signals.
   flashcards:
   - front: ChatML
-    back: A standard chat template structure ensuring the model knows exactly when a system, user, or assistant is speaking.
+    back: A standard chat template structure ensuring the model knows exactly when
+      a system, user, or assistant is speaking.
   - front: Multi-LoRA Serving
-    back: Serving a single base model in VRAM but applying different LoRA adapters on a per-request basis.
+    back: Serving a single base model in VRAM but applying different LoRA adapters
+      on a per-request basis.
   - front: Chat Template
-    back: A Jinja2 template (tokenizer.chat_template) that formats messages into the exact string the model was trained on.
+    back: A Jinja2 template (tokenizer.chat_template) that formats messages into the
+      exact string the model was trained on.
   gotcha:
     title: '⚠️ Gotcha: Day 156 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Serving models with continuous batching without dynamic max_model_len causes sudden CUDA Out-of-Memory (OOM) errors during traffic spikes.\n      </p>"
+    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Serving\
+      \ models with continuous batching without dynamic max_model_len causes sudden\
+      \ CUDA Out-of-Memory (OOM) errors during traffic spikes.\n      </p>"
   takeaways:
-    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"You now possess the skills to create custom enterprise AI models that outperform generic GPT-4 on narrow tasks!\""
+    hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"You\
+      \ now possess the skills to create custom enterprise AI models that outperform\
+      \ generic GPT-4 on narrow tasks!\""
     bullets:
     - Data prep takes 80% of the time, training 10%, deployment 10%.
     - Multi-LoRA is the future of scalable SaaS platforms.
-  resources:
-  - type: 🎬 YOUTUBE TUTORIAL
-    title: Deploying Fine-Tuned LLMs on vLLM &amp; Ray
-    desc: Building an enterprise OpenAI-compatible inference endpoint for customized models.
-    url: https://www.youtube.com/watch?v=80bZYTCdcwk
-  - type: ''
-    title: vLLM LoRA
-    desc: Docs on serving multiple LoRAs
-    url: https://docs.vllm.ai/en/latest/models/lora.html
-  - type: ''
-    title: ''
-    desc: ''
-    url: '#'
+  resources: *id001
