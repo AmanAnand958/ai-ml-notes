@@ -375,28 +375,59 @@ function showToast(msg) {
 
 // ── 7. DAY NAVIGATION & ACCESSIBILITY ──────────────────────────────
 function goDay(dayId) {
+  if (dayId === undefined || dayId === null) return;
+  const did = String(dayId).replace(/^day-/, '').trim();
+  
+  // Hide all sections
   document.querySelectorAll('.day-section').forEach(sec => {
     sec.classList.remove('active');
     sec.style.display = 'none';
   });
-  document.querySelectorAll('.sb-item').forEach(item => item.classList.remove('active'));
-  document.querySelectorAll('.day-pill').forEach(pill => pill.classList.remove('active'));
   
-  const targetSec = document.getElementById('day-' + dayId) || document.getElementById(dayId);
-  const targetPill = document.querySelector(`.day-pill[data-day="${dayId}"]`);
+  // Deactivate all sidebar items and pills
+  document.querySelectorAll('.sb-item').forEach(item => {
+    item.classList.remove('active');
+    item.setAttribute('aria-selected', 'false');
+  });
+  document.querySelectorAll('.day-pill').forEach(pill => {
+    pill.classList.remove('active');
+    pill.setAttribute('aria-selected', 'false');
+  });
   
+  // Find target section
+  const targetSec = document.getElementById('day-' + did) || document.getElementById(did);
   if (targetSec) {
     targetSec.classList.add('active');
     targetSec.style.display = 'block';
   }
-  if (targetPill) targetPill.classList.add('active');
   
-  const sbBtn = Array.from(document.querySelectorAll('.sb-item')).find(el => el.getAttribute('onclick') && el.getAttribute('onclick').includes('goDay(' + dayId + ')'));
-  if (sbBtn) sbBtn.classList.add('active');
+  // Find target pill
+  const targetPill = document.getElementById('pill-' + did) || document.querySelector(`.day-pill[data-day="${did}"]`) || document.querySelector(`.day-pill[data-day="${dayId}"]`);
+  if (targetPill) {
+    targetPill.classList.add('active');
+    targetPill.setAttribute('aria-selected', 'true');
+  }
+  
+  // Find target sidebar item
+  const targetSb = document.getElementById('sb-' + did) || document.querySelector(`.sb-item[data-day="${did}"]`) || Array.from(document.querySelectorAll('.sb-item')).find(el => {
+    const onclick = el.getAttribute('onclick') || '';
+    return onclick.includes(`goDay('${did}')`) || onclick.includes(`goDay(${did})`) || onclick.includes(`goDay("${did}")`);
+  });
+  if (targetSb) {
+    targetSb.classList.add('active');
+    targetSb.setAttribute('aria-selected', 'true');
+  }
   
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  renderMermaid('day-' + dayId);
+  if (typeof renderMermaid === 'function') {
+    renderMermaid('day-' + did);
+  }
+  
+  try {
+    history.replaceState(null, '', '#day-' + did);
+  } catch (e) {}
 }
+window.goDay = goDay;
 
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
@@ -613,6 +644,8 @@ window.jumpTo = function(dayId) {
     }
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+};
+
 function applyTheme(theme) {
   const isLight = theme === 'light';
   if (isLight) {
