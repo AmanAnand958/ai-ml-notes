@@ -209,7 +209,7 @@ function quiz(optEl, result, qid) {
     timestamp: Date.now()
   };
   
-  const fb = block.querySelector('.quiz-feedback') || block.querySelector('.correct-fb') || block.querySelector('.wrong-fb');
+  const fb = block.querySelector(isRight ? '.correct-fb' : '.wrong-fb');
   if (fb) {
     fb.style.display = 'block';
     fb.setAttribute('aria-live', 'polite');
@@ -233,7 +233,7 @@ function copyCode(btn) {
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = originalText; }, 1500);
   }).catch(() => {
-    btn.textContent = 'Copied!';
+    btn.textContent = 'Copy failed';
     setTimeout(() => { btn.textContent = originalText; }, 1500);
   });
 }
@@ -484,14 +484,11 @@ function checkPredict(arg1, arg2) {
     result.style.padding = '.5rem .8rem';
     result.textContent = '✅ Correct! ' + String(answer).replace(/\n/g, ' ');
 
-    if (typeof courseState !== 'undefined') {
-      courseState.awardXP(10, 'prediction');
-    } else if (typeof state !== 'undefined') {
-      state.xp = (state.xp || 0) + 10;
-      if (typeof saveState === 'function') saveState();
-      if (typeof syncUI === 'function') syncUI();
-      if (typeof showXPToast === 'function') showXPToast(10, 'prediction');
-    }
+    state.xp = (state.xp || 0) + 10;
+    courseState.xp += 10;
+    if (typeof saveState === 'function') saveState();
+    if (typeof syncUI === 'function') syncUI();
+    if (typeof showXPToast === 'function') showXPToast(10, 'prediction');
   } else {
     result.style.background = 'rgba(229,107,140,.08)';
     result.style.border = '1px solid rgba(229,107,140,.3)';
@@ -638,8 +635,8 @@ window.openRepl = function(codeSnippet) {
   }
 };
 
-window.toggleCheck = function(taskId) {
-  const el = document.getElementById(taskId);
+window.toggleCheck = function(el) {
+  if (typeof el === 'string') el = document.getElementById(el);
   if (el) {
     el.classList.toggle('checked');
   }
@@ -678,5 +675,3 @@ if (document.readyState === 'loading') {
 setInterval(() => {
   document.querySelectorAll('body > [id^="mermaid-"], body > [id^="dmermaid-"], div.error-icon').forEach(el => el.remove());
 }, 500);
-
-
