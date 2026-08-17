@@ -635,15 +635,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── 10. GLOBAL INTERACTIVE UTILITIES & EVENT HANDLERS ──────────────
 
-window.jumpTo = function(dayId) {
-  if (!dayId) return;
-  const targetId = dayId.startsWith('day-') ? dayId : 'day-' + dayId;
-  const target = document.getElementById(targetId) || document.getElementById(dayId);
-  if (target) {
-    if (typeof window.goDay === 'function') {
-      window.goDay(target.id.replace('day-', ''));
+window.jumpTo = function(target) {
+  if (!target) return;
+  
+  // 1. Check for in-day section keywords
+  const activeDaySection = document.querySelector('.day-section.active');
+  if (activeDaySection) {
+    const activeId = activeDaySection.id.replace('day-', '');
+    const secMap = {
+      'theory': document.getElementById(`day-${activeId}-theory`) || activeDaySection.querySelector('.theory'),
+      'tasks-section': document.getElementById(`tasks-section-${activeId}`) || activeDaySection.querySelector('.tasks-section'),
+      'tasks': document.getElementById(`tasks-section-${activeId}`) || activeDaySection.querySelector('.tasks-section'),
+      'quiz-section': document.getElementById(`quiz-section-${activeId}`) || activeDaySection.querySelector('.quiz-section'),
+      'quiz': document.getElementById(`quiz-section-${activeId}`) || activeDaySection.querySelector('.quiz-section'),
+      'resources-section': document.getElementById(`day-${activeId}-resources-section`) || activeDaySection.querySelector('.resources-section'),
+      'resources': document.getElementById(`day-${activeId}-resources-section`) || activeDaySection.querySelector('.resources-section')
+    };
+    if (secMap[target]) {
+      secMap[target].scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
     }
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  
+  // 2. Fallback to Day ID jump
+  const targetId = target.startsWith('day-') ? target : 'day-' + target;
+  const el = document.getElementById(targetId) || document.getElementById(target);
+  if (el) {
+    if (typeof window.goDay === 'function') {
+      window.goDay(el.id.replace('day-', ''));
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 };
 
