@@ -743,9 +743,10 @@ days:
     back: "df[df[\"col\"] > value]\n           <br/>\n           Multiple: use & or\
       \ |\n           <br/>\n           Wrap each in ()"
   gotcha:
-    title: '⚠️ Gotcha: Dictionary Keys & List Mutability'
-    description: Never use mutable data types (like lists) as dictionary keys or default
-      function arguments (`def func(x=[])`).
+    title: '⚠️ Gotcha: SettingWithCopyWarning & Chained Indexing'
+    description: Never use chained indexing like `df[df['A'] > 0]['B'] = 1` for assignment.
+      It operates on a temporary slice view and will fail silently or throw SettingWithCopyWarning.
+      Always use `df.loc[df['A'] > 0, 'B'] = 1`.
   takeaways:
     hinglish_line: Production mein Pandas — Series & DataFrames ko use karte waqt
       edge cases aur mathematical constraints ko pehle validate karo, taaki downstream
@@ -1065,15 +1066,20 @@ days:
     \ to advance one step along each dimension in contiguous memory buffers.\n</p>\n\
     </div>"
   predict:
-    question: What integer output is computed by this Pandas pipeline?
-    answer: '10'
-    explanation: The pipeline evaluates deterministic features for Pandas — Data Cleaning,
-      returning the expected index value.
-    code: '# Verification pipeline for Pandas — Data Cleaning
+    question: What is the final count of null values in column 'a' after forward-filling
+      with limit=1?
+    code: 'import pandas as pd
 
-      result = 10
+      import numpy as np
 
-      print(result)'
+      s = pd.Series([1.0, np.nan, np.nan, 4.0])
+
+      res = s.ffill(limit=1).isna().sum()
+
+      print(res)'
+    answer: '1'
+    explanation: The first NaN at index 1 is filled with 1.0. The second NaN at index
+      2 exceeds the limit of 1 and remains NaN. Total remaining nulls = 1.
   tasks:
   - title: Clean a Messy DataFrame
     badge: 🟢 EASY
@@ -1300,9 +1306,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Dictionary Keys & List Mutability'
-    description: Never use mutable data types (like lists) as dictionary keys or default
-      function arguments (`def func(x=[])`).
+    title: '⚠️ Gotcha: In-Place Mutation & Silent Null Type Coercion'
+    description: 'Using `df.fillna(..., inplace=True)` on sliced columns can fail
+      silently or cause inconsistent behavior across Pandas 2.0+ CoW (Copy-on-Write).
+      Prefer explicit assignment: `df[''col''] = df[''col''].fillna(val)`.'
   takeaways:
     hinglish_line: Production mein Pandas — Data Cleaning ko use karte waqt edge cases
       aur mathematical constraints ko pehle validate karo, taaki downstream deployment
@@ -1718,15 +1725,17 @@ days:
     \ class=\"fn\">concat</span>(results, ignore_index=<span class=\"kw\">True</span>)</code></pre>\n\
     </div>\n</details>"
   predict:
-    question: What integer output is computed by this Pandas pipeline?
-    answer: '1'
-    explanation: The pipeline evaluates deterministic features for Pandas — GroupBy
-      & Aggregation, returning the expected index value.
-    code: '# Verification pipeline for Pandas — GroupBy & Aggregation
+    question: What is the output length (number of groups) produced by this GroupBy
+      operation?
+    code: 'import pandas as pd
 
-      result = 1
+      df = pd.DataFrame({''k'': [''A'', ''B'', ''A'', ''B'', ''C''], ''v'': [10, 20,
+      30, 40, 50]})
 
-      print(result)'
+      print(len(df.groupby(''k'')))'
+    answer: '3'
+    explanation: There are 3 unique keys ('A', 'B', 'C'), so df.groupby('k') creates
+      exactly 3 distinct group subsets.
   tasks:
   - title: Sales Data Analysis
     badge: 🟡 MEDIUM
@@ -1887,9 +1896,11 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Dictionary Keys & List Mutability'
-    description: Never use mutable data types (like lists) as dictionary keys or default
-      function arguments (`def func(x=[])`).
+    title: '⚠️ Gotcha: Dropped NaN Groups in GroupBy'
+    description: By default, `df.groupby('category')` silently drops rows where the
+      group key is `NaN`! In customer or financial analytics, this hides untracked
+      revenue. Always pass `dropna=False` if missing categories must be accounted
+      for.
   takeaways:
     hinglish_line: Production mein Pandas — GroupBy & Aggregation ko use karte waqt
       edge cases aur mathematical constraints ko pehle validate karo, taaki downstream
@@ -2193,15 +2204,15 @@ days:
     </div>\n<h3 class=\"sh3\">\n       8. Database Normalization — 1NF, 2NF, 3NF,\
     \ BCNF\n      </h3>"
   predict:
-    question: What integer output is computed by this SQL pipeline?
-    answer: '2'
-    explanation: The pipeline evaluates deterministic features for SQL — SELECT, WHERE,
-      JOIN Basics, returning the expected index value.
-    code: '# Verification pipeline for SQL — SELECT, WHERE, JOIN Basics
+    question: What integer value is returned by COUNT(DISTINCT dept_id)?
+    code: 'depts = [101, 102, None, 101, 103, None]
 
-      result = 2
+      valid_unique = len(set(d for d in depts if d is not None))
 
-      print(result)'
+      print(valid_unique)'
+    answer: '3'
+    explanation: SQL COUNT(DISTINCT col) ignores NULL entries and deduplicates {101,
+      102, 103}, yielding 3 unique departments.
   tasks:
   - title: Mode Analytics SQL Tutorial — Sections 1–3
     badge: 🟢 EASY
@@ -2396,9 +2407,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Dictionary Keys & List Mutability'
-    description: Never use mutable data types (like lists) as dictionary keys or default
-      function arguments (`def func(x=[])`).
+    title: '⚠️ Gotcha: NULL Comparisons & Three-Valued Logic in SQL'
+    description: In SQL, `WHERE status != 'active'` will completely exclude rows where
+      `status IS NULL` because comparisons with NULL return UNKNOWN. Always write
+      `WHERE status != 'active' OR status IS NULL`.
   takeaways:
     hinglish_line: Production mein SQL — SELECT, WHERE, JOIN Basics ko use karte waqt
       edge cases aur mathematical constraints ko pehle validate karo, taaki downstream
@@ -3174,9 +3186,10 @@ days:
     back: "Cosine Similarity: 1 - (embedding <=> '[...]')\n          <br/>\n     \
       \     Cosine Distance: <=> (smaller = more similar)"
   gotcha:
-    title: '⚠️ Gotcha: Dictionary Keys & List Mutability'
-    description: Never use mutable data types (like lists) as dictionary keys or default
-      function arguments (`def func(x=[])`).
+    title: '⚠️ Gotcha: Default Window Frame in Window Functions'
+    description: When using `OVER (ORDER BY date)`, SQL implicitly defaults the frame
+      to `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`, which aggregates duplicate
+      dates simultaneously. Use `ROWS BETWEEN` for exact cumulative steps.
   takeaways:
     hinglish_line: Production mein SQL Advanced — Analytics, Concurrency & pgvector
       ko use karte waqt edge cases aur mathematical constraints ko pehle validate
@@ -3508,15 +3521,18 @@ days:
     \ code formatting (black), linting (flake8), and even notebook cell output clearing\
     \ so notebooks don't pollute git history with binary blobs.\n       </div>\n</details>"
   predict:
-    question: What integer output is computed by this Git & GitHub pipeline?
-    answer: '4'
-    explanation: The pipeline evaluates deterministic features for Git & GitHub —
-      Full Professional Workflow, returning the expected index value.
-    code: '# Verification pipeline for Git & GitHub — Full Professional Workflow
+    question: How many untracked files will remain in the staging area after running
+      `git add a.py` when 3 new files exist?
+    code: 'total_new_files = 3
 
-      result = 4
+      staged_files = 1
 
-      print(result)'
+      untracked_remaining = total_new_files - staged_files
+
+      print(untracked_remaining)'
+    answer: '2'
+    explanation: Staging 1 specific file out of 3 new untracked files leaves exactly
+      2 untracked files in the working tree.
   tasks:
   - title: Set Up Your GitHub Profile README
     badge: 🟢 EASY
@@ -3692,9 +3708,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Dictionary Keys & List Mutability'
-    description: Never use mutable data types (like lists) as dictionary keys or default
-      function arguments (`def func(x=[])`).
+    title: '⚠️ Gotcha: Ghost Secrets in Git Commit History'
+    description: Deleting a committed `.env` or API token in a later commit does NOT
+      remove it from `.git` history — hackers scrape commit history trees in seconds.
+      You must use `git filter-repo` or revoke the token immediately.
   takeaways:
     hinglish_line: Production mein Git & GitHub — Full Professional Workflow ko use
       karte waqt edge cases aur mathematical constraints ko pehle validate karo, taaki
@@ -3867,17 +3884,14 @@ days:
     \ class=\"sh2\">\n        ✅ Week 2 Checkpoint\n       </h2>\n<!-- /day-14-theory\
     \ -->"
   predict:
-    question: 'What integer output is computed by this Mini Project: Full Exploratory
-      Data Analysis (EDA) pipeline?'
-    answer: '5'
-    explanation: 'The pipeline evaluates deterministic features for Mini Project:
-      Full Exploratory Data Analysis (EDA), returning the expected index value.'
-    code: '# Verification pipeline for Mini Project: Full Exploratory Data Analysis
-      (EDA)
+    question: What is the calculated Interquartile Range (IQR) for this feature distribution?
+    code: 'q1, q3 = 25.0, 75.0
 
-      result = 5
+      iqr = q3 - q1
 
-      print(result)'
+      print(int(iqr))'
+    answer: '50'
+    explanation: The Interquartile Range is IQR = Q3 - Q1 = 75.0 - 25.0 = 50.
   tasks:
   - title: 'Task 1: Mini Project: Full Exploratory Data Analysis (EDA) Implementation
       Checkpoint'
@@ -3964,9 +3978,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Dictionary Keys & List Mutability'
-    description: Never use mutable data types (like lists) as dictionary keys or default
-      function arguments (`def func(x=[])`).
+    title: '⚠️ Gotcha: Target Leakage During Exploratory Imputation'
+    description: Computing global mean or median imputation values on the full dataset
+      before splitting into train/validation sets leaks validation distribution statistics
+      into training, inflating your offline performance metrics.
   takeaways:
     hinglish_line: 'Production mein Mini Project: Full Exploratory Data Analysis (EDA)
       ko use karte waqt edge cases aur mathematical constraints ko pehle validate
