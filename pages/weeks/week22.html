@@ -210,16 +210,63 @@
         <!-- THEORY SECTION -->
         <div id="day-157-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. The RAGAS Evaluation Quadrant</h3>
+          <h3 class="sh3">1. The Need for Quantitative RAG & LLM Evaluation</h3>
 <p>
-Enterprise RAG systems are evaluated across four complementary dimensions:
+Deploying Large Language Model systems without quantitative evaluation pipelines leads to silent degradations in production. Traditional natural language processing metrics like <strong>BLEU</strong> and <strong>ROUGE</strong> rely on exact n-gram overlap with reference texts. They fail on generative LLM tasks where multiple syntactically distinct responses are semantically valid.
 </p>
-<ul>
-  <li><strong>Faithfulness (Groundedness):</strong> Are all claims in the generated answer supported by the retrieved context?</li>
-  <li><strong>Answer Relevance:</strong> Does the response directly address the user's query intent?</li>
-  <li><strong>Context Precision:</strong> Are the most relevant retrieved chunks positioned at top ranks?</li>
-  <li><strong>Context Recall:</strong> Does the retrieved context contain all necessary information to answer the question?</li>
-</ul>
+<p>
+The <strong>RAGAS (Retrieval Augmented Generation Assessment)</strong> framework evaluates RAG pipelines across four decoupled, deterministic dimensions:
+</p>
+<div class="mermaid">
+graph TD
+    Question["User Query"] --> Pipeline{"RAG Evaluation Matrix"}
+    Pipeline --> Faithfulness["1. Faithfulness (Groundedness)\nMeasures factual consistency of generated answer against retrieved context"]
+    Pipeline --> AnswerRelevance["2. Answer Relevance\nMeasures semantic alignment of response to the query intent"]
+    Pipeline --> ContextPrecision["3. Context Precision\nMeasures if ground-truth relevant chunks are ranked at the top"]
+    Pipeline --> ContextRecall["4. Context Recall\nMeasures if all ground-truth facts are present in retrieved chunks"]
+</div>
+<div class="diagram-cap">Figure 157.1: The RAGAS 4-Quadrant Evaluation Architecture.</div>
+
+<h3 class="sh3">2. Mathematical Formulations of RAG Metrics</h3>
+<p>
+<strong>1. Faithfulness (Groundedness Score):</strong> Evaluated by decomposing the generated answer $A$ into atomic propositional statements $S(A) = \{s_1, s_2, \dots, s_n\}$ and verifying each statement against the retrieved context $C$:
+</p>
+<div class="math-block">
+$$\text{Faithfulness}(A, C) = \frac{\sum_{i=1}^{|S(A)|} \mathbb{I}(s_i \text{ is entailed by } C)}{|S(A)|}$$
+</div>
+<p>
+<strong>2. Context Precision@K:</strong> Evaluates whether the rank order of retrieved chunks prioritizes relevant information:
+</p>
+<div class="math-block">
+$$\text{Context Precision@K} = \frac{\sum_{k=1}^K (\text{Precision@}k \times v_k)}{\text{Total Relevant Chunks in Top } K}$$
+</div>
+<p>
+Where $v_k \in \{0, 1\}$ indicates if the chunk at rank $k$ is relevant.
+</p>
+
+<h3 class="sh3">3. Production Python Implementation: RAGAS Evaluation Pipeline</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">compute_rag_faithfulness</span>(extracted_claims: List[str], context_text: str) -> float:
+    <span class="str">\"\"\"
+    Computes grounded faithfulness: ratio of claims entailed by retrieved context.
+    \"\"\"</span>
+    <span class="kw">if</span> <span class="kw">not</span> extracted_claims:
+        <span class="kw">return</span> <span class="num">1.0</span>
+    
+    entailed_count = <span class="num">0</span>
+    context_lower = context_text.lower()
+    <span class="kw">for</span> claim <span class="kw">in</span> extracted_claims:
+        words = [w.lower() <span class="kw">for</span> w <span class="kw">in</span> claim.split() <span class="kw">if</span> len(w) > <span class="num">3</span>]
+        match_ratio = sum(<span class="num">1</span> <span class="kw">if</span> w <span class="kw">in</span> context_lower <span class="kw">else</span> <span class="num">0</span> <span class="kw">for</span> w <span class="kw">in</span> words) / (len(words) + <span class="num">1e-6</span>)
+        <span class="kw">if</span> match_ratio >= <span class="num">0.60</span>:
+            entailed_count += <span class="num">1</span>
+            
+    <span class="kw">return</span> round(entailed_count / len(extracted_claims), <span class="num">4</span>)</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -675,13 +722,33 @@ if __name__ == "__main__":
         <!-- THEORY SECTION -->
         <div id="day-158-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. OpenTelemetry Distributed Tracing for GenAI</h3>
+          <h3 class="sh3">1. Distributed Tracing for Compound AI Systems</h3>
 <p>
-Compound AI systems (RAG, multi-agent swarms) require distributed tracing to pinpoint latency bottlenecks and attribute token costs.
+Unlike monolithic REST APIs where request execution is linear, compound AI systems (multi-agent swarms, recursive RAG pipelines) execute branched, asynchronous, multi-hop calls across LLM providers, vector databases, cache layers, and code execution sandboxes.
 </p>
 <p>
-An <strong>OpenTelemetry Trace</strong> forms a Directed Acyclic Graph of <strong>Spans</strong> capturing embedding generation, vector DB lookups, reranking, and LLM token generation times.
+<strong>OpenTelemetry (OTel)</strong> establishes vendor-agnostic instrumentation capturing full execution graphs as distributed <strong>Traces</strong> composed of hierarchical <strong>Spans</strong>:
 </p>
+<div class="mermaid">
+graph TD
+    RootSpan["Trace: POST /api/v1/chat (Duration: 850ms | Cost: $0.0142)"] --> CacheSpan["Span 1: Redis Semantic Cache Lookup (4ms - Cache Miss)"]
+    RootSpan --> EmbedSpan["Span 2: Text Embedding Generation (28ms - text-embedding-3-large)"]
+    RootSpan --> VectorSpan["Span 3: Qdrant Vector ANN Search (16ms - Retrieved 50 chunks)"]
+    RootSpan --> RerankSpan["Span 4: BGE-Reranker Cross-Attention (35ms - Filtered to 5 chunks)"]
+    RootSpan --> LLMSpan["Span 5: vLLM Chat Completion (760ms - TTFT: 45ms, 480 output tokens)"]
+</div>
+<div class="diagram-cap">Figure 158.1: OpenTelemetry Distributed Trace Graph for a RAG Request.</div>
+
+<h3 class="sh3">2. Core LLM Telemetry Attributes</h3>
+<p>
+Standardized GenAI OTel semantic conventions record:
+</p>
+<ul>
+  <li><code>gen_ai.system</code>: Model provider (e.g. <code>vllm</code>, <code>openai</code>, <code>anthropic</code>).</li>
+  <li><code>gen_ai.request.model</code>: Base model identifier (e.g. <code>llama-3-70b-instruct</code>).</li>
+  <li><code>gen_ai.usage.prompt_tokens</code> & <code>gen_ai.usage.completion_tokens</code>: Token consumption metrics for precise financial cost attribution.</li>
+  <li><code>gen_ai.response.time_to_first_token</code> (TTFT): Critical user-perceived streaming latency.</li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1173,14 +1240,54 @@ print("✓ OpenTelemetry LLM span instrumenter verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-159-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Multi-Layer AI Safety Guardrails</h3>
+          <h3 class="sh3">1. Multi-Layer Guardrail Architecture</h3>
 <p>
-Deploy dual-layer protection:
+Deploying enterprise LLMs without guardrails exposes organizations to prompt injection attacks, PII leaks, brand reputation damage, and regulatory non-compliance.
 </p>
-<ul>
-  <li><strong>Input Classifiers:</strong> Scrub PII (Microsoft Presidio) and detect prompt injection jailbreaks using cosine similarity against adversarial vector clusters.</li>
-  <li><strong>Output Verifiers:</strong> Prevent hallucinated toxic content and enforce structured JSON compliance before responses reach clients.</li>
-</ul>
+<p>
+Production safety requires a <strong>dual-perimeter defense strategy</strong> operating before and after LLM inference:
+</p>
+<div class="mermaid">
+graph LR
+    UserPrompt["User Prompt"] --> IngressGuard["Input Guardrail Layer\n1. Regex & Pattern Scanner\n2. Presidio PII De-identification\n3. Embedding Jailbreak Classifier"]
+    IngressGuard -->|Pass| LLM["LLM Inference Core"]
+    IngressGuard -->|Block| FastReject["400 Bad Request: Policy Violation"]
+    LLM --> EgressGuard["Output Guardrail Layer\n1. Hallucination Verifier\n2. PII / Secret Leak Scrubber\n3. JSON Schema Validator"]
+    EgressGuard -->|Verified| Client["Sanitized Safe Response"]
+</div>
+<div class="diagram-cap">Figure 159.1: Ingress/Egress Guardrail Pipeline Architecture.</div>
+
+<h3 class="sh3">2. Defense-in-Depth Components</h3>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left;">
+      <th style="padding:8px;">Guardrail Layer</th>
+      <th style="padding:8px;">Technology</th>
+      <th style="padding:8px;">Execution Latency</th>
+      <th style="padding:8px;">Failure Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>PII Masking</strong></td>
+      <td style="padding:8px;">Microsoft Presidio + SpaCy NER</td>
+      <td style="padding:8px;">&lt; 5ms</td>
+      <td style="padding:8px;">Anonymize with synthetic tokens (e.g. <code>[EMAIL_1]</code>)</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Jailbreak Detection</strong></td>
+      <td style="padding:8px;">FastText / Vector Embedding Distance</td>
+      <td style="padding:8px;">&lt; 10ms</td>
+      <td style="padding:8px;">Block request immediately</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Structured Output</strong></td>
+      <td style="padding:8px;">Pydantic / CFG Grammar Masking</td>
+      <td style="padding:8px;">0ms (Token Logit Level)</td>
+      <td style="padding:8px;">Mask invalid tokens at decoding step</td>
+    </tr>
+  </tbody>
+</table>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1670,11 +1777,28 @@ print("✓ Multi-layer output safety guardrail verified.")</pre>
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
           <h3 class="sh3">1. Exact vs Semantic Vector Caching</h3>
 <p>
-Exact caching fails when users phrase the same query with slight variations (<em>"How to reset router?"</em> vs <em>"Router reboot steps?"</em>).
+Traditional exact string caching (e.g. Redis key-value on MD5 hash of prompt) provides zero cache hits when users alter punctuation, word order, or phrasing (e.g. <em>"How do I reset my password?"</em> vs <em>"Password reset instructions"</em>).
 </p>
 <p>
-<strong>Semantic Caching (e.g. Redis + Vector Index)</strong> computes the query embedding and checks if cosine similarity with a cached query exceeds threshold $\tau \ge 0.95$, returning cached responses in &lt;5ms and saving up to 80% on LLM API costs.
+<strong>Semantic Caching</strong> stores prompt embeddings in a vector index. When a new prompt arrives:
 </p>
+<ol>
+  <li>Compute query embedding $\vec{q} = \text{Embed}(\text{prompt})$.</li>
+  <li>Search vector cache index for the nearest cached prompt vector $\vec{v}_{\text{cached}}$.</li>
+  <li>If cosine similarity $\cos(\vec{q}, \vec{v}_{\text{cached}}) \ge \tau$ (typically $\tau \in [0.92, 0.96]$), return the cached response in <strong>&lt;5ms</strong>.</li>
+  <li>If similarity is below threshold, forward request to the LLM and index the new response.</li>
+</ol>
+<div class="mermaid">
+graph TD
+    Query["Incoming Prompt"] --> Embed["Compute Embedding vec(q)"]
+    Embed --> CacheIndex["Search Redis Vector Index"]
+    CacheIndex --> Check{"Cosine Similarity >= 0.94?"}
+    Check -->|Yes: Cache Hit| CachedResp["Return Cached LLM Response (4ms | $0 cost)"]
+    Check -->|No: Cache Miss| LLMInference["Execute Full LLM Generation (800ms)"]
+    LLMInference --> Store["Store (vec(q), Response) in Redis Vector Cache"]
+    Store --> FinalResp["Return Fresh Response"]
+</div>
+<div class="diagram-cap">Figure 160.1: Semantic Vector Cache Decision Flow.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2163,14 +2287,17 @@ print("✓ Semantic vector cache verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-161-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Enterprise AI Gateways</h3>
+          <h3 class="sh3">1. Enterprise AI Gateway Architecture</h3>
 <p>
-AI Gateways (LiteLLM, Kong AI) provide unified ingress for LLM workloads:
+Exposing model serving endpoints directly to application clients causes security vulnerabilities, lack of rate limiting, unmanaged costs, and cascading outages when model providers experience rate limits (HTTP 429).
+</p>
+<p>
+An <strong>AI Gateway (e.g. LiteLLM, Kong AI Gateway)</strong> sits between client applications and backend LLM providers:
 </p>
 <ul>
-  <li><strong>Token Bucket Rate Limiting:</strong> Enforce rate limits per user/organization.</li>
-  <li><strong>Automated Provider Failover:</strong> Fallback to secondary providers when primary models return 429/500 errors.</li>
-  <li><strong>Dynamic Cluster Load Balancing:</strong> Distribute requests across GPU serving nodes based on active KV cache queue depth.</li>
+  <li><strong>Token-Bucket Rate Limiting:</strong> Enforces Requests-Per-Minute (RPM) and Tokens-Per-Minute (TPM) quotas per client API key.</li>
+  <li><strong>Automated Provider Failover:</strong> Seamlessly routes traffic from primary provider (e.g. OpenAI GPT-4o) to fallback provider (Anthropic Claude-3.5-Sonnet / Azure OpenAI) on 429/500 errors.</li>
+  <li><strong>Load Balancing:</strong> Distributes requests across self-hosted vLLM GPU clusters based on active KV cache memory saturation.</li>
 </ul>
         </div>
 
@@ -2639,19 +2766,35 @@ print("✓ Round-robin load balancer verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-162-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. GPU VRAM & Throughput Capacity Planning</h3>
+          <h3 class="sh3">1. System Design Math for LLM Infrastructure</h3>
 <p>
-Formulas for sizing LLM serving infrastructure:
+Estimating GPU hardware requirements for enterprise LLM deployments requires exact capacity planning math:
 </p>
+<h3 class="sh3">2. VRAM Memory Sizing Formulas</h3>
 <div class="math-block">
 $$\text{VRAM}_{\text{total}} = M_{\text{weights}} + M_{\text{KV}} + M_{\text{activations}}$$
 </div>
+<p>
+<strong>1. Model Weights Footprint:</strong>
+</p>
 <div class="math-block">
-$$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times 2\text{ bytes} \times B \times S$$
+$$M_{\text{weights}} = \text{Parameters (Billions)} \times \text{Bytes per Parameter}$$
 </div>
 <p>
-For a 70B model with batch size $B=32$ and context $S=4096$, KV cache requires $\approx 52\text{GB}$ VRAM.
+For a 70B parameter model: FP16 (2 bytes) = 140GB; INT8 (1 byte) = 70GB; INT4 (0.5 bytes) = 35GB.
 </p>
+<p>
+<strong>2. Key-Value (KV) Cache Memory:</strong>
+</p>
+<div class="math-block">
+$$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{bytes} \times B \times S$$
+</div>
+<p>
+Where $B$ is concurrent batch size and $S$ is maximum sequence length. For Llama-3-70B with Grouped Query Attention (GQA: 8 KV heads, $d=128$, 80 layers, FP16):
+</p>
+<div class="math-block">
+M_{\text{KV}} = 2 \times 80 \times 8 \times 128 \times 2 \times 32 \times 4096 \approx 42.95\text{ GB}
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3130,12 +3273,13 @@ print("✓ Tensor parallel GPU sharding calculation verified.")</pre>
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
           <h3 class="sh3">1. Advanced GenAI System Design Milestone</h3>
 <p>
-Congratulations on mastering advanced GenAI systems! You have built competency in:
+Congratulations on completing the Advanced GenAI and Agentic Systems module! You have developed mastery across:
 </p>
 <ul>
-  <li>Hybrid Search, RRF Fusion, Cross-Encoder Rerankers, and GraphRAG.</li>
-  <li>Cyclic StateGraphs, ReAct loops, Multi-Agent Swarms, and HITL safety gates.</li>
-  <li>PagedAttention, FlashAttention, QLoRA, DPO, and distributed OpenTelemetry observability.</li>
+  <li><strong>Advanced Retrieval:</strong> Hybrid search with Reciprocal Rank Fusion, Cross-Encoder reranking, small-to-big parent-child chunking, and GraphRAG.</li>
+  <li><strong>Stateful Agents:</strong> ReAct loops, cyclic StateGraphs in LangGraph, structured outputs with Instructor, multi-agent supervisor hierarchies, and human-in-the-loop safety checkpoints.</li>
+  <li><strong>Serving & Optimization:</strong> PagedAttention virtual memory, FlashAttention IO kernel fusion, AWQ/QLoRA quantization, and DPO preference alignment.</li>
+  <li><strong>Production Operations:</strong> RAGAS quantitative evaluation gates, OpenTelemetry distributed tracing, multi-layer guardrails, and Redis semantic caching.</li>
 </ul>
         </div>
 

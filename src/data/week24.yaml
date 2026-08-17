@@ -41,16 +41,19 @@ days:
   theory_html: |-
     <h3 class="sh3">1. MLflow Experiment Tracking Architecture</h3>
     <p>
-    MLflow decouples metadata tracking (PostgreSQL backend) from serialized model artifact storage (AWS S3 / GCS), providing full lineage tracking for every training run.
+    In enterprise machine learning, reproducibility and lineage governance require tracking hyperparameter sweeps, metric curves, model binaries, and evaluation artifacts across distributed training runs.
+    </p>
+    <p>
+    <strong>MLflow Tracking Server</strong> decouples the client tracking API from metadata and artifact storage:
     </p>
     <div class="mermaid">
     graph TD
-        Client["Training Script"] --> MLflowServer["MLflow Tracking Server"]
-        MLflowServer --> Postgres["PostgreSQL (Params, Metrics, Tags)"]
-        MLflowServer --> S3["S3 (Model Artifacts, ONNX)"]
-        MLflowServer --> Registry["Model Registry (@champion / @challenger)"]
+        Client["Training Script (PyTorch / Scikit-Learn)"] -->|HTTP / REST API| MLflowServer["MLflow Tracking Server (Gunicorn/FastAPI)"]
+        MLflowServer -->|Relational Metadata (Params, Metrics, Tags)| BackendDB["Backend Store (PostgreSQL / MySQL)"]
+        MLflowServer -->|Serialized Model Artifacts (.bin, ONNX)| ArtifactStore["Artifact Storage (AWS S3 / GCS / Azure Blob)"]
+        MLflowServer --> Registry["MLflow Model Registry (Champion / Challenger Aliases)"]
     </div>
-    <div class="diagram-cap">Figure 171.1: Production MLflow Tracking Architecture.</div>
+    <div class="diagram-cap">Figure 171.1: Production MLflow Tracking & Model Registry Architecture.</div>
   predict:
     question: What MLflow tracking method is called to record validation loss at epoch 10?
     answer: log_metric
@@ -333,9 +336,9 @@ days:
   analogy: 'MLflow Model Registry & Model Aliases is like a structural pillar in an industrial suspension bridge: engineered
     to withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Modern MLflow Model Aliases</h3>
+    <h3 class="sh3">1. Modern Model Governance with MLflow Aliases</h3>
     <p>
-    MLflow 2.8+ model aliases (<code>@champion</code>, <code>@challenger</code>) decouple inference microservices from version numbers, allowing instant point-and-click promotions via immutable URIs (<code>models:/FraudModel@champion</code>).
+    In MLflow 2.8+, legacy stage tags (<code>Staging</code>, <code>Production</code>) were replaced by <strong>Model Aliases</strong>. Aliases provide dynamic, point-and-click pointer tags (e.g. <code>@champion</code>, <code>@challenger</code>, <code>@shadow</code>) enabling serving endpoints to load models via immutable URIs (<code>models:/FraudClassifier@champion</code>) without redeploying code.
     </p>
   predict:
     question: What model alias is assigned to the top-performing model promoted to production serving in MLflow Model Registry?
@@ -597,9 +600,12 @@ days:
   analogy: 'DVC is like a digital warehouse receipt: instead of carrying 10 tons of steel in your backpack (Git repo), you
     hold a verified paper certificate (pointer file) that retrieves the exact crate from the warehouse (S3).'
   theory_html: |-
-    <h3 class="sh3">1. Git-Backed Dataset Versioning with DVC</h3>
+    <h3 class="sh3">1. Data Version Control (DVC) & Dataset Lineage</h3>
     <p>
-    Git cannot store gigabyte-scale datasets without bloating repository history. <strong>Data Version Control (DVC)</strong> generates lightweight <code>.dvc</code> pointer files tracked in Git, while syncing actual large datasets to remote object storage (S3 / GCS).
+    Standard Git repositories cannot store multi-gigabyte datasets without bloating repository history and degrading performance.
+    </p>
+    <p>
+    <strong>Data Version Control (DVC)</strong> solves this by creating lightweight <code>.dvc</code> metadata pointer files (containing unique content-addressed SHA256 hashes) tracked directly in Git, while syncing actual large datasets to remote object storage (AWS S3 / GCP GCS).
     </p>
   predict:
     question: "What does\n       \n        dvc repro\n       \n       do?"
@@ -931,10 +937,15 @@ days:
   analogy: 'Airflow is like an orchestral conductor: every musician (ETL task, Training task, Evaluation task) begins playing
     at the exact required bar and tempo.'
   theory_html: |-
-    <h3 class="sh3">1. Apache Airflow DAGs for Automated Retraining</h3>
+    <h3 class="sh3">1. ML Pipeline Orchestration with Apache Airflow</h3>
     <p>
-    Airflow orchestrates end-to-end ML pipelines: data extraction $\to$ schema validation $\to$ distributed training $\to$ model evaluation gate $\to$ registry promotion.
+    Production machine learning workflows require scheduled, fault-tolerant orchestration. <strong>Apache Airflow</strong> defines ML pipelines as <strong>Directed Acyclic Graphs (DAGs)</strong> in pure Python:
     </p>
+    <ul>
+      <li><strong>Data Validation Task:</strong> Verifies schema integrity and null thresholds using Great Expectations.</li>
+      <li><strong>Distributed Training Task:</strong> Triggers GPU training jobs with automated retries.</li>
+      <li><strong>Model Evaluation Gate:</strong> Computes test set metrics and validates that candidate accuracy exceeds champion thresholds before promoting to the registry.</li>
+    </ul>
   predict:
     question: What string is output when an Apache Airflow DAG completes its scheduled daily retraining run?
     answer: success
@@ -1276,15 +1287,24 @@ days:
   analogy: 'Drift monitoring is like checking the alignment and tire pressure on a long cross-country drive: it detects subtle
     steering deviations before a major tire blowout occurs.'
   theory_html: |-
-    <h3 class="sh3">1. Statistical Drift Detection: KS-Test & PSI</h3>
+    <h3 class="sh3">1. Types of Drift in Production AI Systems</h3>
     <p>
-    Monitor live production features using Kolmogorov-Smirnov (KS) tests for continuous variables and Population Stability Index (PSI) for discrete distributions:
+    Deployed machine learning models degrade over time due to shifts in input distributions or changing consumer behavior. Production monitoring distinguishes between two critical statistical phenomena:
+    </p>
+    <ul>
+      <li><strong>Data Drift (Covariate Shift):</strong> The input feature distribution $P(X)$ shifts between training baseline and live inference, while conditional relationship $P(Y|X)$ remains constant.</li>
+      <li><strong>Concept Drift:</strong> The underlying relationship $P(Y|X)$ changes over time (e.g. consumer spending behavior changes during inflation).</li>
+    </ul>
+
+    <h3 class="sh3">2. Statistical Metrics: KS-Test and Population Stability Index (PSI)</h3>
+    <p>
+    <strong>Population Stability Index (PSI):</strong> Bins continuous features into $B$ quantiles and computes Kullback-Leibler divergence between actual ($\text{Act}_i$) and expected ($\text{Exp}_i$) frequencies:
     </p>
     <div class="math-block">
     $$\text{PSI} = \sum_{i=1}^B (\text{Act}_i - \text{Exp}_i) \times \ln\left( \frac{\text{Act}_i}{\text{Exp}_i} \right)$$
     </div>
     <p>
-    $\text{PSI} > 0.20$ triggers automated Airflow retraining DAGs.
+    <strong>Decision Thresholds:</strong> $\text{PSI} < 0.10$ (Stable); $0.10 \le \text{PSI} \le 0.20$ (Moderate Drift); $\text{PSI} > 0.20$ (Significant Drift — triggers automated retraining).
     </p>
   predict:
     question: What Population Stability Index (PSI) drift status string is returned for these binned reference vs target distributions?
@@ -1545,9 +1565,12 @@ days:
   analogy: 'Canary Deployments & Statistical A/B Testing is like a structural pillar in an industrial suspension bridge: engineered
     to withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Zero-Downtime Canary Rollouts</h3>
+    <h3 class="sh3">1. Zero-Downtime Canary Rollouts & Statistical A/B Testing</h3>
     <p>
-    Route 5-10% of live traffic to challenger models. Use statistical hypothesis testing (Welch's t-test / Chi-square) to detect conversion or latency regressions before 100% cutover.
+    Replacing production models in a single cutover risks catastrophic failures if the new model suffers from unforeseen edge-case bugs.
+    </p>
+    <p>
+    <strong>Canary Deployment Strategy:</strong> Routes 5–10% of live user traffic to the challenger model while sending 90–95% to the champion model. Continuous statistical hypothesis testing (Welch's t-test / Chi-square test) verifies conversion and latency metrics before progressing to 100% traffic allocation.
     </p>
   predict:
     question: What p-value threshold is required to declare statistical significance in a production ML A/B test?
@@ -1851,10 +1874,16 @@ days:
   analogy: 'Capstone: End-to-End Enterprise MLOps Pipeline is like a structural pillar in an industrial suspension bridge:
     engineered to withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Full-Loop Enterprise MLOps Pipeline</h3>
+    <h3 class="sh3">1. Capstone: Full-Loop Enterprise MLOps Pipeline</h3>
     <p>
-    The Week 24 Capstone integrates DVC dataset tracking, MLflow experiment logging, Airflow DAG scheduling, Evidently AI drift monitoring, and automated canary deployments.
+    The Week 24 Capstone integrates all core MLOps components into a unified automated pipeline:
     </p>
+    <ul>
+      <li>DVC dataset versioning and S3 storage sync.</li>
+      <li>MLflow experiment logging and model artifact registration.</li>
+      <li>Apache Airflow DAG scheduling with automated retraining triggers.</li>
+      <li>Evidently AI statistical drift detection and automated rollback gates.</li>
+    </ul>
   predict:
     question: In this pipeline, what would trigger a full retrain even outside the weekly schedule?
     answer: |-

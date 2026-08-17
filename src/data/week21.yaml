@@ -53,7 +53,7 @@ days:
       </li>
     </ol>
     <p>
-    In legacy serving engines, KV cache tensors were pre-allocated contiguously for the maximum sequence length (e.g. $S = 4096$). This led to massive <strong>internal memory fragmentation</strong> ($60\text{--}80\%$ of GPU VRAM wasted on unused reserved slots) and limited concurrency.
+    In legacy serving engines (e.g. Hugging Face TGI 1.0), KV cache tensors were pre-allocated contiguously for the maximum sequence length (e.g. $S = 4096$). This led to massive <strong>internal memory fragmentation</strong> ($60\text{--}80\%$ of GPU VRAM wasted on unused reserved slots) and limited concurrency.
     </p>
 
     <h3 class="sh3">2. PagedAttention Architecture: Virtual Memory for KV Cache</h3>
@@ -76,6 +76,11 @@ days:
       <li><strong>Near-Zero Memory Waste:</strong> Reduces VRAM fragmentation to &lt;4%, allowing <strong>2x - 4x larger concurrent batch sizes</strong>.</li>
       <li><strong>Copy-on-Write Memory Sharing:</strong> Enables parallel speculative decoding and tree search without duplicating prompt KV cache in memory.</li>
     </ul>
+
+    <h3 class="sh3">3. Continuous Batching (Iteration-Level Scheduling)</h3>
+    <p>
+    Traditional batching groups requests together until the entire batch finishes generating. Because sequence lengths vary widely, short requests are forced to wait for long requests to complete (the <em>tail latency problem</em>). <strong>Continuous Batching (Orca / vLLM)</strong> dynamically evicts completed sequences and schedules newly arriving requests at each token iteration step, boosting serving throughput by <strong>5x - 10x</strong>.
+    </p>
   predict:
     question: What integer gigabytes of VRAM are required for the KV cache of a batch size 16 request on LLaMA-3-8B (32 layers,
       32 heads, dim 128, seq_len 4096, FP16)?
@@ -478,6 +483,15 @@ days:
         SRAM -->|Write Final Output (O(N) IO)| HBM
     </div>
     <div class="diagram-cap">Figure 151.1: FlashAttention SRAM tiling and online softmax scaling eliminating HBM IO passes.</div>
+    <ul>
+      <li><strong>Online Softmax Scaling:</strong> Tracks running maximum $m_i$ and running sum $l_i$ incrementally, enabling exact softmax without storing the full row in memory.</li>
+      <li><strong>Kernel Fusion:</strong> Fuses matrix multiplication, masking, softmax, and value projection into a single GPU CUDA kernel, yielding <strong>2x - 4x speedups</strong> and reducing memory consumption from $O(N^2)$ to $O(N)$.</li>
+    </ul>
+
+    <h3 class="sh3">3. Speculative Decoding: Draft-Verify Acceleration</h3>
+    <p>
+    Autoregressive decoding generates one token per forward pass, underutilizing GPU compute. <strong>Speculative Decoding</strong> uses a lightweight "draft model" (e.g. Llama-3-1B) to generate $K$ speculative tokens quickly. The large "target model" (e.g. Llama-3-70B) verifies all $K$ tokens in a single parallel forward pass, achieving a <strong>2x - 3x latency reduction</strong> with exact mathematical distribution equivalence.
+    </p>
   predict:
     question: What speedup factor is achieved when speculative decoding accepts 3 draft tokens per single target model forward
       pass?
@@ -813,17 +827,45 @@ days:
   theory_html: |-
     <h3 class="sh3">1. Post-Training Quantization (PTQ): AWQ vs GPTQ vs GGUF</h3>
     <p>
-    Quantization compresses 16-bit floating-point weights (FP16/BF16) to lower bitwidths (INT8, INT4, INT2), slashing memory requirements and memory bandwidth bottlenecks during autoregressive decoding.
+    Quantization compresses 16-bit floating-point weights (FP16/BF16) to lower bitwidths (INT8, INT4, INT2), slashing memory requirements and memory bandwidth bottlenecks during autoregressive decoding:
     </p>
-    <ul>
-      <li><strong>AWQ (Activation-aware Weight Quantization):</strong> Observes that not all weights are equally important; protecting the top 1% salient weight channels (based on activation magnitudes) allows 4-bit quantization with near-zero perplexity degradation.</li>
-      <li><strong>GPTQ:</strong> Layer-by-layer second-order Taylor expansion (Optimal Brain Surgeon) minimizing mean squared error: $\arg\min_{\hat{\mathbf{W}}} \|\mathbf{W}\mathbf{X} - \hat{\mathbf{W}}\mathbf{X}\|_2^2$.</li>
-      <li><strong>GGUF / llama.cpp:</strong> Binary format optimized for CPU and mixed CPU/GPU offloaded inference with non-uniform k-quants.</li>
-    </ul>
+    <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border); text-align:left;">
+          <th style="padding:8px;">Method</th>
+          <th style="padding:8px;">Bitwidth</th>
+          <th style="padding:8px;">Quantization Mechanism</th>
+          <th style="padding:8px;">Target Hardware</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px;"><strong>AWQ (Activation-aware)</strong></td>
+          <td style="padding:8px;">INT4 / W4A16</td>
+          <td style="padding:8px;">Protects 1% salient weights based on activation magnitudes.</td>
+          <td style="padding:8px;">NVIDIA Tensor Cores (vLLM, TensorRT-LLM)</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px;"><strong>GPTQ</strong></td>
+          <td style="padding:8px;">INT4 / INT3</td>
+          <td style="padding:8px;">Second-order Taylor expansion (Optimal Brain Surgeon) with Hessian inverse.</td>
+          <td style="padding:8px;">NVIDIA GPUs / ExLlamaV2</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px;"><strong>GGUF / llama.cpp</strong></td>
+          <td style="padding:8px;">Q2_K to Q8_0</td>
+          <td style="padding:8px;">Non-uniform k-quants with dynamic block scaling.</td>
+          <td style="padding:8px;">CPU / Apple Silicon / Metal / Edge</td>
+        </tr>
+      </tbody>
+    </table>
 
-    <h3 class="sh3">2. Quantization Mathematical Formulation</h3>
+    <h3 class="sh3">2. Uniform Quantization Mathematical Formulation</h3>
     <div class="math-block">
     $$X_{\text{quant}} = \text{clip}\left( \left\lfloor \frac{X}{\text{Scale}} \right\rceil + Z, -2^{b-1}, 2^{b-1}-1 \right)$$
+    </div>
+    <div class="math-block">
+    $$\hat{X} = (X_{\text{quant}} - Z) \times \text{Scale}$$
     </div>
   predict:
     question: A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much VRAM does it take in INT4?
@@ -1109,26 +1151,35 @@ days:
   analogy: 'QLoRA & PEFT is like a structural pillar in an industrial suspension bridge: engineered to withstand peak load
     stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Low-Rank Adaptation (LoRA)</h3>
+    <h3 class="sh3">1. Parameter-Efficient Fine-Tuning (PEFT) & Low-Rank Adaptation (LoRA)</h3>
     <p>
-    LoRA freezes the pre-trained weight matrix $\mathbf{W}_0 \in \mathbb{R}^{d \times k}$ and injects trainable low-rank decomposition matrices:
+    Full parameter fine-tuning of frontier language models (e.g. Llama-3-70B) requires updating and storing optimizer states (Adam: 8 bytes per parameter) and gradients (4 bytes per parameter) for all 70 billion parameters, requiring &gt;800GB VRAM across multi-GPU nodes.
+    </p>
+    <p>
+    <strong>LoRA (Low-Rank Adaptation)</strong> freezes the pre-trained weight matrix $\mathbf{W}_0 \in \mathbb{R}^{d \times k}$ and decomposes the parameter update $\Delta \mathbf{W}$ into two low-rank matrices:
     </p>
     <div class="math-block">
-    $$\mathbf{W} = \mathbf{W}_0 + \frac{\alpha}{r} (\mathbf{B} \cdot \mathbf{A})$$
+    $$\mathbf{W} = \mathbf{W}_0 + \Delta \mathbf{W} = \mathbf{W}_0 + \frac{\alpha}{r} (\mathbf{B} \cdot \mathbf{A})$$
     </div>
     <p>
-    Where $\mathbf{A} \in \mathbb{R}^{r \times k} \sim \mathcal{N}(0, \sigma^2)$, $\mathbf{B} \in \mathbb{R}^{d \times r} = 0$, and rank $r \in \{8, 16, 32\}$.
-    </p>
-
-    <h3 class="sh3">2. QLoRA: 4-Bit NormalFloat (NF4)</h3>
-    <p>
-    QLoRA fine-tunes 70B parameter models on a single 48GB GPU by combining:
+    Where:
     </p>
     <ul>
-      <li><strong>NF4 Quantization:</strong> Information-theoretically optimal for normal distributions.</li>
-      <li><strong>Double Quantization (DQ):</strong> Quantizes scale constants, saving 0.37 bits/param.</li>
-      <li><strong>Paged Optimizers:</strong> Pages memory to CPU RAM during activation spikes.</li>
+      <li>$\mathbf{A} \in \mathbb{R}^{r \times k}$ is initialized from a Gaussian distribution $\mathcal{N}(0, \sigma^2)$.</li>
+      <li>$\mathbf{B} \in \mathbb{R}^{d \times r}$ is initialized to zero, ensuring $\Delta \mathbf{W} = 0$ at the start of training.</li>
+      <li>$r \ll \min(d, k)$ is the adapter rank (typically $r \in \{8, 16, 32, 64\}$), reducing trainable parameters by <strong>&gt;99.9%</strong>.</li>
+      <li>$\alpha$ is a scaling factor (standard convention $\alpha = 2r$).</li>
     </ul>
+
+    <h3 class="sh3">2. QLoRA: 4-Bit NormalFloat (NF4) Quantization</h3>
+    <p>
+    <strong>QLoRA</strong> (Dettmers et al.) enables fine-tuning 70B parameter models on a single 48GB GPU by combining three innovations:
+    </p>
+    <ol>
+      <li><strong>NF4 (NormalFloat4) Quantization:</strong> Information-theoretically optimal quantile quantization for normally distributed base weights.</li>
+      <li><strong>Double Quantization (DQ):</strong> Quantizes the quantization constants themselves, saving an additional 0.37 bits per parameter.</li>
+      <li><strong>Paged Optimizers:</strong> Uses CUDA Unified Memory to automatically page optimizer states to CPU RAM during activation memory spikes, preventing out-of-memory crashes.</li>
+    </ol>
   predict:
     question: What percentage of total model parameters are trainable in this LoRA adapter configuration with r=8 on a 100M
       parameter model?
@@ -1388,13 +1439,24 @@ days:
   analogy: RLHF with PPO is like hiring a judge (Reward Model), a coach (Critic), and an athlete (Policy) all practicing simultaneously.
     DPO is giving the athlete a direct video comparison of good vs bad performances to learn from directly.
   theory_html: |-
-    <h3 class="sh3">1. Direct Preference Optimization (DPO)</h3>
+    <h3 class="sh3">1. RLHF vs Direct Preference Optimization (DPO)</h3>
     <p>
-    DPO aligns language models directly on pairwise human preferences without training a separate reward model or tuning unstable PPO actor-critic loops:
+    Aligning base language models with human preferences historically required <strong>RLHF with PPO (Proximal Policy Optimization)</strong>. PPO is notoriously unstable, requiring 4 simultaneous models in GPU memory (Actor model, Critic/Value model, Reward model, and Reference model) and fragile hyperparameter tuning.
+    </p>
+    <p>
+    <strong>Direct Preference Optimization (DPO)</strong> (Rafailov et al., Stanford) mathematically proves that the optimal policy $\pi_\theta$ under a Bradley-Terry preference model can be derived in closed form without training an explicit reward model:
     </p>
     <div class="math-block">
     $$\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l)} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w | x)}{\pi_{\text{ref}}(y_w | x)} - \beta \log \frac{\pi_\theta(y_l | x)}{\pi_{\text{ref}}(y_l | x)} \right) \right]$$
     </div>
+    <p>
+    Where:
+    </p>
+    <ul>
+      <li>$x$ is the prompt, $y_w$ is the winning (preferred) response, and $y_l$ is the losing (dispreferred) response.</li>
+      <li>$\pi_{\text{ref}}$ is the frozen reference SFT model, preventing policy drift via implicit KL divergence regularization.</li>
+      <li>$\beta$ is the temperature parameter controlling conservative divergence from the reference policy ($\beta \in [0.1, 0.5]$).</li>
+    </ul>
   predict:
     question: In Direct Preference Optimization (DPO), which response (chosen y_w or rejected y_l) has its relative log-likelihood
       maximized?
@@ -1672,12 +1734,18 @@ days:
   analogy: 'Synthetic Data & Deduplication is like a structural pillar in an industrial suspension bridge: engineered to withstand
     peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Synthetic Data Generation & MinHash Deduplication</h3>
+    <h3 class="sh3">1. Synthetic Data Generation: Self-Instruct & Evol-Instruct</h3>
     <p>
-    Frontier fine-tuning datasets are increasingly synthesized using frontier LLMs (Self-Instruct, Evol-Instruct). However, un-deduplicated synthetic data causes severe model overfitting and loss of reasoning diversity.
+    High-quality post-training datasets are generated programmatically using instruction evolution:
     </p>
+    <ul>
+      <li><strong>Self-Instruct:</strong> Bootstraps instruction-following datasets from seed tasks by generating diverse user prompts and target completions.</li>
+      <li><strong>Evol-Instruct:</strong> Iteratively increases task complexity across five dimensions: adding constraints, deepening reasoning steps, concretizing abstract concepts, introducing multi-turn dialogue, and complicating tool interfaces.</li>
+    </ul>
+
+    <h3 class="sh3">2. MinHash LSH Deduplication</h3>
     <p>
-    <strong>MinHash with Locality-Sensitive Hashing (LSH)</strong> approximates Jaccard similarity across millions of text strings in near-linear time:
+    To prevent model memorization and loss of generalization, synthetic datasets must be deduplicated using <strong>MinHash Locality-Sensitive Hashing (LSH)</strong>:
     </p>
     <div class="math-block">
     $$J(A, B) = \frac{|A \cap B|}{|A \cup B|} \approx \Pr(\min(h(A)) = \min(h(B)))$$
@@ -1941,14 +2009,14 @@ days:
   analogy: 'Capstone: Deploying a Custom Fine-Tuned Model is like a structural pillar in an industrial suspension bridge:
     engineered to withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. End-to-End Fine-Tuning & Serving Lifecycle</h3>
+    <h3 class="sh3">1. Custom Model Deployment Pipeline</h3>
     <p>
-    Deploying a fine-tuned LLM to production requires:
+    Deploying custom fine-tuned models requires:
     </p>
     <ol>
-      <li><strong>LoRA Adapter Merge:</strong> Merge $\Delta \mathbf{W}$ into $\mathbf{W}_0$ for zero inference forward-pass latency overhead.</li>
-      <li><strong>AWQ INT4 Quantization:</strong> Quantize merged weights to achieve 70% VRAM reduction.</li>
-      <li><strong>vLLM Serving Container:</strong> Deploy with PagedAttention and continuous batching under FastAPI.</li>
+      <li><strong>LoRA Weight Fusion:</strong> Merging adapter weights $\mathbf{W} = \mathbf{W}_0 + \frac{\alpha}{r}\mathbf{B}\mathbf{A}$ into base weights to eliminate inference overhead.</li>
+      <li><strong>AWQ INT4 Quantization:</strong> Compressing merged model weights for low-latency GPU serving.</li>
+      <li><strong>vLLM Serving:</strong> Launching high-concurrency endpoints with PagedAttention and continuous batching.</li>
     </ol>
   predict:
     question: What string is output after successfully merging and saving a trained LoRA adapter into base model weights?

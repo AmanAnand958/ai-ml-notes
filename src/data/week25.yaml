@@ -54,6 +54,15 @@ days:
         Worker1 --> Pod1["vLLM Serving Pod (limits: nvidia.com/gpu: 4)"]
     </div>
     <div class="diagram-cap">Figure 178.1: Kubernetes GPU Workload Orchestration and Control Plane Architecture.</div>
+
+    <h3 class="sh3">2. GPU Resource Allocation & Pod Specifications</h3>
+    <p>
+    Kubernetes manages GPU devices via the <strong>NVIDIA GPU Device Plugin</strong>. To ensure stable model serving without GPU out-of-memory kernel panics:
+    </p>
+    <ul>
+      <li><strong>Resource Limits:</strong> Set identical <code>requests</code> and <code>limits</code> for <code>nvidia.com/gpu</code> to guarantee Guaranteed QoS tier.</li>
+      <li><strong>Shared Memory (<code>/dev/shm</code>):</strong> Mount an <code>emptyDir</code> with <code>medium: Memory</code> to prevent PyTorch distributed worker deadlocks.</li>
+    </ul>
   predict:
     question: What is the standard Kubernetes resource key used to request 1 NVIDIA GPU in a Pod manifest?
     answer: nvidia.com/gpu
@@ -320,15 +329,44 @@ days:
   analogy: 'Deploying vLLM on Kubernetes is like an automated container terminal at a mega-seaport: robotic cranes load, unload,
     and stack shipping containers (Pods) on demand based on shipping schedules.'
   theory_html: |-
-    <h3 class="sh3">1. Production vLLM StatefulSet & Shared Memory</h3>
+    <h3 class="sh3">1. Deploying vLLM on Kubernetes</h3>
     <p>
-    Deploy vLLM on Kubernetes with:
+    Deploying high-throughput vLLM serving pods on Kubernetes requires:
     </p>
-    <ul>
-      <li><code>nvidia.com/gpu</code> resource requests matching limits for Guaranteed QoS.</li>
-      <li><code>/dev/shm</code> mounted as an <code>emptyDir</code> with <code>medium: Memory</code> to prevent PyTorch distributed data loader deadlocks.</li>
-      <li>Liveness and Readiness probes monitoring the <code>/health</code> HTTP endpoint.</li>
-    </ul>
+    <div class="cb">
+      <div class="cb-head"><span class="cb-lang">yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+      <pre><code>apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: vllm-llama3-serving
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: vllm-llama3
+      template:
+        metadata:
+          labels:
+            app: vllm-llama3
+        spec:
+          containers:
+          - name: vllm-server
+            image: vllm/vllm-openai:latest
+            args: ["--model", "meta-llama/Meta-Llama-3-8B-Instruct", "--gpu-memory-utilization", "0.90", "--max-model-len", "4096"]
+            resources:
+              limits:
+                nvidia.com/gpu: "1"
+                memory: "32Gi"
+            ports:
+            - containerPort: 8000
+            volumeMounts:
+            - mountPath: /dev/shm
+              name: shm-volume
+          volumes:
+          - name: shm-volume
+            emptyDir:
+              medium: Memory</code></pre>
+    </div>
   predict:
     question: What volume medium is configured in Kubernetes for /dev/shm to prevent PyTorch DataLoader IPC deadlocks?
     answer: Memory
@@ -639,13 +677,17 @@ days:
   analogy: 'Horizontal Pod Autoscaling is like a structural pillar in an industrial suspension bridge: engineered to withstand
     peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Custom Metric Autoscaling with Prometheus</h3>
+    <h3 class="sh3">1. Horizontal Pod Autoscaling with Prometheus Custom Metrics</h3>
     <p>
-    Generic CPU/Memory metrics fail for LLM autoscaling because GPUs sit at 100% compute even when requests are queuing.
+    Standard CPU/Memory metrics are useless for autoscaling LLM serving clusters because GPUs report near-100% compute even when requests are queuing in KV cache memory.
     </p>
     <p>
-    <strong>Prometheus Adapter Custom Metric HPA:</strong> Autoscale GPU pods based on <code>vllm:num_requests_waiting</code> or <code>vllm:avg_prompt_throughput_tok_per_s</code>.
+    <strong>Prometheus Custom Metric HPA:</strong> Scales pods based on real-time vLLM engine metrics:
     </p>
+    <ul>
+      <li><code>vllm:num_requests_waiting</code>: Number of queued requests waiting for available KV cache blocks.</li>
+      <li><code>vllm:gpu_cache_usage_factor</code>: GPU VRAM KV cache saturation ratio (trigger scale-up when $> 0.85$).</li>
+    </ul>
   predict:
     question: "Why is\n       \n        stabilizationWindowSeconds\n       \n       for scaleDown useful for LLM services?"
     answer: |-
@@ -973,9 +1015,9 @@ days:
   analogy: 'Helm Charts for ML Stacks is like a structural pillar in an industrial suspension bridge: engineered to withstand
     peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Parameterized Infrastructure with Helm</h3>
+    <h3 class="sh3">1. Parameterized Infrastructure with Helm Charts</h3>
     <p>
-    Helm charts parameterize Kubernetes deployments, services, ConfigMaps, and ingress rules across dev, staging, and production environments with simple <code>values.yaml</code> overrides.
+    Helm acts as the package manager for Kubernetes, parameterizing complex multi-resource deployments (Deployments, Services, ConfigMaps, Secrets, Ingress) across staging and production environments using modular <code>values.yaml</code> configuration files.
     </p>
   predict:
     question: What default file in a Helm chart contains user-configurable deployment parameters?
@@ -1273,15 +1315,15 @@ days:
   analogy: 'GitHub Actions CI/CD for ML is like a structural pillar in an industrial suspension bridge: engineered to withstand
     peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. GitOps Automated Quality Gates</h3>
+    <h3 class="sh3">1. GitOps CI/CD Pipelines with GitHub Actions</h3>
     <p>
-    Every pull request triggers:
+    Automated ML CI/CD workflows enforce continuous quality gates:
     </p>
     <ol>
-      <li>Linting (<code>flake8</code> / <code>black</code>).</li>
-      <li>Unit testing (<code>pytest</code>).</li>
-      <li>Model evaluation against golden regression datasets.</li>
-      <li>Automated Docker image build and push to container registries.</li>
+      <li><strong>Code Quality Gate:</strong> Linting with <code>black</code> and <code>flake8</code>.</li>
+      <li><strong>Unit & Integration Testing:</strong> Running <code>pytest</code> test suites with mock API fixtures.</li>
+      <li><strong>Model Evaluation Gate:</strong> Asserting latency and accuracy SLAs against golden regression datasets.</li>
+      <li><strong>Container Build & Push:</strong> Building multi-stage Docker images pushed to Amazon ECR or GitHub Container Registry.</li>
     </ol>
   predict:
     question: What GitHub Actions event triggers the automated CI/CD model testing pipeline?
@@ -1539,10 +1581,15 @@ days:
   analogy: 'Model Performance Regression Tests is like a structural pillar in an industrial suspension bridge: engineered
     to withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Golden Test Slices & Regression Gates</h3>
+    <h3 class="sh3">1. Model Regression Testing on Golden Slices</h3>
     <p>
-    Evaluate candidate models against frozen golden test slices to guarantee zero regressions on critical safety, formatting, or domain-specific accuracy benchmarks.
+    Before promoting candidate models to production, automated regression suites evaluate performance across critical behavioral slices:
     </p>
+    <ul>
+      <li><strong>Safety & Toxicity Benchmark:</strong> Zero tolerance for jailbreak or PII leakage regressions.</li>
+      <li><strong>Format & JSON Compliance:</strong> 100% parseable structured outputs.</li>
+      <li><strong>Domain Accuracy:</strong> F1 score $\ge 0.92$ on historical customer ticket benchmarks.</li>
+    </ul>
   predict:
     question: What boolean result is returned when a new model's latency exceeds the SLA regression threshold of 100ms?
     answer: 'False'
@@ -1809,9 +1856,9 @@ days:
   analogy: 'Capstone: Production K8s LLM Deployment is like an automated container terminal at a mega-seaport: robotic cranes
     load, unload, and stack shipping containers (Pods) on demand based on shipping schedules.'
   theory_html: |-
-    <h3 class="sh3">1. Kubernetes Production AI Capstone</h3>
+    <h3 class="sh3">1. Capstone: Production Kubernetes AI Deployment</h3>
     <p>
-    The Week 25 Capstone deploys a complete production LLM serving cluster on Kubernetes using Helm charts, Prometheus custom metric HPA, and automated GitOps CI/CD.
+    The Week 25 Capstone delivers a resilient, autoscaling LLM serving cluster on Kubernetes featuring Helm packaging, Prometheus custom metric HPA, and GitOps CI/CD automation.
     </p>
   predict:
     question: "What does\n       \n        --wait --timeout 10m\n       \n       do in the helm upgrade command?"

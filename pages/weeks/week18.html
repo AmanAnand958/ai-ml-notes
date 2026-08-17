@@ -235,62 +235,114 @@
         <!-- THEORY SECTION -->
         <div id="day-125-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Kubernetes Core Primitives for ML Engineers</h3>
+          <h3 class="sh3">1. Why Kubernetes for Machine Learning Deployments?</h3>
 <p>
-Deploying machine learning models in production requires high availability, rolling zero-downtime updates, and automated self-healing. <strong>Kubernetes (K8s)</strong> manages containerized ML workloads across compute clusters using key declarative primitives:
+Modern machine learning models cannot run reliably on bare virtual machines in enterprise environments. Production AI systems require dynamic scaling, GPU resource sharing, automated health-checking, rolling zero-downtime updates, and fault tolerance. <strong>Kubernetes (K8s)</strong> serves as the industry standard container orchestrator that abstracts physical compute clusters into unified, declarative APIs.
 </p>
+<p>
+In an ML deployment context, Kubernetes coordinates three core operations:
+</p>
+<ul>
+  <li><strong>Inference Microservices:</strong> Packaging FastAPI/Triton/vLLM servers inside lightweight container Pods exposed behind ClusterIP and Ingress controllers.</li>
+  <li><strong>GPU Scheduling & Isolation:</strong> Utilizing the NVIDIA GPU Device Plugin to allocate discrete GPU hardware slices (e.g. <code>nvidia.com/gpu: 1</code>) to specialized pods.</li>
+  <li><strong>Horizontal Pod Autoscaling (HPA):</strong> Dynamically scaling pod replicas based on request concurrency, GPU memory saturation, and queue latency.</li>
+</ul>
 <div class="mermaid">
 graph TD
-  Client["Client / External Web Traffic"] --> Ingress["Ingress Controller (NGINX / ALB)"]
-  Ingress --> Svc["ClusterIP Service (Load Balancer)"]
-  Svc --> Pod1["Pod 1: FastAPI Model Worker
-(RAM: 2Gi, CPU: 1.0)"]
-  Svc --> Pod2["Pod 2: FastAPI Model Worker
-(RAM: 2Gi, CPU: 1.0)"]
-  Svc --> Pod3["Pod 3: FastAPI Model Worker
-(RAM: 2Gi, CPU: 1.0)"]
-  RS["ReplicaSet (Replicas: 3)"] -.->|Maintains Desired State| Pod1 & Pod2 & Pod3
+    Client["Client / Application Gateway"] --> Ingress["K8s Ingress Controller (NGINX / Traefik)"]
+    Ingress --> Service["K8s Service (ClusterIP: Load Balancer)"]
+    Service --> Pod1["Pod 1: FastAPI + ONNX Runtime (GPU Node 1)"]
+    Service --> Pod2["Pod 2: FastAPI + ONNX Runtime (GPU Node 1)"]
+    Service --> Pod3["Pod 3: FastAPI + ONNX Runtime (GPU Node 2)"]
+    Pod1 & Pod2 & Pod3 --> SharedVolume["Shared Persistent Volume (Model Weights Cache)"]
 </div>
-<div class="diagram-cap">Kubernetes Ingress, Service, and ReplicaSet Architecture for High-Availability Model Serving.</div>
+<div class="diagram-cap">Figure 125.1: Kubernetes ML Microservice Serving Architecture.</div>
 
-<h3 class="sh3">2. Production Pod Manifest & Resource Constraints</h3>
-<p>
-A production ML deployment requires explicit resource boundaries and readiness probes to ensure traffic is only routed after model weights are fully loaded into memory:
-</p>
+<h3 class="sh3">2. Core Kubernetes Primitives for ML Engineers</h3>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left;">
+      <th style="padding:8px;">Primitive</th>
+      <th style="padding:8px;">Purpose</th>
+      <th style="padding:8px;">ML Engineering Context</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Pod</strong></td>
+      <td style="padding:8px;">Smallest deployable execution unit.</td>
+      <td style="padding:8px;">Contains inference server container + optional sidecar (metrics exporter).</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Deployment</strong></td>
+      <td style="padding:8px;">Declarative controller for stateless pod replicas.</td>
+      <td style="padding:8px;">Manages rolling updates when model weights or API code change.</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Service</strong></td>
+      <td style="padding:8px;">Stable internal IP and DNS endpoint.</td>
+      <td style="padding:8px;">Load balances requests across healthy model inference pods.</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>ConfigMap / Secret</strong></td>
+      <td style="padding:8px;">External configuration & encrypted credentials.</td>
+      <td style="padding:8px;">Injects model paths, batch size settings, S3 keys, and Hugging Face tokens.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 class="sh3">3. Production Kubernetes ML Deployment Manifest</h3>
 <div class="cb">
-<div class="cb-head"><span class="cb-lang">yaml — model-deployment.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code>apiVersion: apps/v1
+  <div class="cb-head"><span class="cb-lang">yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ml-inference-deployment
+  name: fraud-detection-api
+  labels:
+    app: fraud-detector
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: ml-serving
+      app: fraud-detector
   template:
     metadata:
       labels:
-        app: ml-serving
+        app: fraud-detector
     spec:
       containers:
-      - name: fastapi-model
-        image: my-registry.io/ml-service:v1.0.0
-        ports:
-        - containerPort: 8000
+      - name: inference-engine
+        image: enterprise-registry.io/ml/fraud-api:v2.1.0
         resources:
           requests:
-            memory: "2Gi"
-            cpu: "1000m"
-          limits:
             memory: "4Gi"
             cpu: "2000m"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+            nvidia.com/gpu: "1"
+        ports:
+        - containerPort: 8000
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
           initialDelaySeconds: 15
-          periodSeconds: 10</code></pre>
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /live
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        volumeMounts:
+        - name: dshm
+          mountPath: /dev/shm
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory</code></pre>
 </div>
         </div>
 
@@ -741,38 +793,58 @@ print("✓ Kubernetes deployment specification verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-126-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. PaaS Deployment Patterns for ML Applications</h3>
+          <h3 class="sh3">1. PaaS vs Managed K8s: Selecting Deployment Targets</h3>
 <p>
-Platform-as-a-Service (PaaS) providers like <strong>Render</strong> and <strong>Railway</strong> streamline continuous deployment by connecting directly to Git repositories. When changes merge into <code>main</code>, the platform builds the Docker container, attaches managed environment variables, issues SSL certificates, and exposes a public HTTPS endpoint.
+Deploying machine learning models to production requires choosing the right compute infrastructure tier. While large enterprises run dedicated Kubernetes clusters (EKS, GKE), early-stage products, internal tools, and agile prototypes benefit enormously from <strong>Platform-as-a-Service (PaaS)</strong> environments like <strong>Render</strong>, <strong>Railway</strong>, and <strong>Fly.io</strong>.
 </p>
-<div class="mermaid">
-graph LR
-  Git["Git Push to main"] --> Webhook["PaaS Webhook Trigger"]
-  Webhook --> Build["Docker Build & Dependency Cache"]
-  Build --> Health["Healthcheck Probe (/health)"]
-  Health --> Traffic["Traffic Cutover (Zero-Downtime)"]
-  Traffic --> CDN["Edge CDN / HTTPS Endpoint"]
-</div>
-<div class="diagram-cap">Automated Git-driven PaaS deployment workflow with health-check validation.</div>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left;">
+      <th style="padding:8px;">Dimension</th>
+      <th style="padding:8px;">PaaS (Render / Railway)</th>
+      <th style="padding:8px;">Kubernetes (EKS / GKE)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Setup Overhead</strong></td>
+      <td style="padding:8px;">Sub-10 minutes (Git push to deploy)</td>
+      <td style="padding:8px;">Days to weeks (Cluster configuration, Helm, RBAC)</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Maintenance Cost</strong></td>
+      <td style="padding:8px;">Zero infrastructure maintenance</td>
+      <td style="padding:8px;">Requires dedicated Platform / DevOps engineers</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>GPU Sizing</strong></td>
+      <td style="padding:8px;">Fixed tiers (e.g. A10G, T4)</td>
+      <td style="padding:8px;">Full elasticity (Multi-node H100, spot instances)</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Best Fit</strong></td>
+      <td style="padding:8px;">MVPs, internal APIs, standard Scikit/PyTorch models</td>
+      <td style="padding:8px;">High-scale distributed LLM serving (10,000+ QPS)</td>
+    </tr>
+  </tbody>
+</table>
 
-<h3 class="sh3">2. Multi-Stage Dockerfile for Minimal Image Size</h3>
-<p>
-Large images increase cold-start latency and bandwidth costs. Using a multi-stage build isolates build dependencies (compilers, wheel caches) from the final lightweight runtime image:
-</p>
+<h3 class="sh3">2. Declarative Infrastructure as Code: <code>render.yaml</code></h3>
 <div class="cb">
-<div class="cb-head"><span class="cb-lang">dockerfile — Dockerfile</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code>FROM python:3.11-slim AS builder
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-FROM python:3.11-slim AS runner
-WORKDIR /app
-COPY --from=builder /root/.local /root/.local
-COPY src/ ./src/
-ENV PATH=/root/.local/bin:$PATH
-EXPOSE 8000
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+  <div class="cb-head"><span class="cb-lang">yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>services:
+  - type: web
+    name: ai-sentiment-service
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT --workers 4
+    plan: standard
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: MODEL_STAGE
+        value: production
+    healthCheckPath: /health</code></pre>
 </div>
         </div>
 
@@ -1214,41 +1286,28 @@ print("✓ GitHub Actions CI/CD pipeline verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-127-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. The MLOps Lifecycle & Experiment Tracking</h3>
+          <h3 class="sh3">1. The MLOps Imperative: Solving Model Chaos</h3>
 <p>
-Traditional software versioning tracks source code via Git, but machine learning requires versioning three distinct dimensions: <strong>Code</strong>, <strong>Data</strong>, and <strong>Model Hyperparameters / Metrics</strong>. Without structured experiment tracking, comparing candidate models across training iterations is error-prone.
+Without standardized MLOps practices, machine learning projects suffer from reproducibility crises: models trained in ephemeral Jupyter notebooks lack versioned dependencies, dataset hashes, and metric audit trails.
+</p>
+<p>
+<strong>MLOps (Machine Learning Operations)</strong> bridges data science with software engineering by enforcing three core lifecycle pillars:
 </p>
 <div class="mermaid">
-graph TD
-  Code["1. Code (Git Commit)"] & Data["2. Data (DVC / S3 URI)"] & Params["3. Parameters (LR, Batch Size)"] --> Train["Model Training Run"]
-  Train --> Metrics["Validation Metrics (Accuracy, AUC, F1)"]
-  Train --> Artifacts["Model Artifacts (.onnx / .pkl)"]
-  Metrics & Artifacts --> MLflow["MLflow Tracking Server & Model Registry"]
-  MLflow --> Stage["Model Staging & Promotion Gate"]
+graph LR
+    Pillar1["1. Experiment Tracking\n(Parameters, Loss Curves, Hardware Metrics)"] --> Pillar2["2. Model Registry\n(Versioned Artifacts, Lineage, Champion Aliases)"]
+    Pillar2 --> Pillar3["3. Automated CI/CD & Deployment\n(Regression Tests, Containerization, Canary Rollouts)"]
 </div>
-<div class="diagram-cap">Tri-factor tracking: Associating code, data, and parameters with logged artifacts in MLflow.</div>
+<div class="diagram-cap">Figure 127.1: The Three Foundational Pillars of Enterprise MLOps.</div>
 
-<h3 class="sh3">2. Programmatic Experiment Logging with MLflow</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — train_and_log.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code>import mlflow
-import mlflow.sklearn
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.metrics import roc_auc_score
-
-mlflow.set_experiment("churn-prediction-v2")
-
-with mlflow.start_run(run_name="gbm-depth-4"):
-    params = {"n_estimators": 100, "learning_rate": 0.05, "max_depth": 4}
-    mlflow.log_params(params)
-    
-    clf = GradientBoostingClassifier(**params)
-    clf.fit(X_train, y_train)
-    
-    auc = roc_auc_score(y_val, clf.predict_proba(X_val)[:, 1])
-    mlflow.log_metric("val_roc_auc", auc)
-    mlflow.sklearn.log_model(clf, artifact_path="model")</code></pre>
-</div>
+<h3 class="sh3">2. MLflow Tracking Architecture</h3>
+<p>
+<strong>MLflow</strong> standardizes experiment logging by separating metadata tracking from binary artifact storage:
+</p>
+<ul>
+  <li><strong>Backend Store (SQL):</strong> Stores run IDs, timestamps, hyperparameter dictionaries, and scalar metric step histories in PostgreSQL or SQLite.</li>
+  <li><strong>Artifact Store (Object Storage):</strong> Stores serialized model binaries (<code>.pt</code>, <code>.onnx</code>, <code>.joblib</code>), confusion matrices, and feature importance charts in AWS S3 or Google Cloud Storage.</li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1709,31 +1768,26 @@ assert best_run is not None, "best_run should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-128-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Capstone System Architecture & Specification</h3>
+          <h3 class="sh3">1. Capstone Project Track Selection & Technical Architecture</h3>
 <p>
-An enterprise machine learning capstone project must demonstrate end-to-end engineering rigor: from data ingestion and validation to model serving, monitoring, and interactive user interfaces.
+A portfolio-grade AI/ML capstone project must demonstrate end-to-end engineering excellence across data modeling, algorithmic design, API serving, and infrastructure operations.
 </p>
 <div class="mermaid">
-graph LR
-  subgraph Data Pipeline
-    Raw["Raw Parquet Data"] --> Val["Great Expectations Validation"]
-    Val --> Pre["Feature Transformer"]
-  end
-  subgraph Inference Engine
-    Pre --> Model["Trained Model (ONNX Runtime)"]
-    Model --> API["FastAPI REST Endpoints"]
-  end
-  subgraph Client & Monitoring
-    API --> UI["Streamlit / React Dashboard"]
-    API --> Prom["Prometheus Metrics & Drift Alerts"]
-  end
+graph TD
+    Client["Client Interface (Streamlit / Next.js)"] --> APIGateway["FastAPI Gateway (/predict, /health, /metrics)"]
+    APIGateway --> Preprocessor["Feature Preprocessor (ColumnTransformer / Tokenizer)"]
+    Preprocessor --> InferenceEngine["Model Inference Core (PyTorch / ONNX / vLLM)"]
+    InferenceEngine --> Monitoring["Telemetry & Drift Monitoring (Evidently / OpenTelemetry)"]
+    Monitoring --> Client
 </div>
-<div class="diagram-cap">Capstone End-to-End System Architecture: Pipeline, Inference Engine, and Observability Layers.</div>
+<div class="diagram-cap">Figure 128.1: Universal Capstone Microservice Architecture Blueprint.</div>
 
-<h3 class="sh3">2. System Contract & API Interface Design</h3>
-<p>
-Defining explicit Pydantic schemas prevents downstream inference failures due to missing or ill-typed input fields.
-</p>
+<h3 class="sh3">2. Recommended Industry Tracks</h3>
+<ul>
+  <li><strong>Track A (Enterprise RAG & Agents):</strong> Hybrid retrieval with Qdrant, Cross-Encoder reranking, and LangGraph cyclic workflows.</li>
+  <li><strong>Track B (High-Throughput Serving & Fine-Tuning):</strong> QLoRA fine-tuning on custom corpora, merged weights, and vLLM continuous batching serving.</li>
+  <li><strong>Track C (Production Predictive MLOps):</strong> Scikit-Learn / XGBoost fraud detection pipeline with DVC dataset versioning, MLflow registry promotion, and Airflow DAGs.</li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2169,23 +2223,32 @@ print("✓ System architecture flowchart verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-129-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Modular Model Training Pipeline</h3>
+          <h3 class="sh3">1. Production Preprocessing Pipelines</h3>
 <p>
-Clean ML engineering separates preprocessing logic, training execution, and evaluation gates into reusable, testable Python modules.
+Data preprocessors must be versioned, fitted strictly on training data, and serialized alongside model weights to prevent <strong>training-serving skew</strong> and <strong>data leakage</strong>.
 </p>
-<div class="mermaid">
-graph TD
-  Raw["Raw Dataset"] --> Split["Stratified Train/Val/Test Split"]
-  Split --> Fit["Fit Preprocessor on Train Only"]
-  Fit --> Transform["Transform Train, Val, Test"]
-  Transform --> Train["Train Estimator"]
-  Train --> Eval["Evaluate on Test Set"]
-  Eval --> Gate{"Passes Quality Gate?
-(AUC > 0.85 & Latency < 20ms)"}
-  Gate -->|Yes| Save["Export Artifacts"]
-  Gate -->|No| Abort["Abort & Alert"]
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">from</span> sklearn.compose <span class="kw">import</span> ColumnTransformer
+<span class="kw">from</span> sklearn.pipeline <span class="kw">import</span> Pipeline
+<span class="kw">from</span> sklearn.impute <span class="kw">import</span> SimpleImputer
+<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> StandardScaler, OneHotEncoder
+
+num_pipe = Pipeline([
+    (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'median'</span>)),
+    (<span class="str">'scaler'</span>, StandardScaler())
+])
+
+cat_pipe = Pipeline([
+    (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'most_frequent'</span>)),
+    (<span class="str">'ohe'</span>, OneHotEncoder(handle_unknown=<span class="str">'ignore'</span>, sparse_output=<span class="kw">False</span>))
+])
+
+preprocessor = ColumnTransformer([
+    (<span class="str">'num'</span>, num_pipe, [<span class="str">'age'</span>, <span class="str">'income'</span>, <span class="str">'tenure'</span>]),
+    (<span class="str">'cat'</span>, cat_pipe, [<span class="str">'device_type'</span>, <span class="str">'region'</span>])
+])</code></pre>
 </div>
-<div class="diagram-cap">Reproducible Training Pipeline with Automated Quality Gate Validation.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2648,19 +2711,29 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
         <!-- THEORY SECTION -->
         <div id="day-130-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Containerizing Inference Services with FastAPI & Uvicorn</h3>
+          <h3 class="sh3">1. Packaging ML Models in FastAPI</h3>
 <p>
-FastAPI provides asynchronous request handling, automated OpenAPI documentation, and strict Pydantic payload validation. Paired with Gunicorn/Uvicorn process workers, it handles concurrent prediction requests efficiently.
+FastAPI provides asynchronous request handling, automated OpenAPI documentation, and strict runtime type validation via Pydantic.
 </p>
-<div class="mermaid">
-graph LR
-  Client["Client POST /predict"] --> Gunicorn["Gunicorn Master Process"]
-  Gunicorn --> W1["Worker 1 (Uvicorn)"]
-  Gunicorn --> W2["Worker 2 (Uvicorn)"]
-  W1 & W2 --> Cache["In-Memory Model Session"]
-  Cache --> Resp["JSON Prediction Response"]
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, HTTPException
+<span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel, Field
+<span class="kw">import</span> joblib, numpy <span class="kw">as</span> np
+
+app = FastAPI(title=<span class="str">"Production ML Inference Service"</span>)
+
+<span class="kw">class</span> <span class="fn">PredictionRequest</span>(BaseModel):
+    age: float = Field(..., ge=<span class="num">18</span>, le=<span class="num">100</span>)
+    income: float = Field(..., ge=<span class="num">0</span>)
+    tenure: int = Field(..., ge=<span class="num">0</span>)
+
+@app.post(<span class="str">"/predict"</span>)
+<span class="kw">def</span> <span class="fn">predict</span>(req: PredictionRequest):
+    features = np.array([[req.age, req.income, req.tenure]])
+    prob = float(<span class="num">1.0</span> / (<span class="num">1.0</span> + np.exp(-(<span class="num">0.05</span> * req.age - <span class="num">0.0001</span> * req.income))))
+    <span class="kw">return</span> {<span class="str">"risk_probability"</span>: round(prob, <span class="num">4</span>), <span class="str">"decision"</span>: <span class="str">"HIGH_RISK"</span> <span class="kw">if</span> prob > <span class="num">0.5</span> <span class="kw">else</span> <span class="str">"NORMAL"</span>}</code></pre>
 </div>
-<div class="diagram-cap">Gunicorn Worker Process Management for High-Throughput FastAPI Serving.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3099,18 +3172,10 @@ print("✓ Production multi-stage Dockerfile verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-131-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Frontend Integration & Cloud Production Deployment</h3>
+          <h3 class="sh3">1. Full-Stack ML: Connecting UI with APIs</h3>
 <p>
-Connecting a modern frontend (Streamlit, Gradio, or Next.js) to your containerized ML service completes the user-facing deployment. Securing the API with CORS policies and API tokens ensures safe multi-tenant access.
+A complete ML system couples backend inference microservices with intuitive frontend interfaces (Streamlit, React/Next.js) capable of streaming token responses, visualizing confidence distributions, and rendering telemetry charts.
 </p>
-<div class="mermaid">
-graph LR
-  User["End User"] --> Frontend["Streamlit / Web UI"]
-  Frontend -->|JSON / HTTPS| API["FastAPI Backend (Render / AWS)"]
-  API --> Engine["ONNX / PyTorch Inference"]
-  API --> Logs["CloudWatch / Datadog Logs"]
-</div>
-<div class="diagram-cap">Frontend to Backend API Integration Architecture with Centralized Logging.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3556,16 +3621,15 @@ if submit_btn and user_input:
         <!-- THEORY SECTION -->
         <div id="day-132-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Architecting a Senior-Level GitHub Repository</h3>
+          <h3 class="sh3">1. GitHub Repository Engineering Best Practices</h3>
 <p>
-Hiring managers and technical leads look for professional repository hygiene. A top-tier portfolio repository includes:
+Senior AI engineers structure repositories with clean separation of concerns:
 </p>
 <ul>
-  <li><strong>System Architecture Diagram:</strong> Visual representation of components, data flow, and APIs.</li>
-  <li><strong>Quickstart Guide:</strong> One-line <code>docker compose up</code> setup command.</li>
-  <li><strong>Reproducibility:</strong> Pinned dependencies, seeds, and DVC data pipelines.</li>
-  <li><strong>CI/CD Badges:</strong> Automated unit testing and linting status.</li>
-  <li><strong>Benchmarking Table:</strong> Latency (p50/p95), throughput (QPS), and validation metrics.</li>
+  <li><code>src/</code>: Application core logic, preprocessing pipelines, and model architecture definitions.</li>
+  <li><code>configs/</code>: Declarative YAML configs decoupling hyperparameters from executable code.</li>
+  <li><code>tests/</code>: Pytest unit tests, schema validation tests, and mock API tests.</li>
+  <li><code>.github/workflows/</code>: Automated CI/CD pipelines enforcing linting, testing, and Docker builds.</li>
 </ul>
         </div>
 
@@ -4006,15 +4070,10 @@ print(generate_capstone_readme("End-to-End Enterprise RAG", "https://github.com/
         <!-- THEORY SECTION -->
         <div id="day-133-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Resume & LinkedIn Positioning for ML & AI Engineers</h3>
+          <h3 class="sh3">1. Positioning AI/ML Engineering Competencies</h3>
 <p>
-Translate technical tasks into high-impact engineering accomplishments using the <strong>Action + Context + Metric</strong> formula:
+Modern AI engineering roles demand both statistical/deep learning depth and production software engineering acumen. Highlighting observable infrastructure skills (Docker, Kubernetes, MLflow, vLLM, OpenTelemetry) demonstrates production readiness.
 </p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">text — Bullet Point Comparison</span></div>
-<pre><code>❌ WEAK: "Trained a machine learning model to predict customer churn in Python."
-✅ STRONG: "Architected an end-to-end churn prediction pipeline using XGBoost and FastAPI; reduced inference latency from 140ms to 22ms (p95) and delivered $180k projected annual retention savings."</code></pre>
-</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -4452,20 +4511,10 @@ for title, star in STAR_PROJECTS.items():
         <!-- THEORY SECTION -->
         <div id="day-134-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Machine Learning Interview Framework</h3>
+          <h3 class="sh3">1. Technical Interview Review: Systems & Algorithms</h3>
 <p>
-Technical ML interviews evaluate candidates across three core pillars:
+Core interview review topics include bias-variance trade-offs, regularization mechanisms ($L_1$ sparsity vs $L_2$ shrinkage), self-attention computational complexity, and distributed training paradigms (Data Parallel, Tensor Parallel, Pipeline Parallel).
 </p>
-<div class="mermaid">
-graph TD
-  Pillars["ML Engineering Interview"] --> Math["1. Theory & Math
-(Gradients, Loss Functions, Trade-offs)"]
-  Pillars --> Coding["2. Applied Coding
-(Vectorization, Data Structures, PyTorch)"]
-  Pillars --> Design["3. System Design
-(Scale, Latency SLAs, Drift, Caching)"]
-</div>
-<div class="diagram-cap">The Three Pillars of Senior Machine Learning Technical Interviews.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -4900,9 +4949,9 @@ print("✓ Classical ML algorithms from scratch verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-135-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Mid-Course Milestone: Applied System Architecture</h3>
+          <h3 class="sh3">1. Mid-Course Milestone: MLOps Mastery</h3>
 <p>
-Consolidating Months 1–4: Foundations (Linear Algebra, Calculus, Statistics), Core Machine Learning (Scikit-Learn, Ensembles), Deep Learning & NLP (CNNs, RNNs, Attention, Transformers), and MLOps Deployment (FastAPI, Docker, Kubernetes).
+Congratulations on completing the first half of the curriculum! You have established complete mastery across mathematical foundations, classical algorithms, deep learning neural networks, and containerized MLOps deployments.
 </p>
         </div>
 

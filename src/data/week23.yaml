@@ -40,20 +40,25 @@ days:
   analogy: 'AWS SageMaker — Training & Endpoints is like a structural pillar in an industrial suspension bridge: engineered
     to withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. AWS SageMaker Architecture for Production ML</h3>
+    <h3 class="sh3">1. AWS SageMaker Architecture & Lifecycle</h3>
     <p>
-    Amazon SageMaker decouples model development, distributed training, and real-time inference into managed serverless primitives:
+    Amazon SageMaker provides fully managed infrastructure for training, tuning, and deploying machine learning models at enterprise scale.
     </p>
     <div class="mermaid">
     graph TD
-        Code["Training Script / Container"] --> Estimator["SageMaker PyTorch Estimator"]
-        Estimator --> SpotInstances["Managed GPU Spot Instances (70% Cost Savings)"]
-        SpotInstances --> S3Artifacts["Model Artifacts (.tar.gz -> S3)"]
-        S3Artifacts --> ModelRegistry["SageMaker Model Registry"]
-        ModelRegistry --> EndpointConfig["Endpoint Configuration (Production Variants)"]
-        EndpointConfig --> RealTimeEndpoint["Real-Time Multi-Model Endpoint (Auto-scaling)"]
+        Data["Training Data (Amazon S3)"] --> Estimator["SageMaker PyTorch Estimator\nManaged EC2 Spot Training Cluster"]
+        Estimator --> TrainingJob["Distributed Training Job (Horovod / PyTorch DDP)"]
+        TrainingJob --> S3Artifacts["Model Artifacts (model.tar.gz in S3)"]
+        S3Artifacts --> ModelPackage["SageMaker Model Registry\nVersion governance & approvals"]
+        ModelPackage --> EndpointConfig["Endpoint Configuration (Production Variants)"]
+        EndpointConfig --> RealtimeEndpoint["Real-Time Inference Endpoint (Auto-scaling multi-instance)"]
     </div>
-    <div class="diagram-cap">Figure 164.1: AWS SageMaker Training & Deployment Lifecycle.</div>
+    <div class="diagram-cap">Figure 164.1: End-to-End AWS SageMaker Training & Deployment Lifecycle.</div>
+
+    <h3 class="sh3">2. Managed Spot Training & Cost Optimization</h3>
+    <p>
+    Training deep neural networks on on-demand GPU instances (e.g. <code>p4de.24xlarge</code> with 8x A100 GPUs) costs upwards of $32/hour. <strong>SageMaker Managed Spot Training</strong> leverages spare EC2 compute capacity for <strong>up to 70% cost savings</strong>, using automated S3 checkpoint saving and resuming when spot instances are reclaimed.
+    </p>
   predict:
     question: What string compute instance family is provisioned for GPU-accelerated SageMaker Training jobs?
     answer: ml.g5.2xlarge
@@ -321,8 +326,15 @@ days:
   theory_html: |-
     <h3 class="sh3">1. Google Cloud Vertex AI Custom Pipelines</h3>
     <p>
-    Vertex AI orchestrates ML pipelines using <strong>Kubeflow Pipelines (KFP)</strong> compiled into serverless execution graphs. Every component runs in an isolated container with automated lineage tracking in Vertex Metadata.
+    Google Cloud Vertex AI unifies AutoML, custom model training, and serverless pipeline orchestration under a single managed control plane.
     </p>
+    <p>
+    <strong>Vertex AI Pipelines</strong> executes containerized ML workflows defined using the <strong>Kubeflow Pipelines (KFP)</strong> SDK:
+    </p>
+    <ul>
+      <li><strong>Artifact Lineage:</strong> Every dataset, intermediate feature set, and model binary is tracked automatically in Vertex ML Metadata.</li>
+      <li><strong>Serverless Execution:</strong> Pipeline steps spin up ephemeral compute instances and terminate immediately upon step completion, eliminating idle instance costs.</li>
+    </ul>
   predict:
     question: What string is output when Google Cloud Vertex AI Pipeline completes all DAG component executions?
     answer: PIPELINE_SUCCESS
@@ -581,13 +593,21 @@ days:
   analogy: 'Serverless ML with Lambda + API Gateway is like a structural pillar in an industrial suspension bridge: engineered
     to withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Serverless ONNX Runtime Inference</h3>
+    <h3 class="sh3">1. Serverless Machine Learning Inference</h3>
     <p>
-    For intermittent or bursty ML workloads, provisioning 24/7 GPU instances wastes thousands of dollars in idle compute.
+    For intermittent or bursty ML workloads (e.g. background document parsing, webhook processing), maintaining 24/7 GPU or high-RAM EC2 instances results in massive idle costs.
     </p>
     <p>
-    <strong>Serverless ML Architecture:</strong> Compiles models to <strong>ONNX Runtime</strong> and packages them into containerized AWS Lambda functions (up to 10GB RAM), fronted by API Gateway with sub-100ms cold starts and zero idle cost.
+    <strong>Serverless ML Architecture:</strong> Compiles models to <strong>ONNX Runtime</strong> and packages them into containerized AWS Lambda functions (supporting up to 10GB RAM and 6 vCPUs), fronted by Amazon API Gateway:
     </p>
+    <div class="mermaid">
+    graph LR
+        Client["Client Request"] --> APIGW["Amazon API Gateway"]
+        APIGW --> Lambda["AWS Lambda Container (ONNX Runtime + NumPy)"]
+        Lambda --> S3Cache["Cold Model Weights (/tmp cache)"]
+        Lambda --> Response["Inference Response (<100ms)"]
+    </div>
+    <div class="diagram-cap">Figure 166.1: Serverless ML Inference with AWS Lambda and ONNX.</div>
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
     code: |-
@@ -867,14 +887,14 @@ days:
   analogy: 'Azure OpenAI Service is like a structural pillar in an industrial suspension bridge: engineered to withstand peak
     load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Enterprise Azure OpenAI Architecture</h3>
+    <h3 class="sh3">1. Enterprise Azure OpenAI Service Architecture</h3>
     <p>
-    Deploying enterprise GenAI on Azure ensures enterprise compliance through:
+    Deploying generative AI solutions in regulated industries (healthcare, banking, government) requires strict security and networking compliance:
     </p>
     <ul>
-      <li><strong>Private Endpoints & VNet Peering:</strong> Disables public internet ingress.</li>
-      <li><strong>Managed Identity & Azure RBAC:</strong> Eliminates static API keys.</li>
-      <li><strong>Provisioned Throughput Units (PTU):</strong> Guarantees dedicated model capacity and consistent sub-second latency SLAs.</li>
+      <li><strong>VNet Peering & Private Endpoints:</strong> Disables public internet ingress, ensuring all traffic between enterprise applications and Azure OpenAI travels over private Azure backbone networks.</li>
+      <li><strong>Managed Identities (RBAC):</strong> Eliminates static API keys by authenticating workloads via Azure Active Directory / Entra ID.</li>
+      <li><strong>Provisioned Throughput Units (PTU):</strong> Reserves dedicated GPU capacity to guarantee predictable inference throughput and strict sub-second latency SLAs.</li>
     </ul>
   predict:
     question: What string network security configuration ensures Azure OpenAI is only accessible from inside a Private VPC?
@@ -1131,9 +1151,18 @@ days:
   analogy: 'Cloud Cost Optimization for LLMs is like a structural pillar in an industrial suspension bridge: engineered to
     withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. FinOps for GenAI: Model Cascading</h3>
+    <h3 class="sh3">1. FinOps for Generative AI: Model Cascading</h3>
     <p>
-    Sending all queries to frontier models ($5.00/1M tokens) is economically unsustainable. <strong>Model Cascading</strong> uses an inexpensive small model or classifier to route 80% of routine categorization and factual lookups to SLMs ($0.15/1M tokens), reducing cloud API expenditure by over 70%.
+    Routing 100% of user queries to frontier reasoning models (e.g. GPT-4o at $5.00/1M tokens) is financially unsustainable at scale.
+    </p>
+    <p>
+    <strong>Model Cascading (Multi-Tier Routing)</strong> uses an inexpensive router classifier or small language model (SLM) to triage incoming requests:
+    </p>
+    <div class="math-block">
+    \text{Cost}_{\text{cascade}} = p_{\text{easy}} \cdot C_{\text{SLM}} + (1 - p_{\text{easy}}) \cdot C_{\text{Frontier}}
+    </div>
+    <p>
+    Because 75–85% of enterprise queries are routine classifications or factual lookups, cascading reduces total inference costs by <strong>70–80%</strong> with zero drop in benchmark task accuracy.
     </p>
   predict:
     question: What percentage cloud infrastructure cost savings are achieved by switching batch training to Spot Instances
@@ -1414,7 +1443,10 @@ days:
   theory_html: |-
     <h3 class="sh3">1. Secrets Governance & Zero Hardcoded Credentials</h3>
     <p>
-    Never bake API keys or database passwords into Docker images or Git repositories. Production platforms dynamically inject credentials at runtime using <strong>AWS Secrets Manager</strong> or <strong>HashiCorp Vault</strong> with automatic rotation.
+    Baking API keys, database credentials, or private certificates into Docker containers or Git repositories is a critical security vulnerability.
+    </p>
+    <p>
+    Production AI platforms dynamically inject credentials at runtime using <strong>AWS Secrets Manager</strong> or <strong>HashiCorp Vault</strong> with automated secret rotation policies and IAM role-based authentication.
     </p>
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
@@ -1706,10 +1738,16 @@ days:
   analogy: 'Capstone: Deploy RAG to AWS is like a structural pillar in an industrial suspension bridge: engineered to withstand
     peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Enterprise AWS RAG Architecture Capstone</h3>
+    <h3 class="sh3">1. Capstone: Production Cloud RAG Architecture</h3>
     <p>
-    The Week 23 Capstone provisions a production RAG stack on AWS using ECS Fargate, Qdrant vector database, Bedrock Claude-3.5-Sonnet models, and CloudFront CDN security.
+    The Week 23 Capstone deploys an end-to-end production RAG microservice on AWS combining:
     </p>
+    <ul>
+      <li><strong>Amazon ECS Fargate:</strong> Containerized FastAPI application running in private VPC subnets.</li>
+      <li><strong>Managed Qdrant Vector DB:</strong> Scalable vector search cluster.</li>
+      <li><strong>Amazon Bedrock:</strong> Claude-3.5-Sonnet foundation model integration.</li>
+      <li><strong>AWS Secrets Manager:</strong> Encrypted runtime configuration injection.</li>
+    </ul>
   predict:
     question: What integer HTTP status code verifies health check of the deployed ECS RAG cluster load balancer?
     answer: '200'
