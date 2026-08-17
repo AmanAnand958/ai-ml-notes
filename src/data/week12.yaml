@@ -37,12 +37,13 @@ days:
   - id: chk_80_4
     text: Pass daily interactive quiz and review active recall flashcards
   concept_flow:
-  - Seq2Seq Bottleneck
-  - Bahdanau Additive
-  - Luong Multiplicative
-  - Alignment Weights
-  - Context Vectors
-  - Attention Models
+  - The Attention Mechanism
+  - 'Multi-Modal Architectures: CNN + RNN'
+  - 'Capstone Part 1: Dataset & Visual Grid Feature Extraction'
+  - 'Capstone Part 2: Attention-Augmented Decoder Module'
+  - 'Capstone Part 3: Training & BLEU Evaluation Loop'
+  - 'Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
+  - 'Capstone Part 5: Gradio Web Deployment'
   hinglish: 'Bahdanau attention additive hai: score = v^T × tanh(W1*encoder + W2*decoder).
     Luong attention multiplicative hai: score = encoder × W × decoder. Dono kaam karte
     hain!'
@@ -282,59 +283,32 @@ days:
       coding exercises"'
     sol_id: sol-w12d80t1
     solution_title: ✅ COMPLETE SOLUTION — implement_bahdanau_additive_attention.py
-    solution_code: "<span class=\"cm\"># implement_bahdanau_additive_attention.py\
-      \ — Solution</span>\n<span class=\"cm\"># Complete solution for: Implement Bahdanau\
-      \ Additive Attention</span>\n\n<span class=\"kw\">import</span> torch\n<span\
-      \ class=\"kw\">import</span> torch.nn <span class=\"kw\">as</span> nn\n<span\
-      \ class=\"kw\">import</span> torch.nn.functional <span class=\"kw\">as</span>\
-      \ F\n\n<span class=\"kw\">class</span> <span class=\"cls\">BahdanauAttention</span>(nn.Module):\n\
-      \    <span class=\"str\">\"\"\"</span><span class=\"fn\">Bahdanau</span> (Additive)\
-      \ Attention mechanism.\n    \n    <span class=\"fn\">score</span>(s_t, h_i)\
-      \ = v^T * <span class=\"fn\">tanh</span>(W_s * s_t + W_h * h_i)\n    <span class=\"\
-      str\">\"\"\"</span>\n    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(<span\
-      \ class=\"kw\">self</span>, hidden_size):\n        <span class=\"fn\">super</span>().<span\
-      \ class=\"fn\">__init__</span>()\n        <span class=\"kw\">self</span>.W_s\
-      \ = nn.<span class=\"fn\">Linear</span>(hidden_size, hidden_size, bias=<span\
-      \ class=\"kw\">False</span>)\n        <span class=\"kw\">self</span>.W_h = nn.<span\
-      \ class=\"fn\">Linear</span>(hidden_size, hidden_size, bias=<span class=\"kw\"\
-      >False</span>)\n        <span class=\"kw\">self</span>.v = nn.<span class=\"\
-      fn\">Linear</span>(hidden_size, <span class=\"num\">1</span>, bias=<span class=\"\
-      kw\">False</span>)\n    \n    <span class=\"kw\">def</span> <span class=\"fn\"\
-      >forward</span>(<span class=\"kw\">self</span>, decoder_hidden, encoder_outputs):\n\
-      \        <span class=\"str\">\"\"\"</span>\n        decoder_hidden: (batch,\
-      \ hidden_size) - current decoder state\n        encoder_outputs: (batch, src_len,\
-      \ hidden_size) - all encoder states\n        Returns: <span class=\"fn\">context</span>\
-      \ (batch, hidden_size), <span class=\"fn\">attention_weights</span> (batch,\
-      \ src_len)\n        <span class=\"str\">\"\"\"</span>\n        <span class=\"\
-      cm\"># Expand decoder hidden for broadcasting</span>\n        s = decoder_hidden.<span\
-      \ class=\"fn\">unsqueeze</span>(<span class=\"num\">1</span>)  <span class=\"\
-      cm\"># (batch, 1, hidden)</span>\n        \n        <span class=\"cm\"># Compute\
-      \ attention scores</span>\n        scores = <span class=\"kw\">self</span>.<span\
-      \ class=\"fn\">v</span>(torch.<span class=\"fn\">tanh</span>(<span class=\"\
-      kw\">self</span>.<span class=\"fn\">W_s</span>(s) + <span class=\"kw\">self</span>.<span\
-      \ class=\"fn\">W_h</span>(encoder_outputs)))\n        scores = scores.<span\
-      \ class=\"fn\">squeeze</span>(-<span class=\"num\">1</span>)  <span class=\"\
-      cm\"># (batch, src_len)</span>\n        \n        <span class=\"cm\"># Normalize</span>\n\
-      \        attn_weights = F.<span class=\"fn\">softmax</span>(scores, dim=<span\
-      \ class=\"num\">1</span>)\n        \n        <span class=\"cm\"># Context vector\
-      \ (weighted sum of encoder outputs)</span>\n        context = torch.<span class=\"\
-      fn\">bmm</span>(attn_weights.<span class=\"fn\">unsqueeze</span>(<span class=\"\
-      num\">1</span>), encoder_outputs)\n        context = context.<span class=\"\
-      fn\">squeeze</span>(<span class=\"num\">1</span>)  <span class=\"cm\"># (batch,\
-      \ hidden)</span>\n        \n        <span class=\"kw\">return</span> context,\
-      \ attn_weights\n\n<span class=\"cm\"># Test</span>\nbatch_size, src_len, hidden\
-      \ = <span class=\"num\">4</span>, <span class=\"num\">10</span>, <span class=\"\
-      num\">64</span>\nattention = <span class=\"fn\">BahdanauAttention</span>(hidden)\n\
-      decoder_h = torch.<span class=\"fn\">randn</span>(batch_size, hidden)\nencoder_out\
-      \ = torch.<span class=\"fn\">randn</span>(batch_size, src_len, hidden)\nctx,\
-      \ weights = <span class=\"fn\">attention</span>(decoder_h, encoder_out)\n<span\
-      \ class=\"fn\">print</span>(<span class=\"str\">f\"Context: {ctx.shape}\"</span>)\
-      \       <span class=\"cm\"># (4, 64)</span>\n<span class=\"fn\">print</span>(<span\
-      \ class=\"str\">f\"Weights: {weights.shape}\"</span>)   <span class=\"cm\">#\
-      \ (4, 10)</span>\n<span class=\"fn\">print</span>(<span class=\"str\">f\"Weights\
-      \ sum: {weights.sum(dim=1)}\"</span>)  <span class=\"cm\"># Should be ~1.0</span>\n\
-      \n<span class=\"kw\">if</span> __name__ == <span class=\"str\">'__main__'</span>:\n\
-      \    <span class=\"fn\">solve</span>()"
+    solution_code: "# implement_bahdanau_additive_attention.py — Solution\n# Complete\
+      \ solution for: Implement Bahdanau Additive Attention\n\nimport torch\nimport\
+      \ torch.nn as nn\nimport torch.nn.functional as F\n\nclass BahdanauAttention(nn.Module):\n\
+      \    \"\"\"Bahdanau (Additive) Attention mechanism.\n    \n    score(s_t, h_i)\
+      \ = v^T * tanh(W_s * s_t + W_h * h_i)\n    \"\"\"\n    def __init__(self, hidden_size):\n\
+      \        super().__init__()\n        self.W_s = nn.Linear(hidden_size, hidden_size,\
+      \ bias=False)\n        self.W_h = nn.Linear(hidden_size, hidden_size, bias=False)\n\
+      \        self.v = nn.Linear(hidden_size, 1, bias=False)\n    \n    def forward(self,\
+      \ decoder_hidden, encoder_outputs):\n        \"\"\"\n        decoder_hidden:\
+      \ (batch, hidden_size) - current decoder state\n        encoder_outputs: (batch,\
+      \ src_len, hidden_size) - all encoder states\n        Returns: context (batch,\
+      \ hidden_size), attention_weights (batch, src_len)\n        \"\"\"\n       \
+      \ # Expand decoder hidden for broadcasting\n        s = decoder_hidden.unsqueeze(1)\
+      \  # (batch, 1, hidden)\n        \n        # Compute attention scores\n    \
+      \    scores = self.v(torch.tanh(self.W_s(s) + self.W_h(encoder_outputs)))\n\
+      \        scores = scores.squeeze(-1)  # (batch, src_len)\n        \n       \
+      \ # Normalize\n        attn_weights = F.softmax(scores, dim=1)\n        \n \
+      \       # Context vector (weighted sum of encoder outputs)\n        context\
+      \ = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)\n        context =\
+      \ context.squeeze(1)  # (batch, hidden)\n        \n        return context, attn_weights\n\
+      \n# Test\nbatch_size, src_len, hidden = 4, 10, 64\nattention = BahdanauAttention(hidden)\n\
+      decoder_h = torch.randn(batch_size, hidden)\nencoder_out = torch.randn(batch_size,\
+      \ src_len, hidden)\nctx, weights = attention(decoder_h, encoder_out)\nprint(f\"\
+      Context: {ctx.shape}\")       # (4, 64)\nprint(f\"Weights: {weights.shape}\"\
+      )   # (4, 10)\nprint(f\"Weights sum: {weights.sum(dim=1)}\")  # Should be ~1.0\n\
+      \nif __name__ == '__main__':\n    solve()"
     solution_lang: python
   - title: Compute BLEU-1 and BLEU-2 Manually
     badge: Medium · 1.5 hrs
@@ -513,12 +487,12 @@ days:
     text: Pass daily interactive quiz and review active recall flashcards
   concept_flow:
   - The Attention Mechanism
-  - Multi-Modal Architectures
-  - 'Capstone Part 1: Dataset'
-  - 'Capstone Part 2: Attentio'
-  - 'Capstone Part 3: Training'
-  - 'Capstone Part 4: Greedy v'
-  - 'Capstone Part 5: Gradio W'
+  - 'Multi-Modal Architectures: CNN + RNN'
+  - 'Capstone Part 1: Dataset & Visual Grid Feature Extraction'
+  - 'Capstone Part 2: Attention-Augmented Decoder Module'
+  - 'Capstone Part 3: Training & BLEU Evaluation Loop'
+  - 'Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
+  - 'Capstone Part 5: Gradio Web Deployment'
   hinglish: 'Attention weights interpret kar sakte ho: heatmap dikhata hai decoder
     ne input ke kaunse parts par focus kiya. Ye built-in interpretability hai — black
     box nahi hai!'
@@ -904,12 +878,12 @@ days:
     text: Pass daily interactive quiz and review active recall flashcards
   concept_flow:
   - The Attention Mechanism
-  - Multi-Modal Architectures
-  - 'Capstone Part 1: Dataset'
-  - 'Capstone Part 2: Attentio'
-  - 'Capstone Part 3: Training'
-  - 'Capstone Part 4: Greedy v'
-  - 'Capstone Part 5: Gradio W'
+  - 'Multi-Modal Architectures: CNN + RNN'
+  - 'Capstone Part 1: Dataset & Visual Grid Feature Extraction'
+  - 'Capstone Part 2: Attention-Augmented Decoder Module'
+  - 'Capstone Part 3: Training & BLEU Evaluation Loop'
+  - 'Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
+  - 'Capstone Part 5: Gradio Web Deployment'
   hinglish: CNN-RNN Image Captioning mein CNN (ResNet/EfficientNet) image ka visual
     feature grid extract karta hai, jo LSTM decoder ko initial context vector provide
     karta hai.
@@ -1091,34 +1065,18 @@ days:
       coding exercises"'
     sol_id: sol-w12d82t1
     solution_title: ✅ COMPLETE SOLUTION — build_a_custom_pytorch_dataset_collate_f.py
-    solution_code: "<span class=\"cm\"># build_a_custom_pytorch_dataset_collate_f.py\
-      \ — Solution</span>\n<span class=\"cm\"># Complete solution for: Build a custom\
-      \ PyTorch Dataset &amp; Collate Function</span>\n\n<span class=\"kw\">import</span>\
-      \ torch\n<span class=\"kw\">from</span> torch.utils.data <span class=\"kw\"\
-      >import</span> Dataset, DataLoader\n<span class=\"kw\">import</span> numpy <span\
-      \ class=\"kw\">as</span> np\n\n<span class=\"kw\">class</span> <span class=\"\
-      cls\">CustomDataset</span>(Dataset):\n    <span class=\"kw\">def</span> <span\
-      \ class=\"fn\">__init__</span>(<span class=\"kw\">self</span>, size=<span class=\"\
-      num\">100</span>, feature_dim=<span class=\"num\">10</span>):\n        <span\
-      \ class=\"kw\">self</span>.data = np.random.<span class=\"fn\">randn</span>(size,\
-      \ feature_dim).<span class=\"fn\">astype</span>(np.float32)\n        <span class=\"\
-      kw\">self</span>.labels = np.random.<span class=\"fn\">randint</span>(<span\
-      \ class=\"num\">0</span>, <span class=\"num\">2</span>, size=size).<span class=\"\
-      fn\">astype</span>(np.int64)\n\n    <span class=\"kw\">def</span> <span class=\"\
-      fn\">__len__</span>(<span class=\"kw\">self</span>):\n        <span class=\"\
-      kw\">return</span> <span class=\"fn\">len</span>(<span class=\"kw\">self</span>.data)\n\
-      \n    <span class=\"kw\">def</span> <span class=\"fn\">__getitem__</span>(<span\
-      \ class=\"kw\">self</span>, idx):\n        <span class=\"kw\">return</span>\
-      \ torch.<span class=\"fn\">from_numpy</span>(<span class=\"kw\">self</span>.data[idx]),\
-      \ torch.<span class=\"fn\">tensor</span>(<span class=\"kw\">self</span>.labels[idx])\n\
-      \ndataset = <span class=\"fn\">CustomDataset</span>()\nloader = <span class=\"\
-      fn\">DataLoader</span>(dataset, batch_size=<span class=\"num\">16</span>, shuffle=<span\
-      \ class=\"kw\">True</span>)\nsample_x, sample_y = <span class=\"fn\">next</span>(<span\
-      \ class=\"fn\">iter</span>(loader))\n<span class=\"fn\">print</span>(<span class=\"\
-      str\">f\"Dataset Pipeline Executed for: {task_title}\"</span>)\n<span class=\"\
-      fn\">print</span>(<span class=\"str\">f\"Batch X: {sample_x.shape}, Batch Y:\
-      \ {sample_y.shape}\"</span>)\n\n<span class=\"kw\">if</span> __name__ == <span\
-      \ class=\"str\">'__main__'</span>:\n    <span class=\"fn\">solve</span>()"
+    solution_code: "# build_a_custom_pytorch_dataset_collate_f.py — Solution\n# Complete\
+      \ solution for: Build a custom PyTorch Dataset & Collate Function\n\nimport\
+      \ torch\nfrom torch.utils.data import Dataset, DataLoader\nimport numpy as np\n\
+      \nclass CustomDataset(Dataset):\n    def __init__(self, size=100, feature_dim=10):\n\
+      \        self.data = np.random.randn(size, feature_dim).astype(np.float32)\n\
+      \        self.labels = np.random.randint(0, 2, size=size).astype(np.int64)\n\
+      \n    def __len__(self):\n        return len(self.data)\n\n    def __getitem__(self,\
+      \ idx):\n        return torch.from_numpy(self.data[idx]), torch.tensor(self.labels[idx])\n\
+      \ndataset = CustomDataset()\nloader = DataLoader(dataset, batch_size=16, shuffle=True)\n\
+      sample_x, sample_y = next(iter(loader))\nprint(f\"Dataset Pipeline Executed\
+      \ for: {task_title}\")\nprint(f\"Batch X: {sample_x.shape}, Batch Y: {sample_y.shape}\"\
+      )\n\nif __name__ == '__main__':\n    solve()"
     solution_lang: python
   quizzes:
   - num_str: Q1 OF 3
@@ -1270,12 +1228,12 @@ days:
     text: Pass daily interactive quiz and review active recall flashcards
   concept_flow:
   - The Attention Mechanism
-  - Multi-Modal Architectures
-  - 'Capstone Part 1: Dataset'
-  - 'Capstone Part 2: Attentio'
-  - 'Capstone Part 3: Training'
-  - 'Capstone Part 4: Greedy v'
-  - 'Capstone Part 5: Gradio W'
+  - 'Multi-Modal Architectures: CNN + RNN'
+  - 'Capstone Part 1: Dataset & Visual Grid Feature Extraction'
+  - 'Capstone Part 2: Attention-Augmented Decoder Module'
+  - 'Capstone Part 3: Training & BLEU Evaluation Loop'
+  - 'Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
+  - 'Capstone Part 5: Gradio Web Deployment'
   hinglish: Bahdanau Additive Attention LSTM decoder ko har word predict karte waqt
     image ke relevant spatial patches par dynamic attention weights focus karne ki
     ability deta hai.
@@ -1638,12 +1596,12 @@ days:
     text: Pass daily interactive quiz and review active recall flashcards
   concept_flow:
   - The Attention Mechanism
-  - Multi-Modal Architectures
-  - 'Capstone Part 1: Dataset'
-  - 'Capstone Part 2: Attentio'
-  - 'Capstone Part 3: Training'
-  - 'Capstone Part 4: Greedy v'
-  - 'Capstone Part 5: Gradio W'
+  - 'Multi-Modal Architectures: CNN + RNN'
+  - 'Capstone Part 1: Dataset & Visual Grid Feature Extraction'
+  - 'Capstone Part 2: Attention-Augmented Decoder Module'
+  - 'Capstone Part 3: Training & BLEU Evaluation Loop'
+  - 'Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
+  - 'Capstone Part 5: Gradio Web Deployment'
   hinglish: Image Captioning evaluation mein BLEU-4, METEOR, aur CIDEr metrics generated
     sentence aur human reference captions ke n-gram overlap ko measure karte hain.
   analogy: Padding-aware loss bilkul ek board exam paper checker ki tarah kaam karta
@@ -1817,43 +1775,21 @@ days:
       coding exercises"'
     sol_id: sol-w12d84t1
     solution_title: ✅ COMPLETE SOLUTION — build_a_comprehensive_validation_evaluat.py
-    solution_code: "<span class=\"cm\"># build_a_comprehensive_validation_evaluat.py\
-      \ — Solution</span>\n<span class=\"cm\"># Complete solution for: Build a comprehensive\
-      \ validation evaluation loop</span>\n\n<span class=\"kw\">import</span> numpy\
-      \ <span class=\"kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"\
-      fn\">compute_classification_metrics</span>(y_true, y_pred_probs, threshold=<span\
-      \ class=\"num\">0.5</span>):\n    y_pred = (y_pred_probs &gt;= threshold).<span\
-      \ class=\"fn\">astype</span>(int)\n    tp = np.<span class=\"fn\">sum</span>((y_true\
-      \ == <span class=\"num\">1</span>) &amp; (y_pred == <span class=\"num\">1</span>))\n\
-      \    fp = np.<span class=\"fn\">sum</span>((y_true == <span class=\"num\">0</span>)\
-      \ &amp; (y_pred == <span class=\"num\">1</span>))\n    fn = np.<span class=\"\
-      fn\">sum</span>((y_true == <span class=\"num\">1</span>) &amp; (y_pred == <span\
-      \ class=\"num\">0</span>))\n    tn = np.<span class=\"fn\">sum</span>((y_true\
-      \ == <span class=\"num\">0</span>) &amp; (y_pred == <span class=\"num\">0</span>))\n\
-      \    \n    accuracy = (tp + tn) / <span class=\"fn\">len</span>(y_true)\n  \
-      \  precision = tp / (tp + fp) <span class=\"kw\">if</span> (tp + fp) &gt; <span\
-      \ class=\"num\">0</span> <span class=\"kw\">else</span> <span class=\"num\"\
-      >0</span>\n    recall = tp / (tp + fn) <span class=\"kw\">if</span> (tp + fn)\
-      \ &gt; <span class=\"num\">0</span> <span class=\"kw\">else</span> <span class=\"\
-      num\">0</span>\n    f1 = <span class=\"num\">2</span> * precision * recall /\
-      \ (precision + recall) <span class=\"kw\">if</span> (precision + recall) &gt;\
-      \ <span class=\"num\">0</span> <span class=\"kw\">else</span> <span class=\"\
-      num\">0</span>\n    \n    <span class=\"kw\">return</span> {<span class=\"str\"\
-      >\"accuracy\": accuracy, \"precision\": precision, \"recall\": recall, \"f1_score\"\
-      </span>: f1}\n\ny_true = np.<span class=\"fn\">array</span>([<span class=\"\
-      num\">1</span>, <span class=\"num\">0</span>, <span class=\"num\">1</span>,\
-      \ <span class=\"num\">1</span>, <span class=\"num\">0</span>, <span class=\"\
-      num\">1</span>, <span class=\"num\">0</span>, <span class=\"num\">0</span>])\n\
-      y_probs = np.<span class=\"fn\">array</span>([<span class=\"num\">0.9</span>,\
-      \ <span class=\"num\">0.1</span>, <span class=\"num\">0.8</span>, <span class=\"\
-      num\">0.4</span>, <span class=\"num\">0.2</span>, <span class=\"num\">0.7</span>,\
-      \ <span class=\"num\">0.6</span>, <span class=\"num\">0.3</span>])\nmetrics\
-      \ = <span class=\"fn\">compute_classification_metrics</span>(y_true, y_probs)\n\
-      <span class=\"fn\">print</span>(<span class=\"str\">f\"Evaluation for {task_title}:\"\
-      </span>)\n<span class=\"kw\">for</span> k, v <span class=\"kw\">in</span> metrics.<span\
-      \ class=\"fn\">items</span>():\n    <span class=\"fn\">print</span>(<span class=\"\
-      str\">f\"  {k}: {v:.4f}\"</span>)\n\n<span class=\"kw\">if</span> __name__ ==\
-      \ <span class=\"str\">'__main__'</span>:\n    <span class=\"fn\">solve</span>()"
+    solution_code: "# build_a_comprehensive_validation_evaluat.py — Solution\n# Complete\
+      \ solution for: Build a comprehensive validation evaluation loop\n\nimport numpy\
+      \ as np\n\ndef compute_classification_metrics(y_true, y_pred_probs, threshold=0.5):\n\
+      \    y_pred = (y_pred_probs >= threshold).astype(int)\n    tp = np.sum((y_true\
+      \ == 1) & (y_pred == 1))\n    fp = np.sum((y_true == 0) & (y_pred == 1))\n \
+      \   fn = np.sum((y_true == 1) & (y_pred == 0))\n    tn = np.sum((y_true == 0)\
+      \ & (y_pred == 0))\n    \n    accuracy = (tp + tn) / len(y_true)\n    precision\
+      \ = tp / (tp + fp) if (tp + fp) > 0 else 0\n    recall = tp / (tp + fn) if (tp\
+      \ + fn) > 0 else 0\n    f1 = 2 * precision * recall / (precision + recall) if\
+      \ (precision + recall) > 0 else 0\n    \n    return {\"accuracy\": accuracy,\
+      \ \"precision\": precision, \"recall\": recall, \"f1_score\": f1}\n\ny_true\
+      \ = np.array([1, 0, 1, 1, 0, 1, 0, 0])\ny_probs = np.array([0.9, 0.1, 0.8, 0.4,\
+      \ 0.2, 0.7, 0.6, 0.3])\nmetrics = compute_classification_metrics(y_true, y_probs)\n\
+      print(f\"Evaluation for {task_title}:\")\nfor k, v in metrics.items():\n   \
+      \ print(f\"  {k}: {v:.4f}\")\n\nif __name__ == '__main__':\n    solve()"
     solution_lang: python
   quizzes:
   - num_str: Q1 OF 3
@@ -2004,12 +1940,12 @@ days:
     text: Pass daily interactive quiz and review active recall flashcards
   concept_flow:
   - The Attention Mechanism
-  - Multi-Modal Architectures
-  - 'Capstone Part 1: Dataset'
-  - 'Capstone Part 2: Attentio'
-  - 'Capstone Part 3: Training'
-  - 'Capstone Part 4: Greedy v'
-  - 'Capstone Part 5: Gradio W'
+  - 'Multi-Modal Architectures: CNN + RNN'
+  - 'Capstone Part 1: Dataset & Visual Grid Feature Extraction'
+  - 'Capstone Part 2: Attention-Augmented Decoder Module'
+  - 'Capstone Part 3: Training & BLEU Evaluation Loop'
+  - 'Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
+  - 'Capstone Part 5: Gradio Web Deployment'
   hinglish: Flash Attention memory-efficient attention implementation hai — IO-aware
     algorithm use karta hai HBM visits minimize karne ke liye. 2-4x faster standard
     attention se!
@@ -2191,48 +2127,25 @@ days:
       coding exercises"'
     sol_id: sol-w12d85t1
     solution_title: ✅ COMPLETE SOLUTION — build_a_decoding_speed_and_bleu_benchmar.py
-    solution_code: "<span class=\"cm\"># build_a_decoding_speed_and_bleu_benchmar.py\
-      \ — Solution</span>\n<span class=\"cm\"># Complete solution for: Build a decoding\
-      \ speed and BLEU benchmark comparison</span>\n\n<span class=\"kw\">import</span>\
-      \ torch\n<span class=\"kw\">import</span> torch.nn <span class=\"kw\">as</span>\
-      \ nn\n<span class=\"kw\">from</span> torch.utils.data <span class=\"kw\">import</span>\
-      \ TensorDataset, DataLoader\n\n<span class=\"cm\"># 1. Synthetic dataset</span>\n\
-      X = torch.<span class=\"fn\">randn</span>(<span class=\"num\">500</span>, <span\
-      \ class=\"num\">20</span>)\ny = (X.<span class=\"fn\">sum</span>(dim=<span class=\"\
-      num\">1</span>) &gt; <span class=\"num\">0</span>).<span class=\"fn\">long</span>()\n\
-      \ndataset = <span class=\"fn\">TensorDataset</span>(X, y)\nloader = <span class=\"\
-      fn\">DataLoader</span>(dataset, batch_size=<span class=\"num\">32</span>, shuffle=<span\
-      \ class=\"kw\">True</span>)\n\n<span class=\"cm\"># 2. Simple MLP Model</span>\n\
-      model = nn.<span class=\"fn\">Sequential</span>(\n    nn.<span class=\"fn\"\
-      >Linear</span>(<span class=\"num\">20</span>, <span class=\"num\">64</span>),\n\
-      \    nn.<span class=\"fn\">ReLU</span>(),\n    nn.<span class=\"fn\">Dropout</span>(<span\
-      \ class=\"num\">0.2</span>),\n    nn.<span class=\"fn\">Linear</span>(<span\
-      \ class=\"num\">64</span>, <span class=\"num\">2</span>)\n)\n\ncriterion = nn.<span\
-      \ class=\"fn\">CrossEntropyLoss</span>()\noptimizer = torch.optim.<span class=\"\
-      fn\">Adam</span>(model.<span class=\"fn\">parameters</span>(), lr=<span class=\"\
-      num\">0.005</span>)\n\n<span class=\"cm\"># 3. Explicit Epoch Loop</span>\n\
-      epochs = <span class=\"num\">15</span>\n<span class=\"kw\">for</span> epoch\
-      \ <span class=\"kw\">in</span> <span class=\"fn\">range</span>(<span class=\"\
-      num\">1</span>, epochs + <span class=\"num\">1</span>):\n    model.<span class=\"\
-      fn\">train</span>()\n    running_loss = <span class=\"num\">0.0</span>\n   \
-      \ correct = <span class=\"num\">0</span>\n    total = <span class=\"num\">0</span>\n\
-      \    \n    <span class=\"kw\">for</span> inputs, labels <span class=\"kw\">in</span>\
-      \ loader:\n        optimizer.<span class=\"fn\">zero_grad</span>()\n       \
-      \ outputs = <span class=\"fn\">model</span>(inputs)\n        loss = <span class=\"\
-      fn\">criterion</span>(outputs, labels)\n        loss.<span class=\"fn\">backward</span>()\n\
-      \        optimizer.<span class=\"fn\">step</span>()\n        \n        running_loss\
-      \ += loss.<span class=\"fn\">item</span>() * inputs.<span class=\"fn\">size</span>(<span\
-      \ class=\"num\">0</span>)\n        _, preds = torch.<span class=\"fn\">max</span>(outputs,\
-      \ <span class=\"num\">1</span>)\n        correct += (preds == labels).<span\
-      \ class=\"fn\">sum</span>().<span class=\"fn\">item</span>()\n        total\
-      \ += labels.<span class=\"fn\">size</span>(<span class=\"num\">0</span>)\n \
-      \       \n    epoch_loss = running_loss / total\n    epoch_acc = correct / total\n\
-      \    <span class=\"kw\">if</span> epoch % <span class=\"num\">5</span> == <span\
-      \ class=\"num\">0</span> <span class=\"kw\">or</span> epoch == <span class=\"\
-      num\">1</span>:\n        <span class=\"fn\">print</span>(<span class=\"str\"\
-      >f\"Epoch {epoch:02d}/{epochs:02d} | Loss: {epoch_loss:.4f} | Acc: {epoch_acc*100:.2f}%\"\
-      </span>)\n\n<span class=\"kw\">if</span> __name__ == <span class=\"str\">'__main__'</span>:\n\
-      \    <span class=\"fn\">solve</span>()"
+    solution_code: "# build_a_decoding_speed_and_bleu_benchmar.py — Solution\n# Complete\
+      \ solution for: Build a decoding speed and BLEU benchmark comparison\n\nimport\
+      \ torch\nimport torch.nn as nn\nfrom torch.utils.data import TensorDataset,\
+      \ DataLoader\n\n# 1. Synthetic dataset\nX = torch.randn(500, 20)\ny = (X.sum(dim=1)\
+      \ > 0).long()\n\ndataset = TensorDataset(X, y)\nloader = DataLoader(dataset,\
+      \ batch_size=32, shuffle=True)\n\n# 2. Simple MLP Model\nmodel = nn.Sequential(\n\
+      \    nn.Linear(20, 64),\n    nn.ReLU(),\n    nn.Dropout(0.2),\n    nn.Linear(64,\
+      \ 2)\n)\n\ncriterion = nn.CrossEntropyLoss()\noptimizer = torch.optim.Adam(model.parameters(),\
+      \ lr=0.005)\n\n# 3. Explicit Epoch Loop\nepochs = 15\nfor epoch in range(1,\
+      \ epochs + 1):\n    model.train()\n    running_loss = 0.0\n    correct = 0\n\
+      \    total = 0\n    \n    for inputs, labels in loader:\n        optimizer.zero_grad()\n\
+      \        outputs = model(inputs)\n        loss = criterion(outputs, labels)\n\
+      \        loss.backward()\n        optimizer.step()\n        \n        running_loss\
+      \ += loss.item() * inputs.size(0)\n        _, preds = torch.max(outputs, 1)\n\
+      \        correct += (preds == labels).sum().item()\n        total += labels.size(0)\n\
+      \        \n    epoch_loss = running_loss / total\n    epoch_acc = correct /\
+      \ total\n    if epoch % 5 == 0 or epoch == 1:\n        print(f\"Epoch {epoch:02d}/{epochs:02d}\
+      \ | Loss: {epoch_loss:.4f} | Acc: {epoch_acc*100:.2f}%\")\n\nif __name__ ==\
+      \ '__main__':\n    solve()"
     solution_lang: python
   quizzes:
   - num_str: Q1 OF 3
@@ -2434,12 +2347,12 @@ days:
     text: Pass daily interactive quiz and review active recall flashcards
   concept_flow:
   - The Attention Mechanism
-  - Multi-Modal Architectures
-  - 'Capstone Part 1: Dataset'
-  - 'Capstone Part 2: Attentio'
-  - 'Capstone Part 3: Training'
-  - 'Capstone Part 4: Greedy v'
-  - 'Capstone Part 5: Gradio W'
+  - 'Multi-Modal Architectures: CNN + RNN'
+  - 'Capstone Part 1: Dataset & Visual Grid Feature Extraction'
+  - 'Capstone Part 2: Attention-Augmented Decoder Module'
+  - 'Capstone Part 3: Training & BLEU Evaluation Loop'
+  - 'Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
+  - 'Capstone Part 5: Gradio Web Deployment'
   hinglish: 'Cross-attention encoder aur decoder ke beech: decoder ki query, encoder
     ke keys aur values se attend karti hai. Text-to-image models mein ye text aur
     visual features connect karta hai!'
