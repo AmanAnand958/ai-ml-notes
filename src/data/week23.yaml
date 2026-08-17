@@ -41,30 +41,56 @@ days:
   analogy: 'AWS SageMaker is like an industrial smart factory: you provide the production blueprint (training script) and
     raw materials (S3 data), the factory automatically commissions the specialized machinery (GPU cluster), manufactures the
     goods (model binary), and packs down the line.'
-  theory_html: "<h3 class=\"sh3\">1. AWS SageMaker Architecture: Training Jobs & Real-Time Endpoints</h3>\n<p>\nAWS SageMaker\
-    \ decouples ML model development into distinct infrastructure tiers:\n</p>\n<ol>\n  <li><strong>SageMaker Training Jobs:</strong>\
-    \ Ephemeral EC2 GPU instances (e.g. <code>ml.g5.12xlarge</code>) that pull training data from S3, execute the training\
-    \ script inside an ECR Docker image, save weights to S3, and terminate immediately to eliminate idle costs.</li>\n  <li><strong>SageMaker\
-    \ Model Registry:</strong> Versioned model catalog tracking lineage, accuracy metrics, and deployment approvals.</li>\n\
-    \  <li><strong>Real-Time Multi-Model Endpoints (MME):</strong> Dynamically loads multiple models into GPU memory on demand\
-    \ behind a single load-balanced endpoint.</li>\n</ol>\n\n<h3 class=\"sh3\">2. Production Python Implementation: SageMaker\
-    \ Inference Handler</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"\
-    cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code><span class=\"\
-    kw\">import</span> json\n<span class=\"kw\">import</span> torch\n<span class=\"kw\">from</span> transformers <span class=\"\
-    kw\">import</span> AutoTokenizer, AutoModelForCausalLM\n\n<span class=\"kw\">def</span> <span class=\"fn\">model_fn</span>(model_dir:\
-    \ str):\n    <span class=\"str\">\"\"\"Loads model weights into GPU VRAM upon SageMaker container startup.\"\"\"</span>\n\
-    \    tokenizer = AutoTokenizer.from_pretrained(model_dir)\n    model = AutoModelForCausalLM.from_pretrained(\n       \
-    \ model_dir,\n        torch_dtype=torch.float16,\n        device_map=<span class=\"str\">\"auto\"</span>\n    )\n    <span\
-    \ class=\"kw\">return</span> {<span class=\"str\">\"model\"</span>: model, <span class=\"str\">\"tokenizer\"</span>: tokenizer}\n\
-    \n<span class=\"kw\">def</span> <span class=\"fn\">transform_fn</span>(model_dict, data: bytes, content_type: str, accept:\
-    \ str):\n    <span class=\"str\">\"\"\"Executes real-time inference request and returns JSON response.\"\"\"</span>\n\
-    \    payload = json.loads(data.decode(<span class=\"str\">\"utf-8\"</span>))\n    prompt = payload.get(<span class=\"\
-    str\">\"inputs\"</span>, <span class=\"str\">\"\"</span>)\n    \n    tokenizer = model_dict[<span class=\"str\">\"tokenizer\"\
-    </span>]\n    model = model_dict[<span class=\"str\">\"model\"</span>]\n    \n    inputs = tokenizer(prompt, return_tensors=<span\
-    \ class=\"str\">\"pt\"</span>).to(model.device)\n    <span class=\"kw\">with</span> torch.no_grad():\n        outputs\
-    \ = model.generate(**inputs, max_new_tokens=<span class=\"num\">128</span>)\n    \n    generated_text = tokenizer.decode(outputs[<span\
-    \ class=\"num\">0</span>], skip_special_tokens=<span class=\"kw\">True</span>)\n    <span class=\"kw\">return</span> json.dumps({<span\
-    \ class=\"str\">\"generated_text\"</span>: generated_text}), accept</code></pre>\n</div>"
+  theory_html: "<div style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"AWS SageMaker Training and Real-Time\
+    \ Inference Architecture\" height=\"260\" viewBox=\"0 0 700 260\" width=\"700\" xmlns=\"http://www.w3.org/2000/svg\" style=\"\
+    max-width: 100%; height: auto; font-family: var(--font-mono, monospace);\">\n  <rect x=\"10\" y=\"10\" width=\"680\" height=\"\
+    240\" rx=\"10\" fill=\"#09090b\" stroke=\"#f59e0b\" stroke-width=\"2\"/>\n  <text x=\"25\" y=\"35\" fill=\"#fbbf24\" font-size=\"\
+    13\" font-weight=\"bold\">AWS SageMaker End-to-End Enterprise Architecture</text>\n\n  <!-- Training Tier -->\n  <rect\
+    \ x=\"30\" y=\"60\" width=\"200\" height=\"170\" rx=\"8\" fill=\"#18181b\" stroke=\"#3f3f46\"/>\n  <text x=\"45\" y=\"\
+    85\" fill=\"#f59e0b\" font-size=\"11\" font-weight=\"bold\">1. Ephemeral Training</text>\n  <rect x=\"40\" y=\"100\" width=\"\
+    180\" height=\"35\" rx=\"4\" fill=\"#27272a\" stroke=\"#f59e0b\"/>\n  <text x=\"50\" y=\"122\" fill=\"#fbbf24\" font-size=\"\
+    10\">EC2 GPU (ml.g5.12xlarge)</text>\n  <text x=\"50\" y=\"155\" fill=\"#94a3b8\" font-size=\"9.5\">• Pulls Dataset from\
+    \ S3</text>\n  <text x=\"50\" y=\"175\" fill=\"#94a3b8\" font-size=\"9.5\">• Executes PyTorch / ECR</text>\n  <text x=\"\
+    50\" y=\"195\" fill=\"#ef4444\" font-size=\"9.5\">• Auto-Terminates on Finish</text>\n\n  <path d=\"M 230 145 L 270 145\"\
+    \ stroke=\"#f59e0b\" stroke-width=\"2\"/>\n\n  <!-- Model Registry Tier -->\n  <rect x=\"270\" y=\"60\" width=\"180\"\
+    \ height=\"170\" rx=\"8\" fill=\"#18181b\" stroke=\"#38bdf8\"/>\n  <text x=\"285\" y=\"85\" fill=\"#38bdf8\" font-size=\"\
+    11\" font-weight=\"bold\">2. Model Registry</text>\n  <rect x=\"280\" y=\"100\" width=\"160\" height=\"35\" rx=\"4\" fill=\"\
+    #0284c7\"/>\n  <text x=\"290\" y=\"122\" fill=\"#ffffff\" font-size=\"10\" font-weight=\"bold\">Model Version Catalog</text>\n\
+    \  <text x=\"290\" y=\"155\" fill=\"#94a3b8\" font-size=\"9.5\">• S3 Artifact Lineage</text>\n  <text x=\"290\" y=\"175\"\
+    \ fill=\"#94a3b8\" font-size=\"9.5\">• Approval Gate @champion</text>\n  <text x=\"290\" y=\"195\" fill=\"#94a3b8\" font-size=\"\
+    9.5\">• Metadata / Metrics Log</text>\n\n  <path d=\"M 450 145 L 490 145\" stroke=\"#38bdf8\" stroke-width=\"2\"/>\n\n\
+    \  <!-- Serving Tier -->\n  <rect x=\"490\" y=\"60\" width=\"180\" height=\"170\" rx=\"8\" fill=\"#18181b\" stroke=\"\
+    #10b981\"/>\n  <text x=\"505\" y=\"85\" fill=\"#10b981\" font-size=\"11\" font-weight=\"bold\">3. Multi-Model Endpoint</text>\n\
+    \  <rect x=\"500\" y=\"100\" width=\"160\" height=\"35\" rx=\"4\" fill=\"#065f46\"/>\n  <text x=\"510\" y=\"122\" fill=\"\
+    #ffffff\" font-size=\"10\" font-weight=\"bold\">ALB + Auto-Scaling</text>\n  <text x=\"510\" y=\"155\" fill=\"#94a3b8\"\
+    \ font-size=\"9.5\">• GPU Memory Pooling</text>\n  <text x=\"510\" y=\"175\" fill=\"#94a3b8\" font-size=\"9.5\">• Dynamic\
+    \ Model Loading</text>\n  <text x=\"510\" y=\"195\" fill=\"#10b981\" font-size=\"9.5\">• &lt;15ms p99 Latency</text>\n\
+    </svg>\n<div class=\"diagram-cap\">Figure 164.1: AWS SageMaker Lifecycle: Ephemeral GPU Training $\to$ Model Registry\
+    \ Lineage $\to$ Multi-Model Endpoint Serving.</div>\n</div>\n<h3 class=\"sh3\">1. AWS SageMaker Architecture: Training\
+    \ Jobs & Real-Time Endpoints</h3>\n<p>\nAWS SageMaker decouples ML model development into distinct infrastructure tiers:\n\
+    </p>\n<ol>\n  <li><strong>SageMaker Training Jobs:</strong> Ephemeral EC2 GPU instances (e.g. <code>ml.g5.12xlarge</code>)\
+    \ that pull training data from S3, execute the training script inside an ECR Docker image, save weights to S3, and terminate\
+    \ immediately to eliminate idle costs.</li>\n  <li><strong>SageMaker Model Registry:</strong> Versioned model catalog\
+    \ tracking lineage, accuracy metrics, and deployment approvals.</li>\n  <li><strong>Real-Time Multi-Model Endpoints (MME):</strong>\
+    \ Dynamically loads multiple models into GPU memory on demand behind a single load-balanced endpoint.</li>\n</ol>\n\n\
+    <h3 class=\"sh3\">2. Production Python Implementation: SageMaker Inference Handler</h3>\n<div class=\"cb\">\n  <div class=\"\
+    cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\"\
+    >copy</button></div></div>\n  <pre><code><span class=\"kw\">import</span> json\n<span class=\"kw\">import</span> torch\n\
+    <span class=\"kw\">from</span> transformers <span class=\"kw\">import</span> AutoTokenizer, AutoModelForCausalLM\n\n<span\
+    \ class=\"kw\">def</span> <span class=\"fn\">model_fn</span>(model_dir: str):\n    <span class=\"str\">\"\"\"Loads model\
+    \ weights into GPU VRAM upon SageMaker container startup.\"\"\"</span>\n    tokenizer = AutoTokenizer.from_pretrained(model_dir)\n\
+    \    model = AutoModelForCausalLM.from_pretrained(\n        model_dir,\n        torch_dtype=torch.float16,\n        device_map=<span\
+    \ class=\"str\">\"auto\"</span>\n    )\n    <span class=\"kw\">return</span> {<span class=\"str\">\"model\"</span>: model,\
+    \ <span class=\"str\">\"tokenizer\"</span>: tokenizer}\n\n<span class=\"kw\">def</span> <span class=\"fn\">transform_fn</span>(model_dict,\
+    \ data: bytes, content_type: str, accept: str):\n    <span class=\"str\">\"\"\"Executes real-time inference request and\
+    \ returns JSON response.\"\"\"</span>\n    payload = json.loads(data.decode(<span class=\"str\">\"utf-8\"</span>))\n \
+    \   prompt = payload.get(<span class=\"str\">\"inputs\"</span>, <span class=\"str\">\"\"</span>)\n    \n    tokenizer\
+    \ = model_dict[<span class=\"str\">\"tokenizer\"</span>]\n    model = model_dict[<span class=\"str\">\"model\"</span>]\n\
+    \    \n    inputs = tokenizer(prompt, return_tensors=<span class=\"str\">\"pt\"</span>).to(model.device)\n    <span class=\"\
+    kw\">with</span> torch.no_grad():\n        outputs = model.generate(**inputs, max_new_tokens=<span class=\"num\">128</span>)\n\
+    \    \n    generated_text = tokenizer.decode(outputs[<span class=\"num\">0</span>], skip_special_tokens=<span class=\"\
+    kw\">True</span>)\n    <span class=\"kw\">return</span> json.dumps({<span class=\"str\">\"generated_text\"</span>: generated_text}),\
+    \ accept</code></pre>\n</div>"
   predict:
     question: What string compute instance family is provisioned for GPU-accelerated SageMaker Training jobs?
     answer: ml.g5.2xlarge
