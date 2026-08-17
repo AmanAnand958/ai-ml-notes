@@ -43,116 +43,83 @@ days:
   analogy: 'Kubernetes is like an automated airport traffic controller: instead of managing individual flights manually, it
     routes incoming traffic to available gates (Services), replaces broken planes instantly (ReplicaSets), and scales runways
     during peak rush hour (HPA).'
-  theory_html: |-
-    <h3 class="sh3">1. Why Kubernetes for Machine Learning Deployments?</h3>
-    <p>
-    Modern machine learning models cannot run reliably on bare virtual machines in enterprise environments. Production AI systems require dynamic scaling, GPU resource sharing, automated health-checking, rolling zero-downtime updates, and fault tolerance. <strong>Kubernetes (K8s)</strong> serves as the industry standard container orchestrator that abstracts physical compute clusters into unified, declarative APIs.
-    </p>
-    <p>
-    In an ML deployment context, Kubernetes coordinates three core operations:
-    </p>
-    <ul>
-      <li><strong>Inference Microservices:</strong> Packaging FastAPI/Triton/vLLM servers inside lightweight container Pods exposed behind ClusterIP and Ingress controllers.</li>
-      <li><strong>GPU Scheduling & Isolation:</strong> Utilizing the NVIDIA GPU Device Plugin to allocate discrete GPU hardware slices (e.g. <code>nvidia.com/gpu: 1</code>) to specialized pods.</li>
-      <li><strong>Horizontal Pod Autoscaling (HPA):</strong> Dynamically scaling pod replicas based on request concurrency, GPU memory saturation, and queue latency.</li>
-    </ul>
-    <div class="mermaid">
-    graph TD
-        Client["Client / Application Gateway"] --> Ingress["K8s Ingress Controller (NGINX / Traefik)"]
-        Ingress --> Service["K8s Service (ClusterIP: Load Balancer)"]
-        Service --> Pod1["Pod 1: FastAPI + ONNX Runtime (GPU Node 1)"]
-        Service --> Pod2["Pod 2: FastAPI + ONNX Runtime (GPU Node 1)"]
-        Service --> Pod3["Pod 3: FastAPI + ONNX Runtime (GPU Node 2)"]
-        Pod1 & Pod2 & Pod3 --> SharedVolume["Shared Persistent Volume (Model Weights Cache)"]
-    </div>
-    <div class="diagram-cap">Figure 125.1: Kubernetes ML Microservice Serving Architecture.</div>
-
-    <h3 class="sh3">2. Core Kubernetes Primitives for ML Engineers</h3>
-    <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-      <thead>
-        <tr style="border-bottom:2px solid var(--border); text-align:left;">
-          <th style="padding:8px;">Primitive</th>
-          <th style="padding:8px;">Purpose</th>
-          <th style="padding:8px;">ML Engineering Context</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:8px;"><strong>Pod</strong></td>
-          <td style="padding:8px;">Smallest deployable execution unit.</td>
-          <td style="padding:8px;">Contains inference server container + optional sidecar (metrics exporter).</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:8px;"><strong>Deployment</strong></td>
-          <td style="padding:8px;">Declarative controller for stateless pod replicas.</td>
-          <td style="padding:8px;">Manages rolling updates when model weights or API code change.</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:8px;"><strong>Service</strong></td>
-          <td style="padding:8px;">Stable internal IP and DNS endpoint.</td>
-          <td style="padding:8px;">Load balances requests across healthy model inference pods.</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:8px;"><strong>ConfigMap / Secret</strong></td>
-          <td style="padding:8px;">External configuration & encrypted credentials.</td>
-          <td style="padding:8px;">Injects model paths, batch size settings, S3 keys, and Hugging Face tokens.</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3 class="sh3">3. Production Kubernetes ML Deployment Manifest</h3>
-    <div class="cb">
-      <div class="cb-head"><span class="cb-lang">yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-      <pre><code>apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: fraud-detection-api
-      labels:
-        app: fraud-detector
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: fraud-detector
-      template:
-        metadata:
-          labels:
-            app: fraud-detector
-        spec:
-          containers:
-          - name: inference-engine
-            image: enterprise-registry.io/ml/fraud-api:v2.1.0
-            resources:
-              requests:
-                memory: "4Gi"
-                cpu: "2000m"
-                nvidia.com/gpu: "1"
-              limits:
-                memory: "8Gi"
-                cpu: "4000m"
-                nvidia.com/gpu: "1"
-            ports:
-            - containerPort: 8000
-            readinessProbe:
-              httpGet:
-                path: /health
-                port: 8000
-              initialDelaySeconds: 15
-              periodSeconds: 5
-            livenessProbe:
-              httpGet:
-                path: /live
-                port: 8000
-              initialDelaySeconds: 30
-              periodSeconds: 10
-            volumeMounts:
-            - name: dshm
-              mountPath: /dev/shm
-          volumes:
-          - name: dshm
-            emptyDir:
-              medium: Memory</code></pre>
-    </div>
+  theory_html: "\n<div style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"Kubernetes GPU Workload Orchestration\"\
+    \ height=\"260\" viewBox=\"0 0 720 260\" width=\"720\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width: 100%; height:\
+    \ auto; font-family: var(--font-mono, monospace);\">\n  <defs>\n    <linearGradient id=\"k8s-grad\" x1=\"0%\" y1=\"0%\"\
+    \ x2=\"100%\" y2=\"100%\">\n      <stop offset=\"0%\" stop-color=\"#1e293b\"/>\n      <stop offset=\"100%\" stop-color=\"\
+    #0f172a\"/>\n    </linearGradient>\n    <linearGradient id=\"gpu-grad\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n\
+    \      <stop offset=\"0%\" stop-color=\"#059669\"/>\n      <stop offset=\"100%\" stop-color=\"#10b981\"/>\n    </linearGradient>\n\
+    \    <linearGradient id=\"pod-grad\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n      <stop offset=\"0%\" stop-color=\"\
+    #3b82f6\"/>\n      <stop offset=\"100%\" stop-color=\"#1d4ed8\"/>\n    </linearGradient>\n  </defs>\n  \n  <!-- Outer\
+    \ Node Frame -->\n  <rect x=\"10\" y=\"10\" width=\"700\" height=\"240\" rx=\"12\" fill=\"url(#k8s-grad)\" stroke=\"#334155\"\
+    \ stroke-width=\"2\"/>\n  <text x=\"30\" y=\"38\" fill=\"#94a3b8\" font-size=\"13\" font-weight=\"bold\">Kubernetes Worker\
+    \ Node (8x NVIDIA H100 SXM5 — 640GB VRAM)</text>\n  \n  <!-- Kubelet Box -->\n  <rect x=\"30\" y=\"55\" width=\"130\"\
+    \ height=\"70\" rx=\"8\" fill=\"#1e293b\" stroke=\"#475569\" stroke-width=\"1.5\"/>\n  <text x=\"50\" y=\"85\" fill=\"\
+    #f8fafc\" font-size=\"13\" font-weight=\"bold\">kubelet</text>\n  <text x=\"42\" y=\"105\" fill=\"#94a3b8\" font-size=\"\
+    10\">Node Agent</text>\n  \n  <!-- NVIDIA GPU Plugin -->\n  <rect x=\"30\" y=\"145\" width=\"130\" height=\"85\" rx=\"\
+    8\" fill=\"#1e293b\" stroke=\"#10b981\" stroke-width=\"1.5\"/>\n  <text x=\"42\" y=\"175\" fill=\"#10b981\" font-size=\"\
+    12\" font-weight=\"bold\">NVIDIA Plugin</text>\n  <text x=\"40\" y=\"195\" fill=\"#cbd5e1\" font-size=\"10\">Device Discovery</text>\n\
+    \  <text x=\"40\" y=\"210\" fill=\"#94a3b8\" font-size=\"9\">nvidia.com/gpu: 8</text>\n\n  <!-- Connection line to pods\
+    \ -->\n  <path d=\"M 160 90 L 210 90\" stroke=\"#64748b\" stroke-width=\"2\" stroke-dasharray=\"4\"/>\n  <path d=\"M 160\
+    \ 185 L 210 185\" stroke=\"#10b981\" stroke-width=\"2\"/>\n\n  <!-- Pod 1 -->\n  <rect x=\"210\" y=\"55\" width=\"220\"\
+    \ height=\"175\" rx=\"8\" fill=\"#0f172a\" stroke=\"#3b82f6\" stroke-width=\"2\"/>\n  <text x=\"225\" y=\"80\" fill=\"\
+    #60a5fa\" font-size=\"12\" font-weight=\"bold\">Pod: vllm-serving-0</text>\n  \n  <rect x=\"225\" y=\"95\" width=\"190\"\
+    \ height=\"50\" rx=\"6\" fill=\"#1e293b\" stroke=\"#475569\"/>\n  <text x=\"235\" y=\"115\" fill=\"#f1f5f9\" font-size=\"\
+    11\">vLLM Inference Core</text>\n  <text x=\"235\" y=\"132\" fill=\"#38bdf8\" font-size=\"9.5\">Limits: nvidia.com/gpu:\
+    \ 2</text>\n\n  <rect x=\"225\" y=\"155\" width=\"190\" height=\"60\" rx=\"6\" fill=\"#1e293b\" stroke=\"#eab308\"/>\n\
+    \  <text x=\"235\" y=\"175\" fill=\"#facc15\" font-size=\"11\">/dev/shm (emptyDir)</text>\n  <text x=\"235\" y=\"192\"\
+    \ fill=\"#cbd5e1\" font-size=\"9.5\">Shared Memory: 16Gi</text>\n  <text x=\"235\" y=\"206\" fill=\"#94a3b8\" font-size=\"\
+    8.5\">Prevents PyTorch SIGBUS</text>\n\n  <!-- Pod 2 -->\n  <rect x=\"460\" y=\"55\" width=\"230\" height=\"175\" rx=\"\
+    8\" fill=\"#0f172a\" stroke=\"#3b82f6\" stroke-width=\"2\"/>\n  <text x=\"475\" y=\"80\" fill=\"#60a5fa\" font-size=\"\
+    12\" font-weight=\"bold\">Pod: vllm-serving-1</text>\n  \n  <rect x=\"475\" y=\"95\" width=\"200\" height=\"50\" rx=\"\
+    6\" fill=\"#1e293b\" stroke=\"#475569\"/>\n  <text x=\"485\" y=\"115\" fill=\"#f1f5f9\" font-size=\"11\">vLLM Inference\
+    \ Core</text>\n  <text x=\"485\" y=\"132\" fill=\"#38bdf8\" font-size=\"9.5\">Limits: nvidia.com/gpu: 2</text>\n\n  <rect\
+    \ x=\"475\" y=\"155\" width=\"200\" height=\"60\" rx=\"6\" fill=\"#1e293b\" stroke=\"#eab308\"/>\n  <text x=\"485\" y=\"\
+    175\" fill=\"#facc15\" font-size=\"11\">/dev/shm (emptyDir)</text>\n  <text x=\"485\" y=\"192\" fill=\"#cbd5e1\" font-size=\"\
+    9.5\">Shared Memory: 16Gi</text>\n  <text x=\"485\" y=\"206\" fill=\"#94a3b8\" font-size=\"8.5\">Prevents PyTorch SIGBUS</text>\n\
+    </svg>\n<div class=\"diagram-cap\">Figure 125.2: Production Kubernetes Pod Architecture with Dedicated GPU Allocation\
+    \ and /dev/shm Shared Memory Mounts.</div>\n</div>\n\n<h3 class=\"sh3\">1. Why Kubernetes for Machine Learning Deployments?</h3>\n\
+    <p>\nModern machine learning models cannot run reliably on bare virtual machines in enterprise environments. Production\
+    \ AI systems require dynamic scaling, GPU resource sharing, automated health-checking, rolling zero-downtime updates,\
+    \ and fault tolerance. <strong>Kubernetes (K8s)</strong> serves as the industry standard container orchestrator that abstracts\
+    \ physical compute clusters into unified, declarative APIs.\n</p>\n<p>\nIn an ML deployment context, Kubernetes coordinates\
+    \ three core operations:\n</p>\n<ul>\n  <li><strong>Inference Microservices:</strong> Packaging FastAPI/Triton/vLLM servers\
+    \ inside lightweight container Pods exposed behind ClusterIP and Ingress controllers.</li>\n  <li><strong>GPU Scheduling\
+    \ & Isolation:</strong> Utilizing the NVIDIA GPU Device Plugin to allocate discrete GPU hardware slices (e.g. <code>nvidia.com/gpu:\
+    \ 1</code>) to specialized pods.</li>\n  <li><strong>Horizontal Pod Autoscaling (HPA):</strong> Dynamically scaling pod\
+    \ replicas based on request concurrency, GPU memory saturation, and queue latency.</li>\n</ul>\n<div class=\"mermaid\"\
+    >\ngraph TD\n    Client[\"Client / Application Gateway\"] --> Ingress[\"K8s Ingress Controller (NGINX / Traefik)\"]\n\
+    \    Ingress --> Service[\"K8s Service (ClusterIP: Load Balancer)\"]\n    Service --> Pod1[\"Pod 1: FastAPI + ONNX Runtime\
+    \ (GPU Node 1)\"]\n    Service --> Pod2[\"Pod 2: FastAPI + ONNX Runtime (GPU Node 1)\"]\n    Service --> Pod3[\"Pod 3:\
+    \ FastAPI + ONNX Runtime (GPU Node 2)\"]\n    Pod1 & Pod2 & Pod3 --> SharedVolume[\"Shared Persistent Volume (Model Weights\
+    \ Cache)\"]\n</div>\n<div class=\"diagram-cap\">Figure 125.1: Kubernetes ML Microservice Serving Architecture.</div>\n\
+    \n<h3 class=\"sh3\">2. Core Kubernetes Primitives for ML Engineers</h3>\n<table style=\"width:100%; border-collapse:collapse;\
+    \ margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\"\
+    >\n      <th style=\"padding:8px;\">Primitive</th>\n      <th style=\"padding:8px;\">Purpose</th>\n      <th style=\"\
+    padding:8px;\">ML Engineering Context</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid\
+    \ var(--border);\">\n      <td style=\"padding:8px;\"><strong>Pod</strong></td>\n      <td style=\"padding:8px;\">Smallest\
+    \ deployable execution unit.</td>\n      <td style=\"padding:8px;\">Contains inference server container + optional sidecar\
+    \ (metrics exporter).</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"\
+    ><strong>Deployment</strong></td>\n      <td style=\"padding:8px;\">Declarative controller for stateless pod replicas.</td>\n\
+    \      <td style=\"padding:8px;\">Manages rolling updates when model weights or API code change.</td>\n    </tr>\n   \
+    \ <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Service</strong></td>\n\
+    \      <td style=\"padding:8px;\">Stable internal IP and DNS endpoint.</td>\n      <td style=\"padding:8px;\">Load balances\
+    \ requests across healthy model inference pods.</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\"\
+    >\n      <td style=\"padding:8px;\"><strong>ConfigMap / Secret</strong></td>\n      <td style=\"padding:8px;\">External\
+    \ configuration & encrypted credentials.</td>\n      <td style=\"padding:8px;\">Injects model paths, batch size settings,\
+    \ S3 keys, and Hugging Face tokens.</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">3. Production Kubernetes\
+    \ ML Deployment Manifest</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">yaml</span><div class=\"\
+    cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>apiVersion: apps/v1\n\
+    kind: Deployment\nmetadata:\n  name: fraud-detection-api\n  labels:\n    app: fraud-detector\nspec:\n  replicas: 3\n \
+    \ selector:\n    matchLabels:\n      app: fraud-detector\n  template:\n    metadata:\n      labels:\n        app: fraud-detector\n\
+    \    spec:\n      containers:\n      - name: inference-engine\n        image: enterprise-registry.io/ml/fraud-api:v2.1.0\n\
+    \        resources:\n          requests:\n            memory: \"4Gi\"\n            cpu: \"2000m\"\n            nvidia.com/gpu:\
+    \ \"1\"\n          limits:\n            memory: \"8Gi\"\n            cpu: \"4000m\"\n            nvidia.com/gpu: \"1\"\
+    \n        ports:\n        - containerPort: 8000\n        readinessProbe:\n          httpGet:\n            path: /health\n\
+    \            port: 8000\n          initialDelaySeconds: 15\n          periodSeconds: 5\n        livenessProbe:\n     \
+    \     httpGet:\n            path: /live\n            port: 8000\n          initialDelaySeconds: 30\n          periodSeconds:\
+    \ 10\n        volumeMounts:\n        - name: dshm\n          mountPath: /dev/shm\n      volumes:\n      - name: dshm\n\
+    \        emptyDir:\n          medium: Memory</code></pre>\n</div>"
   predict:
     question: What is the computed throughput (requests per second) for 100 requests served in 2.0 seconds?
     answer: '50'

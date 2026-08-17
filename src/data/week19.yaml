@@ -417,30 +417,61 @@ days:
   analogy: Bi-encoders are like a bouncer checking IDs at a door (fast, low computation, filters thousands of people in seconds).
     Cross-encoders are like an FBI interrogator sitting down with the top 5 finalists (deep, exhaustive cross-examination
     of every word).
-  theory_html: "<h3 class=\"sh3\">1. The Two-Stage Information Retrieval Architecture</h3>\n<p>\nIn production enterprise\
-    \ search over corpora containing millions of documents, evaluating full transformer cross-attention for every document\
-    \ at query time is computationally impossible ($O(N \\cdot L^2)$ computational complexity).\n</p>\n<p>\nIndustrial search\
-    \ systems resolve this through a <strong>two-stage retrieval funnel</strong>:\n</p>\n<ol>\n  <li><strong>Stage 1 (Bi-Encoder\
-    \ Candidate Generation):</strong> Computes query embedding $\vec{q} = f_\theta(q)$ and document embedding $\vec{d} = f_\t\
-    heta(d)$ independently. At query time, vector index lookups (HNSW / IVF) compute cosine similarity $\vec{q} \\cdot \v\
-    ec{d}$ over 1,000,000+ passages in &lt;10ms, retrieving the top 50–100 candidates.</li>\n  <li><strong>Stage 2 (Cross-Encoder\
-    \ Re-Ranking):</strong> Feeds the query and passage jointly into a single transformer model as $[\text{CLS}] \\circ q\
-    \ \\circ [\text{SEP}] \\circ p \\circ [\text{SEP}]$. Every query token attends directly to every passage token across\
-    \ all layers, capturing fine-grained contextual relationships (negation, numerical constraints, entity matching).</li>\n\
-    </ol>\n<div class=\"mermaid\">\ngraph LR\n    UserQuery[\"Query\"] --> BiEncoder[\"Stage 1: Bi-Encoder (HNSW Index)\n\
-    Scales to 10M+ documents\nLatency: 10ms\"]\n    BiEncoder -->|Top 50-100 Candidates| CrossEncoder[\"Stage 2: Cross-Encoder\
-    \ (Full Self-Attention)\nScores (query, passage) pairs jointly\nLatency: 35ms\"]\n    CrossEncoder -->|Top 3-5 Relevant\
-    \ Chunks| ContextWindow[\"LLM Prompt Context Window\"]\n</div>\n<div class=\"diagram-cap\">Figure 137.1: Two-Stage Retrieval\
-    \ Pipeline combining Bi-Encoder scale with Cross-Encoder precision.</div>\n\n<h3 class=\"sh3\">2. Mathematical Formulation:\
-    \ Full Self-Attention Scoring</h3>\n<p>\nIn a Bi-Encoder, the interaction between query and document is a late interaction\
-    \ reduced to a single dot product:\n</p>\n<div class=\"math-block\">\nS_{\text{bi}}(q, d) = \\langle \\mathbf{u}(q), \\\
-    mathbf{v}(d) \rangle = \\sum_{i=1}^D u_i v_i\n</div>\n<p>\nIn a Cross-Encoder, the input sequence is concatenated and\
-    \ fed through $L$ transformer self-attention layers:\n</p>\n<div class=\"math-block\">\n\\mathbf{H}^{(l)} = \text{Softmax}\\\
-    left( \frac{\\mathbf{Q}^{(l)} {\\mathbf{K}^{(l)}}^T}{\\sqrt{d_k}} \right) \\mathbf{V}^{(l)}\n</div>\n<p>\nBecause every\
-    \ query token $q_i$ attends to every document token $d_j$ across all layers $l \\in [1, L]$, the cross-encoder captures\
-    \ complex semantic dependencies (such as qualifying adjectives, temporal constraints, and conditional clauses) that are\
-    \ completely lost in a single pooled embedding vector.\n</p>\n\n<h3 class=\"sh3\">3. Production Python Implementation:\
-    \ Batch Reranking Engine</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
+  theory_html: "\n<div style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"Bi-Encoder vs Cross-Encoder Architecture\
+    \ Comparison\" height=\"280\" viewBox=\"0 0 740 280\" width=\"740\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width:\
+    \ 100%; height: auto; font-family: var(--font-mono, monospace);\">\n  <defs>\n    <linearGradient id=\"bi-grad\" x1=\"\
+    0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n      <stop offset=\"0%\" stop-color=\"#1e1e2e\"/>\n      <stop offset=\"100%\"\
+    \ stop-color=\"#11111b\"/>\n    </linearGradient>\n  </defs>\n\n  <!-- Left: Bi-Encoder -->\n  <rect x=\"10\" y=\"10\"\
+    \ width=\"345\" height=\"260\" rx=\"10\" fill=\"url(#bi-grad)\" stroke=\"#45475a\" stroke-width=\"1.5\"/>\n  <text x=\"\
+    25\" y=\"35\" fill=\"#89b4fa\" font-size=\"13\" font-weight=\"bold\">Stage 1: Bi-Encoder (Dense Vectors)</text>\n  \n\
+    \  <rect x=\"30\" y=\"55\" width=\"135\" height=\"40\" rx=\"6\" fill=\"#313244\" stroke=\"#89b4fa\"/>\n  <text x=\"45\"\
+    \ y=\"80\" fill=\"#cdd6f4\" font-size=\"11\">Query q</text>\n  <rect x=\"190\" y=\"55\" width=\"145\" height=\"40\" rx=\"\
+    6\" fill=\"#313244\" stroke=\"#a6e3a1\"/>\n  <text x=\"205\" y=\"80\" fill=\"#cdd6f4\" font-size=\"11\">Document d</text>\n\
+    \n  <text x=\"80\" y=\"120\" fill=\"#f38ba8\" font-size=\"18\">↓</text>\n  <text x=\"245\" y=\"120\" fill=\"#f38ba8\"\
+    \ font-size=\"18\">↓</text>\n\n  <rect x=\"30\" y=\"135\" width=\"135\" height=\"45\" rx=\"6\" fill=\"#181825\" stroke=\"\
+    #cba6f7\"/>\n  <text x=\"45\" y=\"155\" fill=\"#cba6f7\" font-size=\"10\">BERT Encoder f_θ</text>\n  <text x=\"55\" y=\"\
+    170\" fill=\"#9399b2\" font-size=\"9\">vec(u) in R^1024</text>\n\n  <rect x=\"190\" y=\"135\" width=\"145\" height=\"\
+    45\" rx=\"6\" fill=\"#181825\" stroke=\"#cba6f7\"/>\n  <text x=\"205\" y=\"155\" fill=\"#cba6f7\" font-size=\"10\">BERT\
+    \ Encoder f_θ</text>\n  <text x=\"215\" y=\"170\" fill=\"#9399b2\" font-size=\"9\">vec(v) in R^1024</text>\n\n  <path\
+    \ d=\"M 97 180 L 172 215\" stroke=\"#fab387\" stroke-width=\"1.5\"/>\n  <path d=\"M 262 180 L 172 215\" stroke=\"#fab387\"\
+    \ stroke-width=\"1.5\"/>\n\n  <rect x=\"105\" y=\"215\" width=\"135\" height=\"35\" rx=\"6\" fill=\"#fab387\"/>\n  <text\
+    \ x=\"115\" y=\"237\" fill=\"#11111b\" font-size=\"11\" font-weight=\"bold\">Dot Product: u · v</text>\n  <text x=\"30\"\
+    \ y=\"258\" fill=\"#a6adc8\" font-size=\"9\">Fast ANN (HNSW) | Zero cross-attention</text>\n\n  <!-- Right: Cross-Encoder\
+    \ -->\n  <rect x=\"375\" y=\"10\" width=\"355\" height=\"260\" rx=\"10\" fill=\"url(#bi-grad)\" stroke=\"#f38ba8\" stroke-width=\"\
+    1.5\"/>\n  <text x=\"390\" y=\"35\" fill=\"#f38ba8\" font-size=\"13\" font-weight=\"bold\">Stage 2: Cross-Encoder (Joint\
+    \ Attention)</text>\n\n  <rect x=\"395\" y=\"55\" width=\"315\" height=\"45\" rx=\"6\" fill=\"#313244\" stroke=\"#f38ba8\"\
+    />\n  <text x=\"410\" y=\"82\" fill=\"#cdd6f4\" font-size=\"11\">[CLS] + Query Tokens + [SEP] + Document Tokens</text>\n\
+    \n  <text x=\"545\" y=\"125\" fill=\"#f38ba8\" font-size=\"18\">↓</text>\n\n  <rect x=\"395\" y=\"135\" width=\"315\"\
+    \ height=\"55\" rx=\"6\" fill=\"#181825\" stroke=\"#f9e2af\" stroke-width=\"1.5\"/>\n  <text x=\"430\" y=\"158\" fill=\"\
+    #f9e2af\" font-size=\"11\" font-weight=\"bold\">Full Multi-Layer Cross Self-Attention</text>\n  <text x=\"415\" y=\"178\"\
+    \ fill=\"#9399b2\" font-size=\"9.5\">Every query token attends to every doc token (O(L^2))</text>\n\n  <text x=\"545\"\
+    \ y=\"208\" fill=\"#f38ba8\" font-size=\"18\">↓</text>\n\n  <rect x=\"445\" y=\"215\" width=\"215\" height=\"35\" rx=\"\
+    6\" fill=\"#a6e3a1\"/>\n  <text x=\"460\" y=\"237\" fill=\"#11111b\" font-size=\"11\" font-weight=\"bold\">Calibrated\
+    \ Relevance Score σ(W h_CLS)</text>\n</svg>\n<div class=\"diagram-cap\">Figure 137.2: Architectural Comparison: Bi-Encoder\
+    \ Independent Projection vs Cross-Encoder Full Cross-Attention.</div>\n</div>\n\n<h3 class=\"sh3\">1. The Two-Stage Information\
+    \ Retrieval Architecture</h3>\n<p>\nIn production enterprise search over corpora containing millions of documents, evaluating\
+    \ full transformer cross-attention for every document at query time is computationally impossible ($O(N \\cdot L^2)$ computational\
+    \ complexity).\n</p>\n<p>\nIndustrial search systems resolve this through a <strong>two-stage retrieval funnel</strong>:\n\
+    </p>\n<ol>\n  <li><strong>Stage 1 (Bi-Encoder Candidate Generation):</strong> Computes query embedding $\vec{q} = f_\t\
+    heta(q)$ and document embedding $\vec{d} = f_\theta(d)$ independently. At query time, vector index lookups (HNSW / IVF)\
+    \ compute cosine similarity $\vec{q} \\cdot \vec{d}$ over 1,000,000+ passages in &lt;10ms, retrieving the top 50–100 candidates.</li>\n\
+    \  <li><strong>Stage 2 (Cross-Encoder Re-Ranking):</strong> Feeds the query and passage jointly into a single transformer\
+    \ model as $[\text{CLS}] \\circ q \\circ [\text{SEP}] \\circ p \\circ [\text{SEP}]$. Every query token attends directly\
+    \ to every passage token across all layers, capturing fine-grained contextual relationships (negation, numerical constraints,\
+    \ entity matching).</li>\n</ol>\n<div class=\"mermaid\">\ngraph LR\n    UserQuery[\"Query\"] --> BiEncoder[\"Stage 1:\
+    \ Bi-Encoder (HNSW Index)\nScales to 10M+ documents\nLatency: 10ms\"]\n    BiEncoder -->|Top 50-100 Candidates| CrossEncoder[\"\
+    Stage 2: Cross-Encoder (Full Self-Attention)\nScores (query, passage) pairs jointly\nLatency: 35ms\"]\n    CrossEncoder\
+    \ -->|Top 3-5 Relevant Chunks| ContextWindow[\"LLM Prompt Context Window\"]\n</div>\n<div class=\"diagram-cap\">Figure\
+    \ 137.1: Two-Stage Retrieval Pipeline combining Bi-Encoder scale with Cross-Encoder precision.</div>\n\n<h3 class=\"sh3\"\
+    >2. Mathematical Formulation: Full Self-Attention Scoring</h3>\n<p>\nIn a Bi-Encoder, the interaction between query and\
+    \ document is a late interaction reduced to a single dot product:\n</p>\n<div class=\"math-block\">\nS_{\text{bi}}(q,\
+    \ d) = \\langle \\mathbf{u}(q), \\mathbf{v}(d) \rangle = \\sum_{i=1}^D u_i v_i\n</div>\n<p>\nIn a Cross-Encoder, the input\
+    \ sequence is concatenated and fed through $L$ transformer self-attention layers:\n</p>\n<div class=\"math-block\">\n\\\
+    mathbf{H}^{(l)} = \text{Softmax}\\left( \frac{\\mathbf{Q}^{(l)} {\\mathbf{K}^{(l)}}^T}{\\sqrt{d_k}} \right) \\mathbf{V}^{(l)}\n\
+    </div>\n<p>\nBecause every query token $q_i$ attends to every document token $d_j$ across all layers $l \\in [1, L]$,\
+    \ the cross-encoder captures complex semantic dependencies (such as qualifying adjectives, temporal constraints, and conditional\
+    \ clauses) that are completely lost in a single pooled embedding vector.\n</p>\n\n<h3 class=\"sh3\">3. Production Python\
+    \ Implementation: Batch Reranking Engine</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
     \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code><span\
     \ class=\"kw\">from</span> typing <span class=\"kw\">import</span> List, Dict, Any\n<span class=\"kw\">import</span> math\n\
     \n<span class=\"kw\">class</span> <span class=\"fn\">CrossEncoderReranker</span>:\n    <span class=\"str\">\"\"\"\n  \
