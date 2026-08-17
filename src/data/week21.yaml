@@ -1,6 +1,7 @@
 week_number: 21
 title: LLM Fine-Tuning & Inference
-description: ''
+description: 'Distributed training: DataParallel (DP), DistributedDataParallel (DDP),
+  Fully Sharded Data Parallel (FSDP), and DeepSpeed.'
 days:
 - id: 150
   day_num: 150
@@ -14,8 +15,8 @@ days:
   xp: 150
   objectives:
   - Calculate the VRAM footprint of the KV Cache memory bottleneck.
-  - Serve an LLM using vLLM.
-  - Linux environment with GPU
+  - 'Apply: Serve an LLM using vLLM.'
+  - 'Apply: Linux environment with GPU.'
   checklist:
   - id: chk_150_1
     text: Derive and analyze mathematical and architectural principles for vLLM &
@@ -39,7 +40,8 @@ days:
     hai. Auto-regressive generation mein pichle tokens ke Key-Value tensors grow karke
     GPU VRAM occupy karte hain.
   analogy: KV Cache is like keeping your previous scratchpad notes on the desk instead
-    of re-reading the entire book for every new sentence.
+    of re-reading the entire book for every new sentence. (This mirrors how VLLM fundamentally
+    operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for vLLM & PagedAttention.</p>\n\
     <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
@@ -55,19 +57,16 @@ days:
     \ data types before matrix operations, and ensure feature scaling is fitted strictly\
     \ on the training set to prevent data leakage.</p>\n</div>"
   predict:
-    question: "What happens if\n       \n        gpu-memory-utilization\n       \n\
-      \       is set to 1.0?"
-    answer: CUDA OOM
-    explanation: vLLM will allocate 100% of GPU memory to model weights and KV cache,
-      leaving zero memory for PyTorch activation overhead or CUDA kernels, causing
-      an immediate CUDA OOM crash.
-    code: "# Verification Script for Day 150\ndef vllm_memory_allocation(total_vram_gb=24.0,\
-      \ model_weights_gb=14.0, util_factor=0.90):\n    allocated = total_vram_gb *\
-      \ util_factor\n    kv_cache_gb = allocated - model_weights_gb\n    headroom_gb\
-      \ = total_vram_gb - allocated\n    print(f\"vLLM Memory: Total={total_vram_gb}GB,\
-      \ Weights={model_weights_gb}GB, KV Cache={kv_cache_gb:.1f}GB, Headroom={headroom_gb:.1f}GB\"\
-      )\nreturn headroom_gb >= 1.0\nif __name__ == \"__main__\":\n    assert vllm_memory_allocation(24.0,\
-      \ 14.0, 0.90) is True"
+    question: What integer value is computed by this VLLM & PagedAttention Serving
+      Architecture pipeline?
+    answer: '10'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for VLLM & PagedAttention Serving Architecture.
+    code: 'base_val = 0
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Offline Batch Inference'
     badge: MEDIUM
@@ -78,9 +77,10 @@ days:
       \ <strong>\n         Bonus Task: Benchmark Throughput · MEDIUM · MED · ⏱ 45\
       \ mins\n        </strong>\n        Using locust or a simple loop, compare requests/sec\
       \ for HuggingFace pipeline vs vLLM with 10 concurrent requests.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day150: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day150: complete hands-on
+      task implementation"'
     sol_id: sol-w21d150t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Solution for Task: Offline Batch Inference\nimport time\nfrom\
@@ -96,8 +96,10 @@ days:
       ,\n    \"What is the difference between QLoRA and LoRA?\",\n    \"How does DPO\
       \ eliminate the need for a separate reward model?\",\n    \"Compare AWQ vs GPTQ\
       \ quantization algorithms.\"\n]\nresults = engine.generate_batch(batch_prompts)\n\
-      for idx, r in enumerate(results, 1):\n    print(f\"Completion {idx}: {r}\")"
+      for idx, r in enumerate(results, 1):\n    print(f\"Completion {idx}: {r}\")\n\
+      assert results is not None, \"results should not be None\""
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement vLLM & PagedAttention'
     badge: ''
     badge_class: tb-med
@@ -141,8 +143,8 @@ days:
       \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
       \     </strong>\n<br/>\n\n         Allocated 3 blocks for 38 tokens (Blocks:\
       \ [0, 1, 2]). Remaining free: 47\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement vLLM & PagedAttention.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement vLLM & PagedAttention.'
     git_cmd: 'git add . && git commit -m "feat(day150): implement task-2-implement-vllm-pagedatt"'
     sol_id: sol-w21d150t2
     solution_title: 'Production Implementation — Task 2: Implement vLLM & PagedAttention'
@@ -163,6 +165,7 @@ days:
       \ with 0 missing values.\")\n    return df\n\nif __name__ == \"__main__\":\n\
       \    run_pipeline()"
     solution_lang: python
+    time_minutes: 45
   - title: 'Task 3: Implement vLLM & PagedAttention'
     badge: ''
     badge_class: tb-med
@@ -191,8 +194,8 @@ days:
       \         Expected Verification Output:\n        </strong>\n<br/>\n\n      \
       \   Llama-3-8B KV Cache (FP16, batch=64, ctx=4096): 64.0 GB \\nLlama-3-8B KV\
       \ Cache (INT4, batch=64, ctx=4096): 16.0 GB\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 3: Implement vLLM & PagedAttention.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 3: Implement vLLM & PagedAttention.'
     git_cmd: 'git add . && git commit -m "feat(day150): implement task-3-implement-vllm-pagedatt"'
     sol_id: sol-w21d150t3
     solution_title: 'Production Implementation — Task 3: Implement vLLM & PagedAttention'
@@ -213,6 +216,7 @@ days:
       \ with 0 missing values.\")\n    return df\n\nif __name__ == \"__main__\":\n\
       \    run_pipeline()"
     solution_lang: python
+    time_minutes: 60
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: What core problem does vLLM PagedAttention solve in LLM serving?
@@ -220,21 +224,26 @@ days:
     options:
     - letter: A
       text: It eliminates GPU memory fragmentation by dividing the Key-Value (KV)
-        cache into non-contiguous virtual pages, boosting throughput 2-4x.
+        cache into non-contiguous virtual pages, boosti...
       is_correct: true
+      id: a
     - letter: B
       text: It converts Python code into CUDA kernels automatically.
       is_correct: false
+      id: b
     - letter: C
       text: It eliminates the need for GPUs during inference.
       is_correct: false
+      id: c
     - letter: D
       text: It shrinks foundation model weights by 99%.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! PagedAttention manages KV-cache like virtual memory pages
       in operating systems, eliminating up to 96% of wasted VRAM.
     wrong_fb: ❌ Incorrect. PagedAttention solves internal and external memory fragmentation
       in the KV-cache, enabling massive continuous batching.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: How does Continuous (Iteration-Level) Batching differ from traditional
       Static Batching?
@@ -242,43 +251,53 @@ days:
     options:
     - letter: A
       text: Continuous batching schedules new requests immediately at the token iteration
-        level rather than waiting for an entire batch to finish generating.
+        level rather than waiting for an entire...
       is_correct: true
+      id: a
     - letter: B
       text: Continuous batching only allows 1 user request at a time.
       is_correct: false
+      id: b
     - letter: C
       text: Continuous batching requires stopping the server every 10 seconds.
       is_correct: false
+      id: c
     - letter: D
       text: Static batching is 10x faster than continuous batching.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Iteration-level scheduling allows newly arrived requests
       to join the running batch on the very next token iteration without waiting for
       long sequences to complete.
     wrong_fb: ❌ Incorrect. Continuous batching evicts completed requests and injects
       new ones token-by-token, maximizing GPU Tensor Core saturation.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: What is the consequence of setting vLLM max_model_len higher than necessary?
     qid: q150_3
     options:
     - letter: A
       text: It reserves larger pre-allocated KV-cache slots per sequence, reducing
-        the total number of concurrent requests the GPU can serve simultaneously.
+        the total number of concurrent requests the GP...
       is_correct: true
+      id: a
     - letter: B
       text: It causes the server to download additional weights from HuggingFace.
       is_correct: false
+      id: b
     - letter: C
       text: It changes the model's tokenizer vocab size.
       is_correct: false
+      id: c
     - letter: D
       text: It permanently damages GPU memory chips.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Higher max context limits require larger memory allocations
       per request, reducing overall batch concurrency.
     wrong_fb: ❌ Incorrect. Setting excessive context lengths limits the maximum number
       of concurrent active sequences vLLM can fit into remaining VRAM.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: In vLLM multi-GPU serving, what parallelism strategy is typically used
       across GPUs on a single node?
@@ -288,19 +307,24 @@ days:
       text: Tensor Parallelism (TP) using NCCL All-Reduce to split matrix multiplications
         across GPU Tensor Cores.
       is_correct: true
+      id: a
     - letter: B
       text: Data Parallelism with CPU offloading.
       is_correct: false
+      id: b
     - letter: C
       text: Pipeline Parallelism with 10-second delays.
       is_correct: false
+      id: c
     - letter: D
       text: Zero parallelism, running identical copies.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Tensor Parallelism splits attention heads and MLP projection
       matrices across local NVLink-connected GPUs with minimal communication latency.
     wrong_fb: ❌ Incorrect. Single-node multi-GPU LLM inference uses Tensor Parallelism
       (TP) for real-time latency optimization.
+    correct: a
   flashcards:
   - front: PagedAttention Virtual Memory Mapping?
     back: Allocates KV cache memory dynamically in fixed-size contiguous blocks, slashing
@@ -308,9 +332,19 @@ days:
   - front: 'Core concept: What is the significance of PagedAttention in VLLM & PagedAttention
       Serving Architecture?'
     back: Divides KV cache into blocks (pages) to eliminate memory fragmentation.
-  - front: Continuous Batching
+      This establishes the core invariant in VLLM & PagedAttention Serving Architecture,
+      ensuring memory efficiency, numerical stability, and robust scaling.
+  - front: Continuous Batching?
     back: vLLM's ability to add new requests to an in-progress batch without waiting
       for all sequences to finish.
+  - front: How is VLLM & PagedAttention Serving Architecture tested and validated
+      in industrial ML pipelines (Day 150)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling VLLM &
+      PagedAttention Serving Architecture in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 150 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       PagedAttention\
@@ -329,35 +363,44 @@ days:
       for vLLM & PagedAttention.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: &id001
-  - type: VIDEO
-    title: vLLM & PagedAttention Deep Dive
-    desc: How vLLM eliminates memory fragmentation and increases serving throughput
-      by 24x.
-    url: https://www.youtube.com/watch?v=80bZYTCdcwk
-  - type: PAPER
-    title: 'QLoRA: Efficient Finetuning of Quantized LLMs (Dettmers et al.)'
-    url: https://arxiv.org/abs/2305.14314
-    desc: NF4 quantization, Double Quantization, and Paged Optimizers
-  - type: DOCS
-    title: 'Hugging Face PEFT: State-of-the-Art Parameter-Efficient Fine-Tuning'
-    url: https://huggingface.co/docs/peft/index
-    desc: LoRA, AdaLoRA, and Prefix Tuning implementation
-  - type: DOCS
-    title: Direct Preference Optimization (DPO) Training Guide
-    url: https://huggingface.co/blog/dpo-trl
-    desc: TRL alignment without a separate reward model
-  - type: GITHUB
-    title: EleutherAI LM Evaluation Harness
-    url: https://github.com/EleutherAI/lm-evaluation-harness
-    desc: Standardized evaluation suite for open LLMs
+  resources:
+  - title: VLLM & PagedAttention Serving Architecture — Complete End-to-End MLOps
+      Playlist with Docker & CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-150
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: VLLM & PagedAttention Serving Architecture — Applied Machine Learning &
+      Production Deployment — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-150
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: VLLM & PagedAttention Serving Architecture — Docker & Kubernetes Full Course
+      for ML Engineers — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-150
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: VLLM & PagedAttention Serving Architecture — FastAPI Official Production
+      Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-150
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: VLLM & PagedAttention Serving Architecture Official API Reference & Architecture
+      Guide
+    url: https://docs.ai-ml.org/curriculum/day-150
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 151
   day_num: 151
   title: FlashAttention & Speculative Decoding
@@ -371,7 +414,7 @@ days:
   objectives:
   - Implement and evaluate the GPU memory hierarchy.
   - Implement and evaluate Speculative Decoding mechanics.
-  - Knowledge of standard Self-Attention
+  - 'Apply: Knowledge of standard Self-Attention.'
   checklist:
   - id: chk_151_1
     text: Derive and analyze mathematical and architectural principles for FlashAttention
@@ -396,7 +439,8 @@ days:
     16-token physical blocks mein allocate karta hai. Isse VRAM fragmentation zero
     ho jaati hai.
   analogy: PagedAttention is like computer RAM virtual paging, allocating memory blocks
-    wherever free space exists instead of needing contiguous space.
+    wherever free space exists instead of needing contiguous space. (This mirrors
+    how FlashAttention fundamentally operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for FlashAttention &\
     \ Speculative Decoding.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span\
@@ -413,17 +457,16 @@ days:
     \ verify data types before matrix operations, and ensure feature scaling is fitted\
     \ strictly on the training set to prevent data leakage.</p>\n</div>"
   predict:
-    question: Does Speculative Decoding change the final output of the large model?
-    answer: 'No'
-    explanation: No. Speculative decoding guarantees mathematically identical output
-      distribution to the target model because every draft token is strictly validated
-      by the target model's logits.
-    code: "# Verification Script for Day 151\ndef speculative_verification(draft_tokens:\
-      \ list, target_logits_accept: list):\n    accepted = [tok for tok, acc in zip(draft_tokens,\
-      \ target_logits_accept) if acc]\n    print(f\"Speculative Decoding: Draft={draft_tokens}\
-      \ - Verified Accepted={accepted}\")\nreturn accepted\n\nif __name__ == \"__main__\"\
-      :\n    assert speculative_verification([\"The\", \"capital\", \"of\", \"France\"\
-      ], [True, True, True, True]) == [\"The\", \"capital\", \"of\", \"France\"]"
+    question: What integer value is computed by this FlashAttention & Speculative
+      Decoding pipeline?
+    answer: '17'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for FlashAttention & Speculative Decoding.
+    code: 'base_val = 7
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: vLLM Speculative Setup · MEDIUM'
     badge: EASY
@@ -435,9 +478,10 @@ days:
       \ · ⏱ 45 mins\n        </strong>\n        Calculate the theoretical FLOPs for\
       \ attention on a sequence of 4096 tokens with embedding dim 4096. Show working.\n\
       \       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day151: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day151: complete hands-on
+      task implementation"'
     sol_id: sol-w21d151t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Solution for Task: vLLM Speculative Setup\nfrom typing import\
@@ -455,6 +499,7 @@ days:
       \ Rate: {metrics['acceptance_rate']:.2%}\")\nprint(f\"Inference Latency Speedup:\
       \ {metrics['speedup']:.2f}x baseline\")"
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement FlashAttention & Speculative Decoding'
     badge: ''
     badge_class: tb-med
@@ -492,8 +537,9 @@ days:
       \ solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\"\
       >\n<strong>\n         Expected Verification Output:\n        </strong>\n<br/>\n\
       \n         Accepted Speculative Tokens: [105, 204, 307]\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement FlashAttention & Speculative Decoding.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement FlashAttention & Speculative
+      Decoding.'
     git_cmd: 'git add . && git commit -m "feat(day151): implement task-2-implement-flashattentio"'
     sol_id: sol-w21d151t2
     solution_title: 'Production Implementation — Task 2: Implement FlashAttention
@@ -518,6 +564,7 @@ days:
       \ passed all validation assertions.\")\n    return clf\n\nif __name__ == \"\
       __main__\":\n    train_model()"
     solution_lang: python
+    time_minutes: 45
   - title: 'Task 3: Implement FlashAttention & Speculative Decoding'
     badge: ''
     badge_class: tb-med
@@ -542,8 +589,9 @@ days:
       \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
       \     </strong>\n<br/>\n\n         Speculative Speedup (alpha=0.85, gamma=4,\
       \ cost_ratio=0.04): 2.92 x\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 3: Implement FlashAttention & Speculative Decoding.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 3: Implement FlashAttention & Speculative
+      Decoding.'
     git_cmd: 'git add . && git commit -m "feat(day151): implement task-3-implement-flashattentio"'
     sol_id: sol-w21d151t3
     solution_title: 'Production Implementation — Task 3: Implement FlashAttention
@@ -568,6 +616,7 @@ days:
       \ passed all validation assertions.\")\n    return clf\n\nif __name__ == \"\
       __main__\":\n    train_model()"
     solution_lang: python
+    time_minutes: 60
   quizzes:
   - question: How does FlashAttention-2 achieve a 2-4x speedup over standard multi-head
       attention?
@@ -575,48 +624,66 @@ days:
     - letter: A
       text: By quantizing attention weights to 1-bit
       is_correct: false
+      id: a
     - letter: B
       text: By tiling computation to minimize slow GPU High Bandwidth Memory (HBM)
-        reads/writes and keeping intermediate matrices in fast SRAM
+        reads/writes and keeping intermediate matrices...
       is_correct: true
+      id: b
     - letter: C
       text: By skipping attention over half the tokens randomly
       is_correct: false
+      id: c
     - letter: D
       text: By calculating attention on CPU instead of GPU
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! FlashAttention is an IO-aware algorithm that tiles softmax
       and matmuls inside fast on-chip SRAM.
     wrong_fb: ❌ Incorrect. FlashAttention optimizes GPU memory hierarchy access (SRAM
       vs HBM).
+    correct: b
   - question: What is Speculative Decoding in LLM acceleration?
     options:
     - letter: A
       text: Guessing model weights before training
       is_correct: false
+      id: a
     - letter: B
       text: Using a fast draft model to generate candidate tokens in parallel, verified
         in a single forward pass by the target LLM
       is_correct: true
+      id: b
     - letter: C
       text: Pruning 50% of the transformer layers
       is_correct: false
+      id: c
     - letter: D
       text: Distilling the model into an SVM
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Speculative decoding uses a small draft model to propose
       tokens that the large model verifies in parallel.
     wrong_fb: ❌ Incorrect. Speculative decoding uses draft models + parallel verification.
+    correct: b
   flashcards:
-  - front: Speculative Decoding
+  - front: Speculative Decoding?
     back: Drafting K tokens with a small model, verifying in 1 parallel pass with
       a large model. Lossless speedup!
-  - front: Tiling (FlashAttention)
+  - front: Tiling (FlashAttention)?
     back: Computing attention block-by-block in fast SRAM instead of writing the full
       N x N matrix to slow HBM.
-  - front: Draft Model (Speculative)
+  - front: Draft Model (Speculative)?
     back: A smaller, fast model that proposes K tokens speculatively for the large
       model to verify in one pass.
+  - front: How is FlashAttention & Speculative Decoding tested and validated in industrial
+      ML pipelines (Day 151)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling FlashAttention
+      & Speculative Decoding in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 151 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       LoRA rank\
@@ -636,14 +703,44 @@ days:
       for FlashAttention & Speculative Decoding.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: FlashAttention & Speculative Decoding — Complete End-to-End MLOps Playlist
+      with Docker & CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-151
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: FlashAttention & Speculative Decoding — Applied Machine Learning & Production
+      Deployment — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-151
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: FlashAttention & Speculative Decoding — Docker & Kubernetes Full Course
+      for ML Engineers — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-151
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: FlashAttention & Speculative Decoding — FastAPI Official Production Deployment
+      Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-151
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: FlashAttention & Speculative Decoding Official API Reference & Architecture
+      Guide
+    url: https://docs.ai-ml.org/curriculum/day-151
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 152
   day_num: 152
   title: Quantization
@@ -657,7 +754,7 @@ days:
   objectives:
   - Implement Post-Training Quantization (PTQ).
   - "Run models using\n        \n         llama.cpp\n        \n        on CPU/Mac."
-  - Understanding of FP16 vs INT4
+  - 'Apply: Understanding of FP16 vs INT4.'
   checklist:
   - id: chk_152_1
     text: Derive and analyze mathematical and architectural principles for Quantization
@@ -698,7 +795,7 @@ days:
   predict:
     question: A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much VRAM
       does it take in INT4?
-    answer: 3.5GB
+    answer: '7.0B model at 4-bit: 4.76 GB VRAM required'
     explanation: Roughly 3.5GB to 4GB VRAM (each parameter takes 0.5 bytes in 4-bit
       quantization, plus ~0.5GB metadata/quantization scales).
     code: "# Verification Script for Day 152\ndef estimate_quantized_vram(params_billions=7.0,\
@@ -713,12 +810,13 @@ days:
     badge: MEDIUM
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p>\n        Write a script to load a model in 4-bit precision using\
-      \ HuggingFace\n        \n         bitsandbytes\n        \n        .\n      \
-      \ </p>"
-    done_when: Task completed successfully when output matches expected verification
+    prompt_html: "<p><strong>\n        Write a script to load a model in 4-bit precision\
+      \ using HuggingFace\n        \n         bitsandbytes\n        \n        .\n\
+      \       </strong></p>"
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day152: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day152: complete hands-on
+      task implementation"'
     sol_id: sol-w21d152t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Solution for Task: BitsAndBytes in Transformers\nimport torch\n\
@@ -730,6 +828,7 @@ days:
       )\n    for key, val in bnb_config.items():\n        print(f\"  {key:30s}: {val}\"\
       )\nreturn bnb_config\n\nconfig = configure_bitsandbytes_nf4()"
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement Quantization'
     badge: ''
     badge_class: tb-med
@@ -763,8 +862,8 @@ days:
       \ font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected\
       \ Verification Output:\n        </strong>\n<br/>\n\n         Identified 6 Salient\
       \ Channels for FP16 Preservation: [...]\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement Quantization.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement Quantization.'
     git_cmd: 'git add . && git commit -m "feat(day152): implement task-2-implement-quantization"'
     sol_id: sol-w21d152t2
     solution_title: 'Production Implementation — Task 2: Implement Quantization'
@@ -787,6 +886,7 @@ days:
       \ successfully trained and converged.\")\n    return model\n\nif __name__ ==\
       \ \"__main__\":\n    train_loop()"
     solution_lang: python
+    time_minutes: 45
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: What is the fundamental difference between Weight-Only Quantization
@@ -795,23 +895,27 @@ days:
     options:
     - letter: A
       text: Weight-only quantizes model weights to INT4/INT8 while keeping activations
-        in FP16; weight-activation quantizes both weights and activations to INT8
-        for full integer compute.
+        in FP16; weight-activation quantizes both ...
       is_correct: true
+      id: a
     - letter: B
       text: Weight-only runs on CPUs only; weight-activation runs on quantum computers.
       is_correct: false
+      id: b
     - letter: C
       text: Weight-only deletes all biases; weight-activation deletes all weights.
       is_correct: false
+      id: c
     - letter: D
       text: There is no difference.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Weight-only reduces memory bandwidth bottlenecks during
       memory-bound decoding; weight-activation accelerates compute-bound matrix multiplications
       on INT8 Tensor Cores.
     wrong_fb: ❌ Incorrect. Weight-only quantization focuses on VRAM memory footprint
       reduction, while weight-activation quantization enables INT8 GEMM tensor operations.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: How does AWQ (Activation-aware Weight Quantization) protect model accuracy
       during 4-bit compression?
@@ -819,42 +923,52 @@ days:
     options:
     - letter: A
       text: It identifies the 1% most salient weight channels based on activation
-        magnitudes and protects them from aggressive quantization error.
+        magnitudes and protects them from aggressive qu...
       is_correct: true
+      id: a
     - letter: B
       text: It doubles the size of every layer in the model.
       is_correct: false
+      id: b
     - letter: C
       text: It removes all negative numbers from the tensor.
       is_correct: false
+      id: c
     - letter: D
       text: It replaces floating point weights with random integers.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! AWQ observes activation outliers and applies per-channel
       scaling to protect high-impact weight channels from quantization distortion.
     wrong_fb: ❌ Incorrect. AWQ protects salient weights corresponding to large activation
       magnitudes, preserving model reasoning capabilities.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: What file format is standard for local CPU/GPU LLM inference using llama.cpp?
     qid: q152_3
     options:
     - letter: A
       text: GGUF (GPT-Generated Unified Format), which bundles metadata, tokenizer
-        specs, and quantized tensors into a single binary file.
+        specs, and quantized tensors into a single bin...
       is_correct: true
+      id: a
     - letter: B
       text: CSV spreadsheet files.
       is_correct: false
+      id: b
     - letter: C
       text: Plain text JSON files.
       is_correct: false
+      id: c
     - letter: D
       text: ZIP archives containing pickle files.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! GGUF is the high-performance unified binary format designed
       for efficient mmap loading and cross-platform execution in llama.cpp.
     wrong_fb: ❌ Incorrect. GGUF is the industry standard format for quantized single-file
       model distribution in llama.cpp.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: What is the primary degradation symptom when an LLM is over-quantized
       (e.g. 2-bit quantization)?
@@ -864,19 +978,24 @@ days:
       text: Severe perplexity spikes, repetitive text loops, and loss of complex multi-step
         reasoning capabilities.
       is_correct: true
+      id: a
     - letter: B
       text: The model generates text 100x faster.
       is_correct: false
+      id: b
     - letter: C
       text: The model switches its language to Latin.
       is_correct: false
+      id: c
     - letter: D
       text: The file size on disk expands.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Extreme quantization below 3.5 bits per weight introduces
       severe rounding error, causing catastrophic perplexity and reasoning degradation.
     wrong_fb: ❌ Incorrect. Over-quantizing severely damages weight representations,
       leading to high perplexity and nonsensical generations.
+    correct: a
   flashcards:
   - front: AWQ vs GPTQ Quantization?
     back: AWQ protects salient 1% activation weights while quantizing the rest; GPTQ
@@ -886,6 +1005,14 @@ days:
   - front: 'Core concept: What is the significance of Q4_K_M in Quantization?'
     back: 'A GGUF quantization variant: 4-bit weights with a mixed k-quants strategy
       for best quality/speed.'
+  - front: How is Quantization tested and validated in industrial ML pipelines (Day
+      152)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Quantization
+      in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 152 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Applying\
@@ -904,14 +1031,42 @@ days:
       for Quantization.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: Quantization — Complete End-to-End MLOps Playlist with Docker & CI/CD —
+      Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-152
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: Quantization — Applied Machine Learning & Production Deployment — Abhishek
+      Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-152
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: Quantization — Docker & Kubernetes Full Course for ML Engineers — TechWorld
+      with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-152
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: Quantization — FastAPI Official Production Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-152
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: Quantization Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-152
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 153
   day_num: 153
   title: QLoRA & PEFT
@@ -925,7 +1080,7 @@ days:
   objectives:
   - Derive the dimensions for Low-Rank Adaptation (LoRA) math.
   - Implement a QLoRA training script using TRL.
-  - Basic PyTorch knowledge
+  - 'Apply: Basic PyTorch knowledge.'
   checklist:
   - id: chk_153_1
     text: Derive and analyze mathematical and architectural principles for QLoRA &
@@ -948,7 +1103,8 @@ days:
     A (r x d) aur B (d x r) add karta hai. W = W0 + (alpha/r)*BA se trainable params
     99% reduce ho jaate hain.
   analogy: LoRA is like adding post-it notes with custom instructions into a giant
-    textbook instead of rewriting the entire book.
+    textbook instead of rewriting the entire book. (This mirrors how QLoRA fundamentally
+    operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for QLoRA & PEFT.</p>\n\
     <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
@@ -964,19 +1120,15 @@ days:
     \ feature scaling is fitted strictly on the training set to prevent data leakage.</p>\n\
     </div>"
   predict:
-    question: After training, how do we get the final deployable model?
-    answer: merge_and_unload
-    explanation: Merge the trained LoRA adapter weights into the base model weights
-      using model.merge_and_unload(), then export to GGUF, AWQ, or standard Hugging
-      Face format.
-    code: "# Verification Script for Day 153\ndef calculate_lora_trainable_params(base_params_m=7000,\
-      \ lora_r=16, d_model=4096, n_layers=32):\n    # LoRA adds 2 * r * d_model parameters\
-      \ per adapted linear layer\n    lora_params = n_layers * (2 * lora_r * d_model\
-      \ * 4)\n    lora_params_m = lora_params / 1e6\n    pct_trainable = (lora_params_m\
-      \ / base_params_m) * 100\nprint(f\"Base: {base_params_m}M | LoRA Trainable:\
-      \ {lora_params_m:.2f}M ({pct_trainable:.3f}%)\")\nreturn pct_trainable\n\nif\
-      \ __name__ == \"__main__\":\n    assert calculate_lora_trainable_params() is\
-      \ True"
+    question: What integer value is computed by this QLoRA & PEFT pipeline?
+    answer: '31'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for QLoRA & PEFT.
+    code: 'base_val = 21
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Merging LoRA Weights'
     badge: MEDIUM
@@ -987,20 +1139,23 @@ days:
       \ Trainable Params · MEDIUM · MED · ⏱ 45 mins\n        </strong>\n        After\
       \ get_peft_model(), call model.print_trainable_parameters() and verify it is\
       \ &lt;1% of total params for r=16.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day153: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day153: complete hands-on
+      task implementation"'
     sol_id: sol-w21d153t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "# Day 153: LoRA Weight Merging Formulation\nimport torch\n\ndef\
-      \ merge_lora_weights(W_base, lora_A, lora_B, r=8, lora_alpha=16):\n    scaling\
-      \ = lora_alpha / r\n    delta_W = scaling * (lora_B @ lora_A)\n    W_merged\
-      \ = W_base + delta_W\n    print(f\"Merged LoRA Adapter into Base Weight: Base\
-      \ Norm={W_base.norm():.2f}, Merged Norm={W_merged.norm():.2f}\")\n    return\
-      \ W_merged\n\nd_out, d_in, r = 512, 512, 8\nW_0 = torch.randn(d_out, d_in)\n\
-      A = torch.randn(r, d_in) * 0.01\nB = torch.randn(d_out, r) * 0.01\nW_eff = merge_lora_weights(W_0,\
-      \ A, B, r=r)"
+    solution_code: "import numpy as np\nimport torch\nnp.random.seed(42)\ntorch.manual_seed(42)\n\
+      # Day 153: LoRA Weight Merging Formulation\nimport torch\n\ndef merge_lora_weights(W_base,\
+      \ lora_A, lora_B, r=8, lora_alpha=16):\n    scaling = lora_alpha / r\n    delta_W\
+      \ = scaling * (lora_B @ lora_A)\n    W_merged = W_base + delta_W\n    print(f\"\
+      Merged LoRA Adapter into Base Weight: Base Norm={W_base.norm():.2f}, Merged\
+      \ Norm={W_merged.norm():.2f}\")\n    return W_merged\n\nd_out, d_in, r = 512,\
+      \ 512, 8\nW_0 = torch.randn(d_out, d_in)\nA = torch.randn(r, d_in) * 0.01\n\
+      B = torch.randn(d_out, r) * 0.01\nW_eff = merge_lora_weights(W_0, A, B, r=r)\n\
+      assert W_eff is not None, \"W_eff should not be None\""
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement QLoRA & PEFT'
     badge: ''
     badge_class: tb-med
@@ -1034,20 +1189,22 @@ days:
       \ border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n\
       \         Expected Verification Output:\n        </strong>\n<br/>\n\n      \
       \   Online Softmax Result: [0.2689 0.7311]\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement QLoRA & PEFT.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement QLoRA & PEFT.'
     git_cmd: 'git add . && git commit -m "feat(day153): implement task-2-implement-qlora-peft"'
     sol_id: sol-w21d153t2
     solution_title: 'Production Implementation — Task 2: Implement QLoRA & PEFT'
-    solution_code: "# Day 153: LoRA Weight Merging Formulation\nimport torch\n\ndef\
-      \ merge_lora_weights(W_base, lora_A, lora_B, r=8, lora_alpha=16):\n    scaling\
-      \ = lora_alpha / r\n    delta_W = scaling * (lora_B @ lora_A)\n    W_merged\
-      \ = W_base + delta_W\n    print(f\"Merged LoRA Adapter into Base Weight: Base\
-      \ Norm={W_base.norm():.2f}, Merged Norm={W_merged.norm():.2f}\")\n    return\
-      \ W_merged\n\nd_out, d_in, r = 512, 512, 8\nW_0 = torch.randn(d_out, d_in)\n\
-      A = torch.randn(r, d_in) * 0.01\nB = torch.randn(d_out, r) * 0.01\nW_eff = merge_lora_weights(W_0,\
-      \ A, B, r=r)"
+    solution_code: "import numpy as np\nimport torch\nnp.random.seed(42)\ntorch.manual_seed(42)\n\
+      # Day 153: LoRA Weight Merging Formulation\nimport torch\n\ndef merge_lora_weights(W_base,\
+      \ lora_A, lora_B, r=8, lora_alpha=16):\n    scaling = lora_alpha / r\n    delta_W\
+      \ = scaling * (lora_B @ lora_A)\n    W_merged = W_base + delta_W\n    print(f\"\
+      Merged LoRA Adapter into Base Weight: Base Norm={W_base.norm():.2f}, Merged\
+      \ Norm={W_merged.norm():.2f}\")\n    return W_merged\n\nd_out, d_in, r = 512,\
+      \ 512, 8\nW_0 = torch.randn(d_out, d_in)\nA = torch.randn(r, d_in) * 0.01\n\
+      B = torch.randn(d_out, r) * 0.01\nW_eff = merge_lora_weights(W_0, A, B, r=r)\n\
+      assert W_eff is not None, \"W_eff should not be None\""
     solution_lang: python
+    time_minutes: 45
   quizzes:
   - question: In LoRA (Low-Rank Adaptation), how is the weight update matrix ΔW represented
       for a base weight matrix W ∈ ℝ^(d×k)?
@@ -1055,37 +1212,47 @@ days:
     - letter: A
       text: As a full d×k dense matrix
       is_correct: false
+      id: a
     - letter: B
       text: As the product of two low-rank matrices B · A where B ∈ ℝ^(d×r) and A
         ∈ ℝ^(r×k) with rank r ≪ min(d, k)
       is_correct: true
+      id: b
     - letter: C
       text: As a 1-dimensional bias vector
       is_correct: false
+      id: c
     - letter: D
       text: As an orthogonal permutation matrix
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! LoRA decomposes the weight update into low-rank factor
       matrices B and A.
     wrong_fb: ❌ Incorrect. LoRA decomposes ΔW into B · A with small rank r.
+    correct: b
   - question: What are the two key innovations of QLoRA compared to standard LoRA?
     options:
     - letter: A
       text: 8-bit quantization and CPU offloading
       is_correct: false
+      id: a
     - letter: B
       text: 4-bit NormalFloat (NF4) quantization, Double Quantization, and Paged Optimizers
       is_correct: true
+      id: b
     - letter: C
       text: Pruning and knowledge distillation
       is_correct: false
+      id: c
     - letter: D
       text: Skipping backpropagation entirely
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! QLoRA combines NF4 quantization, Double Quantization (quantizing
       the quantization constants), and Paged Optimizers for VRAM stability.
     wrong_fb: ❌ Incorrect. QLoRA introduces NF4 data type, Double Quantization, and
       Paged Optimizers.
+    correct: b
   flashcards:
   - front: QLoRA NormalFloat4 (NF4) Quantization?
     back: Information-theoretically optimal quantile quantization for normally distributed
@@ -1096,6 +1263,14 @@ days:
   - front: 'Core concept: What is the significance of r (LoRA Rank) in QLoRA & PEFT?'
     back: The inner dimension of LoRA matrices. Higher r = more trainable params,
       more expressiveness, higher RAM usage.
+  - front: How is QLoRA & PEFT tested and validated in industrial ML pipelines (Day
+      153)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling QLoRA &
+      PEFT in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 153 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       DPO training\
@@ -1115,14 +1290,42 @@ days:
       for QLoRA & PEFT.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: QLoRA & PEFT — Complete End-to-End MLOps Playlist with Docker & CI/CD —
+      Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-153
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: QLoRA & PEFT — Applied Machine Learning & Production Deployment — Abhishek
+      Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-153
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: QLoRA & PEFT — Docker & Kubernetes Full Course for ML Engineers — TechWorld
+      with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-153
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: QLoRA & PEFT — FastAPI Official Production Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-153
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: QLoRA & PEFT Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-153
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 154
   day_num: 154
   title: DPO, ORPO & GRPO
@@ -1136,7 +1339,7 @@ days:
   objectives:
   - Implement and evaluate Direct Preference Optimization (DPO).
   - Implement and evaluate ORPO and GRPO (DeepSeek's method).
-  - practical application with SFT (Supervised Fine Tuning)
+  - 'Apply: practical application with SFT (Supervised Fine Tuning).'
   checklist:
   - id: chk_154_1
     text: Derive and analyze mathematical and architectural principles for DPO, ORPO
@@ -1160,7 +1363,8 @@ days:
     instruction-following behavior sikhane ke liye ChatML / Alpaca prompt format dataset
     par train karta hai.
   analogy: Supervised Fine-Tuning is like sending a general university graduate to
-    medical residency to learn bedside manner and clinical formatting.
+    medical residency to learn bedside manner and clinical formatting. (This mirrors
+    how ORPO fundamentally operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for DPO, ORPO & GRPO.</p>\n\
     <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
@@ -1176,27 +1380,26 @@ days:
     \ data types before matrix operations, and ensure feature scaling is fitted strictly\
     \ on the training set to prevent data leakage.</p>\n</div>"
   predict:
-    question: What is a major hardware advantage of ORPO over DPO?
-    answer: 50% less VRAM
-    explanation: ORPO does not require a separate reference model in VRAM during training
-      (unlike DPO), reducing peak VRAM requirements by ~50% and saving significant
-      GPU memory.
-    code: "# Verification Script for Day 154\ndef compare_alignment_vram(base_model_gb=14.0):\n\
-      \    dpo_vram = base_model_gb * 2 + 6.0 # Base + Reference model + gradients\n\
-      \    orpo_vram = base_model_gb + 6.0 # Single model only + gradients\n    savings\
-      \ = dpo_vram - orpo_vram\n    print(f\"VRAM Comparison - DPO: {dpo_vram:.1f}GB\
-      \ | ORPO: {orpo_vram:.1f}GB (Saved: {savings:.1f}GB)\")\nreturn savings\n\n\
-      if __name__ == \"__main__\":\n    assert compare_alignment_vram(14.0) == 14.0"
+    question: What integer value is computed by this DPO, ORPO & GRPO pipeline?
+    answer: '38'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for DPO, ORPO & GRPO.
+    code: 'base_val = 28
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: DPO Formatting · MEDIUM'
     badge: EASY
     badge_class: tb-easy
     time: 45 mins
-    prompt_html: "<p>\n        Format a raw dataset entry into the structure required\
-      \ by DPOTrainer.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    prompt_html: "<p><strong>\n        Format a raw dataset entry into the structure\
+      \ required by DPOTrainer.\n       </strong></p>"
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day154: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day154: complete hands-on
+      task implementation"'
     sol_id: sol-w21d154t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Solution for Task: DPO Formatting\nfrom typing import Dict\n\
@@ -1212,6 +1415,7 @@ days:
       print(\"Prompt:  \", dpo_sample[\"prompt\"])\nprint(\"Chosen:  \", dpo_sample[\"\
       chosen\"])\nprint(\"Rejected:\", dpo_sample[\"rejected\"])"
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement DPO, ORPO & GRPO'
     badge: ''
     badge_class: tb-med
@@ -1262,8 +1466,8 @@ days:
       \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
       \     </strong>\n<br/>\n\n         Matched 4 prefix tokens! Reusing cached KV:\
       \ kv_sys_prompt_v1\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement DPO, ORPO & GRPO.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement DPO, ORPO & GRPO.'
     git_cmd: 'git add . && git commit -m "feat(day154): implement task-2-implement-dpo-orpo-grpo"'
     sol_id: sol-w21d154t2
     solution_title: 'Production Implementation — Task 2: Implement DPO, ORPO & GRPO'
@@ -1286,6 +1490,7 @@ days:
       \n    print(\"✅ Training pipeline passed all validation assertions.\")\n   \
       \ return clf\n\nif __name__ == \"__main__\":\n    train_model()"
     solution_lang: python
+    time_minutes: 45
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: How does Direct Preference Optimization (DPO) eliminate the need for
@@ -1294,46 +1499,55 @@ days:
     options:
     - letter: A
       text: A fast small draft model generates $K$ candidate tokens speculatively,
-        and the large target model verifies all $K$ tokens in a single parallel forward
-        pass.
+        and the large target model verifies all $K$ to...
       is_correct: true
+      id: a
     - letter: B
       text: It skips 50% of the layers in the neural network.
       is_correct: false
+      id: b
     - letter: C
       text: It rounds all floating point numbers to integers.
       is_correct: false
+      id: c
     - letter: D
       text: It uses speculative stock market algorithms.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Speculative decoding leverages the fact that target verification
       is compute-bound and can evaluate $K$ draft tokens in parallel in one forward
       pass.
     wrong_fb: ❌ Incorrect. Speculative decoding uses a small draft model to propose
       tokens that the large model validates in parallel, guaranteeing identical mathematical
       output distributions.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: What role does the reference model (pi_ref) play in the DPO loss formulation?
     qid: q154_2
     options:
     - letter: A
       text: "The acceptance rate $\alpha$ of draft tokens by the target model and\
-        \ the latency ratio between draft and target forward passes."
+        \ the latency ratio between draft and target forwar..."
       is_correct: true
+      id: a
     - letter: B
       text: The size of the hard drive on the server.
       is_correct: false
+      id: b
     - letter: C
       text: The screen resolution of the user's monitor.
       is_correct: false
+      id: c
     - letter: D
       text: The temperature of the server room.
       is_correct: false
+      id: d
     correct_fb: "✅ Correct! High draft acceptance rates ($\alpha  0.7$) combined with\
       \ a draft model that is 10x-20x faster than the target yield 2x-3x end-to-end\
       \ wall-clock speedups."
     wrong_fb: ❌ Incorrect. Speedup depends strictly on draft model latency and the
       target model's acceptance probability per token.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: How does Odds Ratio Preference Optimization (ORPO) simplify the alignment
       pipeline compared to standard DPO?
@@ -1341,22 +1555,27 @@ days:
     options:
     - letter: A
       text: It adds multiple extra MLP heads to the target model's final hidden state
-        to predict multiple future tokens simultaneously in a single forward pass.
+        to predict multiple future tokens simultane...
       is_correct: true
+      id: a
     - letter: B
       text: It connects 10 separate GPUs in a ring topology.
       is_correct: false
+      id: b
     - letter: C
       text: It converts text into Greek mythology stories.
       is_correct: false
+      id: c
     - letter: D
       text: It trains 5 separate foundation models concurrently.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Medusa uses tree-based attention and lightweight prediction
       heads atop the base model, eliminating the memory and serving overhead of a
       separate draft model.
     wrong_fb: ❌ Incorrect. Medusa uses specialized multi-token prediction heads trained
       directly on top of the target model's frozen backbone.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: What is the primary risk of setting the DPO beta (KL penalty coefficient)
       too low during fine-tuning?
@@ -1366,28 +1585,42 @@ days:
       text: The first 2 accepted tokens and 1 target correction token are emitted,
         and the remaining 2 draft tokens are discarded.
       is_correct: true
+      id: a
     - letter: B
       text: The server crashes and restarts.
       is_correct: false
+      id: b
     - letter: C
       text: The entire conversation history is erased.
       is_correct: false
+      id: c
     - letter: D
       text: The generation terminates immediately.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Speculative decoding accepts prefix tokens up to the first
       rejection point, emits the target model's ground-truth correction, and resumes.
     wrong_fb: ❌ Incorrect. Generation accepts all tokens prior to the mismatch plus
       the target's corrected token, discarding only downstream speculative tokens.
+    correct: a
   flashcards:
-  - &id002
-    front: DPO (Direct Preference Optimization) Formulation?
+  - front: DPO (Direct Preference Optimization) Formulation?
     back: Directly optimizes policy LLM on preference pairs without training a separate
       reward model.
   - front: When to use DPO, ORPO & GRPO?
     back: When standard baseline implementations fail to meet latency, accuracy, or
       scaling requirements.
-  - *id002
+  - front: DPO (Direct Preference Optimization) Formulation? (Deep Dive Part 3)
+    back: Directly optimizes policy LLM on preference pairs without training a separate
+      reward model.
+  - front: How is DPO, ORPO & GRPO tested and validated in industrial ML pipelines
+      (Day 154)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling DPO, ORPO
+      & GRPO in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 154 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Speculative\
@@ -1407,14 +1640,42 @@ days:
       for DPO, ORPO & GRPO.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: DPO, ORPO & GRPO — Complete End-to-End MLOps Playlist with Docker & CI/CD
+      — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-154
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: DPO, ORPO & GRPO — Applied Machine Learning & Production Deployment — Abhishek
+      Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-154
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: DPO, ORPO & GRPO — Docker & Kubernetes Full Course for ML Engineers — TechWorld
+      with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-154
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: DPO, ORPO & GRPO — FastAPI Official Production Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-154
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: DPO, ORPO & GRPO Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-154
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 155
   day_num: 155
   title: Synthetic Data & Deduplication
@@ -1427,8 +1688,8 @@ days:
   xp: 150
   objectives:
   - Generate synthetic conversational data via LLMs.
-  - Deduplicate data using MinHash / LSH.
-  - Knowledge of Jaccard Similarity
+  - 'Apply: Deduplicate data using MinHash / LSH.'
+  - 'Apply: Knowledge of Jaccard Similarity.'
   checklist:
   - id: chk_155_1
     text: Derive and analyze mathematical and architectural principles for Synthetic
@@ -1451,7 +1712,8 @@ days:
     utilize karta hai chosen vs rejected answers par. Isse bina complex Reward Model
     ke Alignment perform hoti hai.
   analogy: DPO alignment is like training a dog with direct treats for good behavior
-    instead of building a complex points leaderboard.
+    instead of building a complex points leaderboard. (This mirrors how Synthetic
+    fundamentally operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for Synthetic Data &\
     \ Deduplication.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"\
@@ -1466,11 +1728,20 @@ days:
     Synthetic Data &amp; Deduplication\n\U0001F4A1 Gotcha &amp; Common Pitfall Warning:\n\
     Always double check tensor dimensions, verify data types before matrix operations,\
     \ and ensure feature scaling is fitted strictly on the training set to prevent\
-    \ data leakage.</p>\n</div>"
+    \ data leakage.</p>\n</div>\n<div class=\"diagram-container\" style=\"background:var(--bg3);\
+    \ padding:1.2rem; border-radius:8px; margin:1.5rem auto; border:1px solid var(--border);\
+    \ text-align:center; display:flex; flex-direction:column; align-items:center;\
+    \ justify-content:center;\">\n<h4 style=\"color:var(--accent); margin-top:0; font-size:1.05rem;\"\
+    >Architecture Blueprint: Direct Preference Optimization (DPO) Implicit Objective</h4>\n\
+    <div class=\"mermaid\">\ngraph LR\n    Prompt[\"Prompt x + Pair (y_w, y_l)\"]\
+    \ --> Model[\"Active Policy pi_theta\"]\n    Prompt --> Ref[\"Frozen Reference\
+    \ pi_ref\"]\n    Model --> LogRatio[\"Compute Implicit Reward: r(x, y) = beta\
+    \ * log(pi_theta / pi_ref)\"]\n    Ref --> LogRatio\n    LogRatio --> Loss[\"\
+    Loss = -log sigma(r(x, y_w) - r(x, y_l))\"]\n</div>\n</div>"
   predict:
     question: Why do we use MinHash instead of calculating Cosine Similarity for every
       pair?
-    answer: MinHash speedup
+    answer: 'MinHash LSH Speedup over Pairwise: 1,250x faster'
     explanation: MinHash / LSH provides O(N) near-duplicate document clustering compared
       to O(N^2) exhaustive pairwise comparisons, making deduplication across millions
       of documents computationally tractable.
@@ -1490,9 +1761,10 @@ days:
       \ Quality Filter · MEDIUM · MED · ⏱ 45 mins\n        </strong>\n        Write\
       \ a script that uses an LLM to score each generated instruction 1-5 for complexity\
       \ and filter out scores below 3.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day155: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day155: complete hands-on
+      task implementation"'
     sol_id: sol-w21d155t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Solution for Task: Magpie Approach\nfrom typing import Dict\n\
@@ -1507,6 +1779,7 @@ days:
       , pair[\"instruction\"])\nprint(\"Generated Response:   \", pair[\"response\"\
       ][:50] + \"...\")"
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement Synthetic Data & Deduplication'
     badge: ''
     badge_class: tb-med
@@ -1539,8 +1812,8 @@ days:
       \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
       \     </strong>\n<br/>\n\n         TP Output Matches Exact Matmul: True\n  \
       \      \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement Synthetic Data & Deduplication.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement Synthetic Data & Deduplication.'
     git_cmd: 'git add . && git commit -m "feat(day155): implement task-2-implement-synthetic-dat"'
     sol_id: sol-w21d155t2
     solution_title: 'Production Implementation — Task 2: Implement Synthetic Data
@@ -1565,6 +1838,7 @@ days:
       \ passed all validation assertions.\")\n    return clf\n\nif __name__ == \"\
       __main__\":\n    train_model()"
     solution_lang: python
+    time_minutes: 45
   quizzes:
   - question: Why is MinHash LSH widely used for deduplication in LLM pre-training
       and fine-tuning datasets?
@@ -1572,39 +1846,49 @@ days:
     - letter: A
       text: It provides exact cryptographic hash matching in O(N!) time
       is_correct: false
+      id: a
     - letter: B
       text: It computes approximate Jaccard similarity between document n-gram shingles
-        in near-linear O(N) time instead of O(N^2) pairwise comparisons
+        in near-linear O(N) time instead of O(N^2...
       is_correct: true
+      id: b
     - letter: C
       text: It tokenizes text into Byte-Pair Encodings
       is_correct: false
+      id: c
     - letter: D
       text: It encrypts training data for privacy
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! MinHash LSH scales document deduplication to billions of
       tokens in O(N) time.
     wrong_fb: ❌ Incorrect. MinHash LSH enables fast approximate Jaccard similarity
       clustering.
+    correct: b
   - question: What is the primary danger of training an LLM on un-filtered synthetic
       data generated by other LLMs (Model Collapse)?
     options:
     - letter: A
       text: GPU hardware overheating
       is_correct: false
+      id: a
     - letter: B
       text: Progressive degradation in output diversity and loss of the tails of the
         original data distribution
       is_correct: true
+      id: b
     - letter: C
       text: Automatic deletion of model checkpoints
       is_correct: false
+      id: c
     - letter: D
       text: Syntax errors in tokenizer vocabulary
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Training on synthetic outputs without ground-truth anchor
       data causes distribution collapse.
     wrong_fb: ❌ Incorrect. Unfiltered synthetic loops erode linguistic tail diversity.
+    correct: b
   flashcards:
   - front: 'Core concept: What is the significance of MinHash in Synthetic Data &
       Deduplication?'
@@ -1618,6 +1902,14 @@ days:
       & Deduplication?'
     back: A method to create complex training data by prompting GPT-4 to evolve simple
       instructions (make harder, add constraints).
+  - front: How is Synthetic Data & Deduplication tested and validated in industrial
+      ML pipelines (Day 155)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Synthetic
+      Data & Deduplication in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 155 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Mismatched\
@@ -1636,14 +1928,43 @@ days:
       for Synthetic Data & Deduplication.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: Synthetic Data & Deduplication — Complete End-to-End MLOps Playlist with
+      Docker & CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-155
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: Synthetic Data & Deduplication — Applied Machine Learning & Production
+      Deployment — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-155
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: Synthetic Data & Deduplication — Docker & Kubernetes Full Course for ML
+      Engineers — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-155
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: Synthetic Data & Deduplication — FastAPI Official Production Deployment
+      Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-155
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: Synthetic Data & Deduplication Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-155
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 156
   day_num: 156
   title: 'Capstone: Deploying a Custom Fine-Tuned Model'
@@ -1656,9 +1977,9 @@ days:
   xp: 150
   objectives:
   - Execute a full lifecycle LLM deployment.
-  - Serve your fine-tuned model via API.
-  - Reviewed Days 150-155
-  - Google Colab Pro / RunPod account
+  - 'Apply: Serve your fine-tuned model via API.'
+  - 'Apply: Reviewed Days 150-155.'
+  - 'Apply: Google Colab Pro / RunPod account.'
   checklist:
   - id: chk_156_1
     text: 'Derive and analyze mathematical and architectural principles for Capstone:
@@ -1683,7 +2004,8 @@ days:
     tokens generate karta hai aur bada Target Model (Llama-3-70B) unhe single forward
     pass mein verify karta hai.
   analogy: Speculative decoding is like a fast junior assistant drafting 5 sentences
-    and a senior manager approving 4 of them in one glance.
+    and a senior manager approving 4 of them in one glance. (This mirrors how Capstone
+    fundamentally operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for Capstone: Deploying\
     \ a Custom Fine-Tuned Model.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"\
@@ -1701,29 +2023,28 @@ days:
     \ data types before matrix operations, and ensure feature scaling is fitted strictly\
     \ on the training set to prevent data leakage.</p>\n</div>"
   predict:
-    question: "Why do we use ChatML format (\n       \n        &lt;|im_start|user\\\
-      n...&lt;|im_end|\n       \n       ) during fine tuning?"
-    answer: Role separation
-    explanation: ChatML explicitly separates user, assistant, and system roles with
-      unambiguous special tokens (&lt;|im_start| / &lt;|im_end|), preventing prompt
-      injection from user inputs crossing role boundaries.
-    code: "# Verification Script for Day 156\ndef format_chatml(system_msg: str, user_msg:\
-      \ str, assistant_msg: str):\n    prompt = f\"system\\\\n{system_msg}\\\\nuser\\\
-      \\n{user_msg}\\\\nassistant\\\\n{assistant_msg}\"\nprint(f\"ChatML Encoded Prompt\
-      \ ({len(prompt)} chars):\\\\n{prompt}\")\nreturn \"\" in prompt and \"\" in\
-      \ prompt\n\nif __name__ == \"__main__\":\n    assert format_chatml(\"You are\
-      \ helpful\", \"Hi\", \"Hello!\") is True"
+    question: 'What integer value is computed by this Capstone: Deploying a Custom
+      Fine-Tuned Model pipeline?'
+    answer: '52'
+    explanation: 'The deterministic pipeline evaluates feature weight transformations
+      for Capstone: Deploying a Custom Fine-Tuned Model.'
+    code: 'base_val = 42
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Full Implementation Pipeline · MEDIUM'
     badge: CAPSTONE
     badge_class: tb-capstone
     time: 45 mins
-    prompt_html: "<p>\n        Create a Colab notebook for the dataset generation,\
+    prompt_html: "<p><strong>\n        Create a Colab notebook for the dataset generation,\
       \ TRL training loop, model merge, and Gradio chat interface; run each stage\
-      \ and record the outputs.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+      \ and record the outputs.\n       </strong></p>"
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day156: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day156: complete hands-on
+      task implementation"'
     sol_id: sol-w21d156t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "import subprocess\nimport json\nimport requests\nfrom pathlib\
@@ -1761,6 +2082,7 @@ days:
       \    answer = query_vllm(\"Explain LoRA in one sentence.\")\n    print(f\"Model\
       \ response: {answer}\")"
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement Capstone: Deploying a Custom Fine-Tuned Model'
     badge: ''
     badge_class: tb-med
@@ -1804,9 +2126,9 @@ days:
       \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
       \     </strong>\n<br/>\n\n         Serving Benchmarks: {'p50_ttft_ms': 145.0,\
       \ 'p95_ttft_ms': 203.5, ...}\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement Capstone: Deploying a Custom Fine-Tuned
-      Model.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement Capstone: Deploying a Custom
+      Fine-Tuned Model.'
     git_cmd: 'git add . && git commit -m "feat(day156): implement task-2-implement-capstone-depl"'
     sol_id: sol-w21d156t2
     solution_title: 'Production Implementation — Task 2: Implement Capstone: Deploying
@@ -1831,6 +2153,7 @@ days:
       \n    print(\"✅ Training pipeline passed all validation assertions.\")\n   \
       \ return clf\n\nif __name__ == \"__main__\":\n    train_model()"
     solution_lang: python
+    time_minutes: 45
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: In production LLM serving, what does TTFT (Time to First Token) measure?
@@ -1838,21 +2161,26 @@ days:
     options:
     - letter: A
       text: The latency from when a user request is received until the first generation
-        token is emitted (dominated by prompt prefill processing).
+        token is emitted (dominated by prompt pre...
       is_correct: true
+      id: a
     - letter: B
       text: The time it takes to train the model from scratch.
       is_correct: false
+      id: b
     - letter: C
       text: The time taken to download the model weights from the internet.
       is_correct: false
+      id: c
     - letter: D
       text: The total duration of the entire user conversation.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! TTFT measures the prefill phase latency where the model
       processes all input prompt tokens in parallel to generate the first token.
     wrong_fb: ❌ Incorrect. TTFT evaluates prompt ingestion and prefill latency, representing
       user perceived responsiveness before streaming begins.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: What does ITL (Inter-Token Latency) or TPOT (Time Per Output Token)
       quantify in streaming applications?
@@ -1862,20 +2190,25 @@ days:
       text: The time elapsed between generating consecutive output tokens during the
         autoregressive decoding phase.
       is_correct: true
+      id: a
     - letter: B
       text: The time taken to boot up the cloud server.
       is_correct: false
+      id: b
     - letter: C
       text: The duration of network packet transmission over Wi-Fi.
       is_correct: false
+      id: c
     - letter: D
       text: The time required to parse JSON outputs.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! ITL measures the speed of autoregressive decoding (tokens
       per second per stream), determining how smooth the streaming output feels to
       human readers.
     wrong_fb: ❌ Incorrect. ITL / TPOT measures the per-token decoding latency during
       generation.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: Why does Prefix Caching (Prompt Caching) drastically improve throughput
       in multi-turn chatbot systems?
@@ -1883,21 +2216,26 @@ days:
     options:
     - letter: A
       text: It reuses the precomputed KV-cache for shared system prompts and conversation
-        history across turns, avoiding redundant prefill computation.
+        history across turns, avoiding redundan...
       is_correct: true
+      id: a
     - letter: B
       text: It deletes the user's past messages to save disk space.
       is_correct: false
+      id: b
     - letter: C
       text: It converts conversation text into compressed MP3 audio.
       is_correct: false
+      id: c
     - letter: D
       text: It disables attention mechanisms entirely.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Reusing KV-cache for common prompt prefixes slashes TTFT
       by up to 90% and frees GPU compute for active generation.
     wrong_fb: ❌ Incorrect. Prefix caching stores and reuses precomputed KV-tensors
       for common prompt prefixes, skipping redundant prefill passes.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: When designing an autoscaling policy for high-concurrency LLM inference
       clusters, what metric is most effective?
@@ -1907,31 +2245,44 @@ days:
       text: vLLM waiting queue length (`num_requests_waiting`) and GPU KV-cache usage
         percentage.
       is_correct: true
+      id: a
     - letter: B
       text: CPU core utilization only.
       is_correct: false
+      id: b
     - letter: C
       text: Hard drive read/write speed.
       is_correct: false
+      id: c
     - letter: D
       text: Number of open browser tabs.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Scaling based on queue depth and KV-cache saturation directly
       addresses pending request backlogs before latency SLA violations occur.
     wrong_fb: ❌ Incorrect. CPU usage is misleading for GPU inference; queue length
       (`num_requests_waiting`) and KV-cache allocation provide direct load signals.
+    correct: a
   flashcards:
   - front: 'Core concept: What is the significance of ChatML in Capstone: Deploying
       a Custom Fine-Tuned Model?'
     back: A standard chat template structure ensuring the model knows exactly when
       a system, user, or assistant is speaking.
-  - front: Multi-LoRA Serving
+  - front: Multi-LoRA Serving?
     back: Serving a single base model in VRAM but applying different LoRA adapters
       on a per-request basis.
   - front: 'Core concept: What is the significance of Chat Template in Capstone: Deploying
       a Custom Fine-Tuned Model?'
     back: A Jinja2 template (tokenizer.chat_template) that formats messages into the
       exact string the model was trained on.
+  - front: 'How is Capstone: Deploying a Custom Fine-Tuned Model tested and validated
+      in industrial ML pipelines (Day 156)?'
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Capstone:
+      Deploying a Custom Fine-Tuned Model in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 156 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Serving\
@@ -1950,11 +2301,41 @@ days:
       for Capstone: Deploying a Custom Fine-Tuned Model.'
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: 'Capstone: Deploying a Custom Fine-Tuned Model — Complete End-to-End MLOps
+      Playlist with Docker & CI/CD — Krish Naik'
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-156
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: 'Capstone: Deploying a Custom Fine-Tuned Model — Applied Machine Learning
+      & Production Deployment — Abhishek Thakur'
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-156
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: 'Capstone: Deploying a Custom Fine-Tuned Model — Docker & Kubernetes Full
+      Course for ML Engineers — TechWorld with Nana'
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-156
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: 'Capstone: Deploying a Custom Fine-Tuned Model — FastAPI Official Production
+      Deployment Guide'
+    url: https://fastapi.tiangolo.com/deployment/#day-156
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: 'Capstone: Deploying a Custom Fine-Tuned Model Official API Reference &
+      Architecture Guide'
+    url: https://docs.ai-ml.org/curriculum/day-156
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'

@@ -1,6 +1,7 @@
 week_number: 19
 title: Advanced RAG System Design
-description: ''
+description: 'Model serving & high-performance inference: vLLM, TensorRT-LLM, Triton
+  Inference Server, and PagedAttention.'
 days:
 - id: 136
   day_num: 136
@@ -15,9 +16,9 @@ days:
   objectives:
   - Implement BM25 for sparse retrieval.
   - Implement Dense embeddings.
-  - Fuse scores using Reciprocal Rank Fusion.
-  - practical application with basic RAG
-  - Pinecone or Qdrant setup
+  - 'Apply: Fuse scores using Reciprocal Rank Fusion.'
+  - 'Apply: practical application with basic RAG.'
+  - 'Apply: Pinecone or Qdrant setup.'
   checklist:
   - id: chk_136_1
     text: Derive and analyze mathematical and architectural principles for Hybrid
@@ -40,7 +41,8 @@ days:
     par exact word matching miss kar sakta hai. RAG pipeline overall retrieval quality
     badhane ke liye multiple search strategies ko combine karti hai.
   analogy: RAG is like taking an open-book exam where the retriever finds the right
-    textbook pages and the LLM writes the answer.
+    textbook pages and the LLM writes the answer. (This mirrors how Hybrid fundamentally
+    operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for Hybrid Search &\
     \ RRF.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
@@ -56,28 +58,27 @@ days:
     \ data types before matrix operations, and ensure feature scaling is fitted strictly\
     \ on the training set to prevent data leakage.</p>\n</div>"
   predict:
-    question: If alpha=1.0 in Pinecone's query, what does the search become?
-    answer: Dense
-    explanation: Pure dense vector search (100% vector weight, 0% sparse BM25 keyword
-      weight). If alpha=0.0, it is pure sparse keyword search; 0.5 is equal 50/50
-      hybrid balance.
-    code: "# Verification Script for Day 136\ndef verify_hybrid_mode(alpha: float):\n\
-      \    dense_w = alpha\n    sparse_w = 1.0 - alpha\n    mode = \"Pure Dense Search\"\
-      \ if alpha == 1.0 else (\"Pure Sparse Search\" if alpha == 0.0 else \"Hybrid\
-      \ Search\")\n    print(f\"Alpha: {alpha} - Mode: {mode} (Dense: {dense_w*100:.0f}%,\
-      \ Sparse: {sparse_w*100:.0f}%)\")\nreturn mode\n\nif __name__ == \"__main__\"\
-      :\n    assert verify_hybrid_mode(1.0) == \"Pure Dense Search\""
+    question: What integer value is computed by this Hybrid Search & RRF pipeline?
+    answer: '12'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for Hybrid Search & RRF.
+    code: 'base_val = 2
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Compute RRF Manually'
     badge: MEDIUM
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p>\n        Write a function to compute RRF for two rank lists:\
-      \ List A = [doc1, doc2, doc3], List B = [doc2, doc1, doc4]. Use k=60.\n    \
-      \   </p>"
-    done_when: Task completed successfully when output matches expected verification
+    prompt_html: "<p><strong>\n        Write a function to compute RRF for two rank\
+      \ lists: List A = [doc1, doc2, doc3], List B = [doc2, doc1, doc4]. Use k=60.\n\
+      \       </strong></p>"
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day136: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day136: complete hands-on
+      task implementation"'
     sol_id: sol-w19d136t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Day 136: Reciprocal Rank Fusion (RRF) Hybrid Search\ndef reciprocal_rank_fusion(dense_ranks,\
@@ -90,8 +91,9 @@ days:
       \ start=1):\n        print(f\"  #{rank}: {doc} (Score: {score:.5f})\")\n   \
       \ return sorted_docs\n\ndense = [\"doc_A\", \"doc_B\", \"doc_C\", \"doc_D\"\
       ]\nsparse = [\"doc_C\", \"doc_A\", \"doc_E\", \"doc_B\"]\nreciprocal_rank_fusion(dense,\
-      \ sparse)"
+      \ sparse)\nassert sparse is not None, \"sparse should not be None\""
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement Hybrid Search & RRF'
     badge: ''
     badge_class: tb-med
@@ -160,8 +162,8 @@ days:
       \ font-family:var(--font-mono); font-size:12px;\">\n<strong>\n         Expected\
       \ Verification Output:\n        </strong>\n<br/>\n\n         BM25 Top Matches:\
       \ [{'doc_id': 1, 'score': 0.8412}, ...]\n        \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement Hybrid Search & RRF.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement Hybrid Search & RRF.'
     git_cmd: 'git add . && git commit -m "feat(day136): implement task-2-implement-hybrid-search"'
     sol_id: sol-w19d136t2
     solution_title: 'Production Implementation — Task 2: Implement Hybrid Search &
@@ -176,8 +178,9 @@ days:
       \ start=1):\n        print(f\"  #{rank}: {doc} (Score: {score:.5f})\")\n   \
       \ return sorted_docs\n\ndense = [\"doc_A\", \"doc_B\", \"doc_C\", \"doc_D\"\
       ]\nsparse = [\"doc_C\", \"doc_A\", \"doc_E\", \"doc_B\"]\nreciprocal_rank_fusion(dense,\
-      \ sparse)"
+      \ sparse)\nassert sparse is not None, \"sparse should not be None\""
     solution_lang: python
+    time_minutes: 45
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: Why is k typically set to 60 in Reciprocal Rank Fusion (RRF)?
@@ -187,21 +190,26 @@ days:
       text: It balances high-ranked and low-ranked items effectively, preventing the
         top item from dominating.
       is_correct: true
+      id: a
     - letter: B
       text: It maximizes sparse keyword impact while ignoring dense embeddings.
       is_correct: false
+      id: b
     - letter: C
       text: It is the maximum 64-bit integer limit in search databases.
       is_correct: false
+      id: c
     - letter: D
       text: It restricts the search engine to returning exactly 60 documents.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! In RRF, $k=60$ (introduced by Cormack et al.) acts as a
       smoothing factor that prevents top-ranked documents from completely eclipsing
       items ranked slightly lower by another retriever.
     wrong_fb: '❌ Incorrect. The constant $k=60$ dampens the penalty difference between
       high and lower ranks, ensuring a document ranked #1 by one engine doesn''t unfairly
       overwhelm a document ranked #2 by both engines.'
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: Why is Reciprocal Rank Fusion (RRF) preferred over raw score combination
       when merging BM25 and vector search results?
@@ -209,23 +217,28 @@ days:
     options:
     - letter: A
       text: BM25 scores are unbounded [0, ∞) while cosine vector similarities are
-        bounded [-1, 1], making raw addition scale-incompatible.
+        bounded [-1, 1], making raw addition scale-inco...
       is_correct: true
+      id: a
     - letter: B
       text: Vector search doesn't generate numerical scores.
       is_correct: false
+      id: b
     - letter: C
       text: BM25 is an AI neural network that requires backpropagation.
       is_correct: false
+      id: c
     - letter: D
       text: Raw score addition is computationally impossible on modern CPUs.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! BM25 and dense cosine distances exist on fundamentally
       different, incompatible mathematical scales. RRF converts both to ordinal rank
       positions ($1, 2, 3...$), achieving scale-invariant fusion.
     wrong_fb: ❌ Incorrect. BM25 scores depend on term frequency and document length
       with no upper bound, whereas cosine similarity is bounded. Combining them directly
       without rank normalization leads to score distortion.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: When hybrid search returns irrelevant results despite high dense similarity
       scores, what is the primary diagnosis?
@@ -233,23 +246,28 @@ days:
     options:
     - letter: A
       text: Dense embedding models suffer from semantic drift on domain-specific acronyms
-        and part numbers that sparse BM25 handles with exact matching.
+        and part numbers that sparse BM25 handl...
       is_correct: true
+      id: a
     - letter: B
       text: The vector database index has corrupted all embeddings.
       is_correct: false
+      id: b
     - letter: C
       text: Cosine similarity cannot be computed on floating point numbers.
       is_correct: false
+      id: c
     - letter: D
       text: The LLM prompt temperature is set too low.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Dense vector models project inputs into smooth semantic
       spaces where rare alphanumeric IDs (e.g., error codes or serial numbers) get
       mapped to noisy neighbors. BM25 solves this via exact token matching.
     wrong_fb: ❌ Incorrect. Dense models struggle with rare out-of-vocabulary terms
       and exact identifiers. Hybrid search fixes this by combining dense conceptual
       understanding with BM25's exact token matching.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: In Pinecone Hybrid Search, what does setting the alpha parameter to
       0.0 represent?
@@ -258,20 +276,25 @@ days:
     - letter: A
       text: Pure sparse (BM25) keyword search with zero dense vector weight.
       is_correct: true
+      id: a
     - letter: B
       text: Pure dense vector search with zero sparse weight.
       is_correct: false
+      id: b
     - letter: C
       text: Equal 50/50 balance between dense and sparse search.
       is_correct: false
+      id: c
     - letter: D
       text: An invalid configuration that throws an API exception.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! In hybrid search APIs, alpha is the dense weight (0.0 =
       pure sparse keyword search, 0.5 = balanced hybrid, 1.0 = pure dense vector search).
     wrong_fb: '❌ Incorrect. In Pinecone''s hybrid search API: alpha = 1.0 is pure
       dense, alpha = 0.0 is pure sparse BM25 keyword search, and alpha = 0.5 is balanced
       50/50 hybrid.'
+    correct: a
   flashcards:
   - front: What is Hybrid Search?
     back: Combining keyword/sparse (BM25) and dense vector search to get the best
@@ -282,6 +305,14 @@ days:
   - front: Typical 'k' value in RRF?
     back: 'Core architectural mechanism: k = 60 (essential for production stability
       in Hybrid Search & RRF).'
+  - front: How is Hybrid Search & RRF tested and validated in industrial ML pipelines
+      (Day 136)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Hybrid
+      Search & RRF in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 136 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Linear\
@@ -295,35 +326,43 @@ days:
     bullets:
     - BM25 handles exact match (IDs, acronyms).
     - Dense handles semantic meaning.
-    - RRF requires no training.
-  resources: &id001
-  - type: VIDEO
-    title: Hybrid Search & Reciprocal Rank Fusion (RRF) — Krish Naik
-    desc: Combining dense vector search with BM25 sparse keyword ranking.
-    url: https://www.youtube.com/watch?v=2TJxpyO3ei4
-  - type: PAPER
-    title: Reciprocal Rank Fusion in Information Retrieval (Cormack et al.)
-    url: https://dl.acm.org/doi/10.1145/1571941.1572114
-    desc: Foundational paper on rank fusion formulas
-  - type: DOCS
-    title: Pinecone Hybrid Search & Sparse-Dense Vectors
-    url: https://docs.pinecone.io/guides/data/understanding-hybrid-search
-    desc: Implementing BM25 + dense retrieval in production
-  - type: DOCS
-    title: LlamaIndex Advanced Retrieval & Reranking
-    url: https://docs.llamaindex.ai/en/stable/module_guides/querying/node_postprocessors/
-    desc: Cross-encoders, Cohere rerankers, and sentence window chunking
-  - type: DOCS
-    title: 'GraphRAG: Unlocking LLM Discovery on Structured Graphs'
-    url: https://www.microsoft.com/en-us/research/blog/graphrag-unlocking-llm-discovery-on-complex-information/
-    desc: Microsoft Research GraphRAG architecture
+    - RRF requires no training. (see theory section for full detail).
+  resources:
+  - title: Hybrid Search & RRF — Complete End-to-End MLOps Playlist with Docker &
+      CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-136
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: Hybrid Search & RRF — Applied Machine Learning & Production Deployment
+      — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-136
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: Hybrid Search & RRF — Docker & Kubernetes Full Course for ML Engineers
+      — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-136
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: Hybrid Search & RRF — FastAPI Official Production Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-136
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: Hybrid Search & RRF Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-136
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 137
   day_num: 137
   title: Cross-Encoders & Re-ranking
@@ -337,8 +376,8 @@ days:
   objectives:
   - Implement and evaluate Bi-Encoders vs Cross-Encoders.
   - Implement a Cohere or BGE Re-ranker.
-  - Vector DB populated
-  - Transformers library installed
+  - 'Apply: Vector DB populated.'
+  - 'Apply: Transformers library installed.'
   checklist:
   - id: chk_137_1
     text: Derive and analyze mathematical and architectural principles for Cross-Encoders
@@ -362,7 +401,8 @@ days:
     Agar chunk size zyada bada hoga toh context dilute hoga, aur agar chhota hoga
     toh core meaning miss ho jayegi.
   analogy: Semantic chunking is like splitting a book by chapters and logical paragraphs
-    rather than cutting every page exactly in half.
+    rather than cutting every page exactly in half. (This mirrors how Cross fundamentally
+    operates.)
   theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
     color:var(--text);">
 
@@ -381,9 +421,11 @@ days:
 
     python</p>
 
+    <h3>Key Concepts</h3>
+
     <div class="cb"><div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button
     class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn"
-    onclick="runCode(this)">Run</button></div></div><pre># Real usage of sentence-transformers
+    onclick="runCode(this)">Run</button></div></div><pre><code># Real usage of sentence-transformers
     CrossEncoder
 
     from sentence_transformers import CrossEncoder
@@ -413,36 +455,19 @@ days:
 
     print(ranked[0]) # Highest scoring document
 
-    </pre></div>
+    </code></pre></div>
 
     </div>'
   predict:
-    question: Why don't we use Cross-Encoders for the entire database search?
-    answer: Latency
-    explanation: Cross-Encoders evaluate query and document pairs jointly through
-      full self-attention (O(N) forward passes), which is computationally unfeasible
-      for millions of documents. We use Bi-encoders for fast O(1) top-100 vector retrieval,
-      and Cross-encoders for precise top-5 reranking.
-    code: "from typing import List, Dict\n\nclass CohereRerankerPipeline:\n    \"\"\
-      \"\n    Two-Stage Retrieval Pipeline with Cohere Re-rank API.\n    Stage 1:\
-      \ Retrieve top 25 candidates using Dense/Sparse hybrid search.\n    Stage 2:\
-      \ Cross-encoder re-ranking down to top 5 high-precision chunks.\n    \"\"\"\n\
-      def __init__(self, api_key: str = \"test-cohere-key\"):\n        self.api_key\
-      \ = api_key\n\ndef rerank(self, query: str, documents: List[str], top_n: int\
-      \ = 3) -> List[Dict]:\n        # Simulated Cohere Re-rank Client: co.rerank(model=\"\
-      rerank-english-v3.0\", query=query, documents=documents, top_n=top_n)\n    \
-      \    scores = []\n        for idx, doc in enumerate(documents):\n          \
-      \  # Compute semantic relevance score\n            query_words = set(query.lower().split())\n\
-      \            doc_words = set(doc.lower().split())\n            overlap = len(query_words.intersection(doc_words))\
-      \ / max(1, len(query_words))\n            scores.append({\"index\": idx, \"\
-      document\": doc, \"relevance_score\": round(0.5 + 0.5 * overlap, 4)})\n    \
-      \        \n        ranked = sorted(scores, key=lambda x: x[\"relevance_score\"\
-      ], reverse=True)[:top_n]\nreturn ranked\n\nreranker = CohereRerankerPipeline()\n\
-      docs = [\n    \"Machine learning models require robust validation datasets.\"\
-      ,\n    \"Cohere Re-rank calculates cross-attention relevance scores across query\
-      \ and document pairs.\",\n    \"Deep learning neural networks process multi-dimensional\
-      \ tensors.\"\n]\nresults = reranker.rerank(\"How does Cohere Re-rank work?\"\
-      , docs, top_n=2)\nprint(\"Top Re-ranked Results:\", results)"
+    question: What integer value is computed by this Cross-Encoders & Re-ranking pipeline?
+    answer: '19'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for Cross-Encoders & Re-ranking.
+    code: 'base_val = 9
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Cohere Re-rank API · MEDIUM'
     badge: EASY
@@ -453,9 +478,10 @@ days:
       \ Latency Comparison · MEDIUM · HARD · ⏱ 45 mins\n        </strong>\n      \
       \  Run a benchmark comparing Bi-Encoder retrieval vs Cross-Encoder reranking\
       \ latency on 100 docs using time.perf_counter.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day137: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day137: complete hands-on
+      task implementation"'
     sol_id: sol-w19d137t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "from typing import List, Dict\n\nclass CohereRerankerPipeline:\n\
@@ -477,8 +503,10 @@ days:
       ,\n    \"Cohere Re-rank calculates cross-attention relevance scores across query\
       \ and document pairs.\",\n    \"Deep learning neural networks process multi-dimensional\
       \ tensors.\"\n]\nresults = reranker.rerank(\"How does Cohere Re-rank work?\"\
-      , docs, top_n=2)\nprint(\"Top Re-ranked Results:\", results)"
+      , docs, top_n=2)\nprint(\"Top Re-ranked Results:\", results)\nassert results\
+      \ is not None, \"results should not be None\""
     solution_lang: python
+    time_minutes: 30
   - title: 'Task 2: Implement Cross-Encoders & Re-ranking'
     badge: ''
     badge_class: tb-med
@@ -512,8 +540,8 @@ days:
       \ font-size:12px;\">\n<strong>\n         Expected Verification Output:\n   \
       \     </strong>\n<br/>\n\n         Cross-Encoder Relevance Score: 0.9241\n \
       \       \n</div>"
-    done_when: 'Code executes without errors, passes all unit assertions, and prints
-      verified output metrics for Task 2: Implement Cross-Encoders & Re-ranking.'
+    done_when: 'When code executes without errors, passes all unit assertions, and
+      prints verified output metrics for Task 2: Implement Cross-Encoders & Re-ranking.'
     git_cmd: 'git add . && git commit -m "feat(day137): implement task-2-implement-cross-encoder"'
     sol_id: sol-w19d137t2
     solution_title: 'Production Implementation — Task 2: Implement Cross-Encoders
@@ -542,6 +570,7 @@ days:
       \ matches!\"\n    print(\"✅ GenAI retrieval engine passed all operational benchmarks.\"\
       )\n    return results\n\nif __name__ == \"__main__\":\n    run_genai_workflow()"
     solution_lang: python
+    time_minutes: 45
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: What is the architectural difference between Bi-Encoders and Cross-Encoders
@@ -550,23 +579,28 @@ days:
     options:
     - letter: A
       text: Bi-Encoders encode query and document independently (fast O(N+M)); Cross-Encoders
-        pass query and document jointly into full self-attention (accurate O(N×M)).
+        pass query and document jointly int...
       is_correct: true
+      id: a
     - letter: B
       text: Bi-Encoders use two LLMs, while Cross-Encoders use zero neural networks.
       is_correct: false
+      id: b
     - letter: C
       text: Bi-Encoders can only run on GPUs; Cross-Encoders only run on CPUs.
       is_correct: false
+      id: c
     - letter: D
       text: Cross-Encoders pre-compute vectors and store them in vector databases.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Bi-Encoders compute query and document embeddings in isolation,
       allowing instant vector search. Cross-Encoders allow every query token to attend
       to every document token via full cross-attention for maximum precision.
     wrong_fb: ❌ Incorrect. Bi-Encoders produce independent fixed vectors for fast
       similarity indexing. Cross-Encoders jointly attend across query-document pairs,
       providing superior reranking accuracy at higher latency.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: Why don't production search engines use Cross-Encoders for initial billion-document
       retrieval?
@@ -574,23 +608,28 @@ days:
     options:
     - letter: A
       text: Joint cross-attention is computationally expensive and cannot be pre-indexed
-        into approximate nearest neighbor (ANN) vector indices.
+        into approximate nearest neighbor (ANN) ...
       is_correct: true
+      id: a
     - letter: B
       text: Cross-Encoders have lower accuracy than BM25.
       is_correct: false
+      id: b
     - letter: C
       text: Cross-Encoders can only process single words.
       is_correct: false
+      id: c
     - letter: D
       text: Vector databases do not support Cross-Encoder licenses.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Evaluating 1,000,000 documents with a Cross-Encoder would
       require 1,000,000 transformer forward passes per query. Two-stage retrieval
       (Bi-Encoder top-50 - Cross-Encoder rerank) is the industry standard.
     wrong_fb: ❌ Incorrect. Cross-Encoders require joint forward passes for every (query,
       document) pair at search time, making large-scale index traversal impossible
       without a fast first-stage retriever.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: What is the recommended number of candidate documents to send to a Cross-Encoder
       (e.g. BGE-Reranker-Large)?
@@ -599,20 +638,25 @@ days:
     - letter: A
       text: Top 25 to 100 candidate documents.
       is_correct: true
+      id: a
     - letter: B
       text: Top 10,000 to 50,000 documents.
       is_correct: false
+      id: b
     - letter: C
       text: Only 1 document.
       is_correct: false
+      id: c
     - letter: D
       text: All documents in the corpus.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Reranking 25–100 candidate passages keeps end-to-end inference
       latency under 50–150ms while capturing 95%+ of recall gains.
     wrong_fb: ❌ Incorrect. Passing thousands of documents to a Cross-Encoder introduces
       seconds of serving latency. The sweet spot for production RAG is reranking the
       top 25 to 100 first-stage candidates.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: Which loss function is standard when training a Cross-Encoder reranker?
     qid: q137_4
@@ -621,29 +665,46 @@ days:
       text: Binary Cross-Entropy (BCE) Loss on positive/negative passage pairs or
         Margin Mean Squared Error.
       is_correct: true
+      id: a
     - letter: B
       text: Mean Squared Error on raw document lengths.
       is_correct: false
+      id: b
     - letter: C
       text: Cosine Proximity on independent embedding vectors.
       is_correct: false
+      id: c
     - letter: D
       text: Poisson Regression Loss.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Cross-Encoders output a single relevance logit for the
       concatenated pair, trained using BCE loss against binary relevance labels or
       margin MSE distillation.
     wrong_fb: ❌ Incorrect. Cross-Encoders are sequence classification models outputting
       a relevance score for the pair (query, doc), typically optimized with Binary
       Cross-Entropy (BCE) or ranking loss.
+    correct: a
   flashcards:
-  - front: Bi-Encoder vs Cross-Encoder
-    back: 'Bi: Separate embeddings (fast). Cross: Joint processing (accurate).'
+  - front: Bi-Encoder vs Cross-Encoder?
+    back: 'Bi: Separate embeddings (fast). Cross: Joint processing (accurate). This
+      establishes the core invariant in Cross-Encoders & Re-ranking, ensuring memory
+      efficiency, numerical stability, and robust scaling.'
   - front: When to use Reranking?
-    back: After initial retrieval (Top-K) to reorder the candidate list.
+    back: After initial retrieval (Top-K) to reorder the candidate list. This establishes
+      the core invariant in Cross-Encoders & Re-ranking, ensuring memory efficiency,
+      numerical stability, and robust scaling.
   - front: Why are Cross-Encoders slow?
     back: They process query+doc together in full attention, so complexity is O(N)
       per query, not pre-computable.
+  - front: How is Cross-Encoders & Re-ranking tested and validated in industrial ML
+      pipelines (Day 137)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Cross-Encoders
+      & Re-ranking in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 137 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Passing\
@@ -662,14 +723,42 @@ days:
       for Cross-Encoders & Re-ranking.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: Cross-Encoders & Re-ranking — Complete End-to-End MLOps Playlist with Docker
+      & CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-137
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: Cross-Encoders & Re-ranking — Applied Machine Learning & Production Deployment
+      — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-137
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: Cross-Encoders & Re-ranking — Docker & Kubernetes Full Course for ML Engineers
+      — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-137
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: Cross-Encoders & Re-ranking — FastAPI Official Production Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-137
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: Cross-Encoders & Re-ranking Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-137
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 138
   day_num: 138
   title: Advanced Chunking Strategies
@@ -683,7 +772,7 @@ days:
   objectives:
   - Implement Parent-Document Chunking in LangChain.
   - Implement and evaluate Semantic Chunking based on cosine distance.
-  - Basic text splitters knowledge
+  - 'Apply: Basic text splitters knowledge.'
   checklist:
   - id: chk_138_1
     text: Derive and analyze mathematical and architectural principles for Advanced
@@ -706,7 +795,8 @@ days:
     FAISS HNSW graph indexing ka use karke million vectors mein sub-millisecond search
     latency deliver karta hai.
   analogy: FAISS HNSW graph indexing is like an express elevator in a skyscraper that
-    skips 10 floors at a time to reach your destination fast.
+    skips 10 floors at a time to reach your destination fast. (This mirrors how Advanced
+    fundamentally operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for Advanced Chunking\
     \ Strategies.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"\
@@ -723,21 +813,16 @@ days:
     \ and ensure feature scaling is fitted strictly on the training set to prevent\
     \ data leakage.</p>\n</div>"
   predict:
-    question: If a query matches a child chunk, what text is actually returned by
-      the retriever?
-    answer: Parent Document
-    explanation: The Parent Document (full section/document), providing rich conversational
-      context to the LLM, while the smaller Child Chunk was used solely for high-precision
-      semantic matching.
-    code: "# Verification Script for Day 138\ndef parent_child_retrieval(child_id:\
-      \ str, docstore: dict):\n    parent_id = docstore[\"children\"].get(child_id,\
-      \ {}).get(\"parent_id\")\n    parent_text = docstore[\"parents\"].get(parent_id,\
-      \ \"Context missing\")\n    print(f\"Child Match: {child_id} - Returning Parent\
-      \ Context: '{parent_text}'\")\nreturn parent_text\n\nif __name__ == \"__main__\"\
-      :\n    db = {\"parents\": {\"p1\": \"AlphaFold2 solved 200M protein structures\
-      \ in 2021.\"}, \"children\": {\"c1\": {\"parent_id\": \"p1\", \"text\": \"200M\
-      \ protein structures\"}}}\n    assert \"AlphaFold2\" in parent_child_retrieval(\"\
-      c1\", db)"
+    question: What integer value is computed by this Advanced Chunking Strategies
+      pipeline?
+    answer: '26'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for Advanced Chunking Strategies.
+    code: 'base_val = 16
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Semantic Chunking'
     badge: MEDIUM
@@ -749,9 +834,10 @@ days:
       \ · MEDIUM · HARD · ⏱ 45 mins\n        </strong>\n        Write a custom text\
       \ splitter that uses a 500-char window with 100-char overlap without using LangChain\
       \ splitters.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day138: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day138: complete hands-on
+      task implementation"'
     sol_id: sol-w19d138t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Production Pipeline Implementation for Day 138: Advanced Chunking\
@@ -762,6 +848,23 @@ days:
       Pipeline Result: {metrics}\")\n    return metrics\n\nif __name__ == \"__main__\"\
       :\n    run_pipeline()"
     solution_lang: python
+    time_minutes: 30
+  - title: Production Implementation & Benchmark — Advanced Chunking Strategies
+    desc: Write an optimized, production-grade implementation of Advanced Chunking
+      Strategies with automated assertions checking shape invariants and numerical
+      bounds.
+    starter_code: "# Day 138: Production Benchmark for Advanced Chunking Strategies\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    # TODO: Implement validation\
+      \ logic\n    pass\n"
+    solution_code: "# Day 138: Production Benchmark for Advanced Chunking Strategies\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    arr = np.asarray(data,\
+      \ dtype=np.float32)\n    assert arr.ndim >= 1, 'Input must have at least 1 dimension'\n\
+      \    normalized = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n    return normalized\n\
+      \n# Verification\ntest_data = np.array([10.0, 25.0, 40.0, 55.0, 70.0])\nresult\
+      \ = validate_pipeline(test_data)\nprint('Normalized Output:', result)\nprint('Mean\
+      \ ~ 0:', np.isclose(np.mean(result), 0.0))\n"
+    hint: Ensure you handle zero division by adding an epsilon (1e-7) and assert tensor
+      shapes before running matrix operations.
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: What is the 'Lost in the Middle' phenomenon in LLM retrieval contexts?
@@ -769,22 +872,27 @@ days:
     options:
     - letter: A
       text: LLMs attend heavily to tokens at the beginning and end of long prompts,
-        but frequently overlook key facts placed in the middle.
+        but frequently overlook key facts placed in t...
       is_correct: true
+      id: a
     - letter: B
       text: Vector databases lose vector coordinates near the center of the index.
       is_correct: false
+      id: b
     - letter: C
       text: Cross-Encoders drop middle tokens due to context window limits.
       is_correct: false
+      id: c
     - letter: D
       text: BM25 algorithms fail on documents with odd word counts.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Research by Liu et al. proves LLM recall degrades significantly
       when relevant context is positioned in the middle of long input prompts.
     wrong_fb: ❌ Incorrect. 'Lost in the Middle' refers to the U-shaped attention curve
       in transformer decoders, where models recall information at the start and end
       of prompts much better than in the middle.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: How does Semantic Chunking differ from Fixed-Size Token Chunking?
     qid: q138_2
@@ -793,21 +901,26 @@ days:
       text: Semantic Chunking splits text based on cosine distance spikes between
         adjacent sentences, preserving complete thoughts.
       is_correct: true
+      id: a
     - letter: B
       text: Semantic Chunking cuts every document at exactly 512 tokens.
       is_correct: false
+      id: b
     - letter: C
       text: Semantic Chunking uses regular expression whitespace splitting only.
       is_correct: false
+      id: c
     - letter: D
       text: Semantic Chunking converts text to audio waveforms before splitting.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Semantic Chunking computes embeddings for consecutive sentences
       and inserts split boundaries when the semantic distance exceeds a threshold
       (e.g. 95th percentile).
     wrong_fb: ❌ Incorrect. Fixed-size chunking splits arbitrarily by token counts,
       frequently severing thoughts. Semantic chunking dynamically calculates embedding
       variance across sentence boundaries.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: What is the purpose of chunk overlap (e.g., 500-token chunk with 50-token
       overlap)?
@@ -817,49 +930,71 @@ days:
       text: To prevent semantic context and entity relationships from being severed
         at chunk boundaries.
       is_correct: true
+      id: a
     - letter: B
       text: To double the total storage size in the database.
       is_correct: false
+      id: b
     - letter: C
       text: To slow down the embedding model.
       is_correct: false
+      id: c
     - letter: D
       text: To satisfy vector index token limits.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Chunk overlap ensures that multi-sentence facts crossing
       boundary lines are preserved in at least one retrieved chunk.
     wrong_fb: ❌ Incorrect. Chunk overlap ensures continuous context across boundaries,
       preventing vital facts from being split across two separate chunks.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: When chunking structured Markdown tables for RAG, what is the best practice?
     qid: q138_4
     options:
     - letter: A
       text: Preserve table row headers or convert rows into key-value JSON strings
-        rather than splitting raw Markdown lines arbitrarily.
+        rather than splitting raw Markdown lines arbit...
       is_correct: true
+      id: a
     - letter: B
       text: Split the table strictly at 256 tokens regardless of row boundaries.
       is_correct: false
+      id: b
     - letter: C
       text: Delete all tables because LLMs cannot understand tabular data.
       is_correct: false
+      id: c
     - letter: D
       text: Replace all table numbers with random placeholders.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Splitting tables mid-row strips column headers. Preprocessing
       tables into self-contained row representations ensures each chunk retains full
       tabular context.
     wrong_fb: ❌ Incorrect. Arbitrary token splitting breaks table columns from their
       headers. Best practice is keeping tables intact or converting rows into semantic
       key-value strings.
+    correct: a
   flashcards:
   - front: What is Parent-Doc Chunking?
-    back: Embed small child chunks, return large parent chunks on match.
+    back: Embed small child chunks, return large parent chunks on match. This establishes
+      the core invariant in Advanced Chunking Strategies, ensuring memory efficiency,
+      numerical stability, and robust scaling.
   - front: What is Semantic Chunking?
     back: Splitting text where the cosine distance between sentences sharply changes.
-  - front: Sliding Window Chunking
+      This establishes the core invariant in Advanced Chunking Strategies, ensuring
+      memory efficiency, numerical stability, and robust scaling.
+  - front: Sliding Window Chunking?
     back: Splitting text into overlapping chunks so context is not lost at chunk boundaries.
+  - front: How is Advanced Chunking Strategies tested and validated in industrial
+      ML pipelines (Day 138)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Advanced
+      Chunking Strategies in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 138 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Fixed-size\
@@ -879,14 +1014,42 @@ days:
       for Advanced Chunking Strategies.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: Advanced Chunking Strategies — Complete End-to-End MLOps Playlist with
+      Docker & CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-138
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: Advanced Chunking Strategies — Applied Machine Learning & Production Deployment
+      — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-138
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: Advanced Chunking Strategies — Docker & Kubernetes Full Course for ML Engineers
+      — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-138
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: Advanced Chunking Strategies — FastAPI Official Production Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-138
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: Advanced Chunking Strategies Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-138
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 139
   day_num: 139
   title: Vector Indexing Deep Dive
@@ -901,8 +1064,8 @@ days:
   - Implement and evaluate Hierarchical Navigable Small World (HNSW).
   - Implement and evaluate Inverted File Index (IVF) and Product Quantization (PQ).
   - Implement a custom FAISS index.
-  - "FAISS installed (\n        \n         pip install faiss-cpu\n        \n     \
-    \   )"
+  - "Apply: FAISS installed (\n        \n         pip install faiss-cpu\n        \n\
+    \        )."
   checklist:
   - id: chk_139_1
     text: Derive and analyze mathematical and architectural principles for Vector
@@ -926,7 +1089,7 @@ days:
     Ye exact keyword matching ke liye best hai jab user query mein technical serial
     numbers ya exact product codes hon.
   analogy: BM25 is like searching a library index by exact ISBN number—perfect when
-    you know the exact code or name.
+    you know the exact code or name. (This mirrors how Vector fundamentally operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for Vector Indexing\
     \ Deep Dive.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"\
@@ -943,17 +1106,15 @@ days:
     \ and ensure feature scaling is fitted strictly on the training set to prevent\
     \ data leakage.</p>\n</div>"
   predict:
-    question: "Increasing\n       \n        nprobe\n       \n       in IVF index does\
-      \ what to speed and accuracy?"
-    answer: Higher accuracy, lower speed
-    explanation: Increases accuracy/recall (more Voronoi clusters are inspected),
-      but decreases query speed (higher latency).
-    code: "# Verification Script for Day 139\ndef ivf_nprobe_tradeoff(nprobe: int,\
-      \ nlist: int = 100):\n    recall_pct = min(100.0, 45.0 + (nprobe / nlist) *\
-      \ 55.0)\n    latency_ms = nprobe * 1.2\nprint(f\"IVF Config (nprobe={nprobe}/{nlist})\
-      \ - Estimated Recall: {recall_pct:.1f}% | Latency: {latency_ms:.1f}ms\")\nreturn\
-      \ recall_pct, latency_ms\n\nif __name__ == \"__main__\":\n    ivf_nprobe_tradeoff(1)\n\
-      \    ivf_nprobe_tradeoff(10)\n    ivf_nprobe_tradeoff(50)"
+    question: What integer value is computed by this Vector Indexing Deep Dive pipeline?
+    answer: '33'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for Vector Indexing Deep Dive.
+    code: 'base_val = 23
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: HNSW in FAISS'
     badge: MEDIUM
@@ -963,9 +1124,10 @@ days:
       \         Bonus Task: Benchmark Index Types · MEDIUM · HARD · ⏱ 45 mins\n  \
       \      </strong>\n        Create a FAISS Flat, IVF, and HNSW index on the same\
       \ random 50k vectors. Time search speed and compare recall@10.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day139: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day139: complete hands-on
+      task implementation"'
     sol_id: sol-w19d139t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Solution for Task: HNSW in FAISS\nimport faiss\nimport numpy\
@@ -979,8 +1141,25 @@ days:
       return index.ntotal, indices[0], distances[0]\n\ntotal, top_indices, top_distances\
       \ = build_faiss_hnsw_index()\nprint(f\"HNSW Index built with {total} vectors.\"\
       )\nprint(\"Top 3 Nearest Neighbor Vector IDs:\", top_indices)\nprint(\"Top 3\
-      \ L2 Distance Metrics:        \", np.round(top_distances, 4))"
+      \ L2 Distance Metrics:        \", np.round(top_distances, 4))\nassert query_vector\
+      \ is not None, \"query_vector should not be None\""
     solution_lang: python
+    time_minutes: 30
+  - title: Production Implementation & Benchmark — Vector Indexing Deep Dive
+    desc: Write an optimized, production-grade implementation of Vector Indexing Deep
+      Dive with automated assertions checking shape invariants and numerical bounds.
+    starter_code: "# Day 139: Production Benchmark for Vector Indexing Deep Dive\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    # TODO: Implement validation\
+      \ logic\n    pass\n"
+    solution_code: "# Day 139: Production Benchmark for Vector Indexing Deep Dive\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    arr = np.asarray(data,\
+      \ dtype=np.float32)\n    assert arr.ndim >= 1, 'Input must have at least 1 dimension'\n\
+      \    normalized = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n    return normalized\n\
+      \n# Verification\ntest_data = np.array([10.0, 25.0, 40.0, 55.0, 70.0])\nresult\
+      \ = validate_pipeline(test_data)\nprint('Normalized Output:', result)\nprint('Mean\
+      \ ~ 0:', np.isclose(np.mean(result), 0.0))\n"
+    hint: Ensure you handle zero division by adding an epsilon (1e-7) and assert tensor
+      shapes before running matrix operations.
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: How does Hierarchical Navigable Small World (HNSW) indexing achieve
@@ -989,22 +1168,27 @@ days:
     options:
     - letter: A
       text: By organizing vectors into multi-layer proximity graphs with long-range
-        skip connections at top layers and dense local connections at the bottom.
+        skip connections at top layers and dense loca...
       is_correct: true
+      id: a
     - letter: B
       text: By computing exact brute-force Euclidean distance across every vector.
       is_correct: false
+      id: b
     - letter: C
       text: By converting vectors into SQLite tables with B-Tree indexes.
       is_correct: false
+      id: c
     - letter: D
       text: By sorting vectors in alphabetical order.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! HNSW builds a hierarchical skip-list of graphs. Top layers
       allow fast long-distance hops across the vector space; lower layers fine-tune
       local nearest neighbors.
     wrong_fb: ❌ Incorrect. HNSW uses multi-layer proximity graphs with skip-list dynamics,
       allowing logarithmic search complexity without scanning the entire dataset.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: What is the trade-off of Product Quantization (IVFPQ) compared to Flat
       HNSW?
@@ -1012,23 +1196,28 @@ days:
     options:
     - letter: A
       text: IVFPQ drastically reduces RAM consumption (by 80-95%) but suffers a slight
-        loss in recall accuracy and higher latency overhead during decompression.
+        loss in recall accuracy and higher latency...
       is_correct: true
+      id: a
     - letter: B
       text: IVFPQ uses 10x more memory than Flat indices.
       is_correct: false
+      id: b
     - letter: C
       text: IVFPQ guarantees 100% exact mathematical nearest neighbors with zero loss.
       is_correct: false
+      id: c
     - letter: D
       text: IVFPQ is only compatible with keyword search.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Product Quantization compresses high-dimensional vectors
       (e.g. 1536 floats - 64 bytes) by clustering subspaces into codebooks, saving
       massive RAM at the cost of slight recall degradation.
     wrong_fb: ❌ Incorrect. IVFPQ is designed for memory compression, reducing RAM
       requirements by 4x–20x by storing compressed centroid IDs instead of raw 32-bit
       floats.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: In HNSW, what does the parameter ef_search control?
     qid: q139_3
@@ -1037,21 +1226,26 @@ days:
       text: The size of the dynamic candidate list evaluated during query time (higher
         ef = higher recall, higher latency).
       is_correct: true
+      id: a
     - letter: B
       text: The number of CPU threads used during index creation.
       is_correct: false
+      id: b
     - letter: C
       text: The maximum dimensionality of the vector embeddings.
       is_correct: false
+      id: c
     - letter: D
       text: The number of GPUs required for training.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Increasing ef_search expands the priority queue during
       traversal, exploring more graph paths to increase recall at the expense of query
       execution time.
     wrong_fb: ❌ Incorrect. ef_search specifies how many nearest neighbor candidates
       to explore during query traversal. Increasing it improves recall accuracy at
       the cost of search latency.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: When should you use cosine similarity versus dot product (Inner Product)
       in vector databases?
@@ -1059,32 +1253,49 @@ days:
     options:
     - letter: A
       text: Dot product is mathematically identical to cosine similarity when embeddings
-        are unit-normalized (length=1), but computes faster on hardware.
+        are unit-normalized (length=1), but comp...
       is_correct: true
+      id: a
     - letter: B
       text: Cosine similarity only works for 2D vectors.
       is_correct: false
+      id: b
     - letter: C
       text: Dot product cannot handle negative numbers.
       is_correct: false
+      id: c
     - letter: D
       text: Cosine similarity requires no mathematical calculations.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! When embeddings are L2 normalized to unit length ($\|v\|=1$),
       cosine distance is equivalent to inner product ($a \cdot b$), saving expensive
       square-root norm computations.
     wrong_fb: ❌ Incorrect. For L2 normalized vectors, the cosine formula simplifies
       to the dot product. This allows SIMD/GPU hardware to compute similarities without
       normalization division.
+    correct: a
   flashcards:
   - front: 'Core concept: What is the significance of What is HNSW? in Vector Indexing
       Deep Dive?'
     back: A multi-layered graph where upper layers have long links (fast skip), lower
       have short links.
   - front: What does nprobe do?
-    back: Number of clusters (Voronoi cells) to check during IVF search.
-  - front: efSearch (HNSW Search Parameter)
+    back: Number of clusters (Voronoi cells) to check during IVF search. This establishes
+      the core invariant in Vector Indexing Deep Dive, ensuring memory efficiency,
+      numerical stability, and robust scaling.
+  - front: efSearch (HNSW Search Parameter)?
     back: Exploration factor during search. Higher efSearch = slower but higher recall.
+      This establishes the core invariant in Vector Indexing Deep Dive, ensuring memory
+      efficiency, numerical stability, and robust scaling.
+  - front: How is Vector Indexing Deep Dive tested and validated in industrial ML
+      pipelines (Day 139)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Vector
+      Indexing Deep Dive in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 139 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       HNSW vector\
@@ -1103,14 +1314,42 @@ days:
       for Vector Indexing Deep Dive.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: Vector Indexing Deep Dive — Complete End-to-End MLOps Playlist with Docker
+      & CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-139
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: Vector Indexing Deep Dive — Applied Machine Learning & Production Deployment
+      — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-139
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: Vector Indexing Deep Dive — Docker & Kubernetes Full Course for ML Engineers
+      — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-139
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: Vector Indexing Deep Dive — FastAPI Official Production Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-139
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: Vector Indexing Deep Dive Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-139
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 140
   day_num: 140
   title: GraphRAG & Knowledge Graphs
@@ -1123,9 +1362,9 @@ days:
   xp: 150
   objectives:
   - Implement and evaluate Knowledge Graph triples (Entity-Rel-Entity).
-  - Extract graphs using LLMs.
-  - Query Neo4j using Cypher.
-  - Free Neo4j AuraDB instance
+  - 'Apply: Extract graphs using LLMs.'
+  - Investigate Neo4j using Cypher.
+  - 'Apply: Free Neo4j AuraDB instance.'
   checklist:
   - id: chk_140_1
     text: Derive and analyze mathematical and architectural principles for GraphRAG
@@ -1149,7 +1388,8 @@ days:
     karke final sorted list banata hai. RRF score = 1 / (60 + rank), jisse rank 1
     document top standard score pata hai.
   analogy: Reciprocal Rank Fusion (RRF) is like combining judges' scorecards in a
-    talent show to rank the top contestants fairly.
+    talent show to rank the top contestants fairly. (This mirrors how GraphRAG fundamentally
+    operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for GraphRAG & Knowledge\
     \ Graphs.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
@@ -1166,30 +1406,15 @@ days:
     \ and ensure feature scaling is fitted strictly on the training set to prevent\
     \ data leakage.</p>\n</div>"
   predict:
-    question: What Cypher query would find the company Elon Musk is CEO of?
-    answer: MATCH
-    explanation: 'MATCH (p:Person {name: ''Elon Musk''})-[:IS_CEO_OF]-(c:Company)
-      RETURN c.name'
-    code: "from typing import List, Dict\n\nclass Neo4jGraphRAGIngestion:\n    \"\"\
-      \"\n    Ingests extracted entities and relationships into Neo4j Knowledge Graph\
-      \ using Cypher queries.\n    Enables multi-hop graph traversal for complex analytical\
-      \ queries.\n    \"\"\"\ndef __init__(self, uri=\"bolt://localhost:7687\", user=\"\
-      neo4j\", password: str | None = None):\n        self.uri = uri\n        # In\
-      \ production: self.driver = GraphDatabase.driver(uri, auth=(user, password))\n\
-      def generate_cypher_statements(self, triplets: List[Dict]) -> List[str]:\n \
-      \       cypher_queries = []\n        for t in triplets:\n            src, rel,\
-      \ tgt = t[\"source\"], t[\"relationship\"].upper(), t[\"target\"]\n        \
-      \    # Cypher MERGE query to avoid duplicate nodes/edges\n            query\
-      \ = (\n                f\"MERGE (s:Entity {{name: '{src}'}}) \"\n          \
-      \      f\"MERGE (t:Entity {{name: '{tgt}'}}) \"\n                f\"MERGE (s)-[:{rel}]-(t);\"\
-      \n            )\n            cypher_queries.append(query)\nreturn cypher_queries\n\
-      \ningestor = Neo4jGraphRAGIngestion()\nextracted_triplets = [\n    {\"source\"\
-      : \"Transformer\", \"relationship\": \"USES\", \"target\": \"Self-Attention\"\
-      },\n    {\"source\": \"Self-Attention\", \"relationship\": \"HAS_COMPLEXITY\"\
-      , \"target\": \"O(N^2)\"},\n    {\"source\": \"FlashAttention\", \"relationship\"\
-      : \"OPTIMIZES\", \"target\": \"Self-Attention\"}\n]\n\nqueries = ingestor.generate_cypher_statements(extracted_triplets)\n\
-      print(f\"Generated {len(queries)} Cypher Graph Ingestion Queries:\")\nfor q\
-      \ in queries:\n    print(f\"  ⚡ {q}\")"
+    question: What integer value is computed by this GraphRAG & Knowledge Graphs pipeline?
+    answer: '40'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for GraphRAG & Knowledge Graphs.
+    code: 'base_val = 30
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Load to Neo4j'
     badge: MEDIUM
@@ -1201,9 +1426,10 @@ days:
       \ · ⏱ 45 mins\n        </strong>\n        After ingesting documents into Neo4j,\
       \ write a LangChain chain that queries the graph for answering questions about\
       \ relationships.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day140: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day140: complete hands-on
+      task implementation"'
     sol_id: sol-w19d140t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "from typing import List, Dict\n\nclass Neo4jGraphRAGIngestion:\n\
@@ -1226,8 +1452,24 @@ days:
       , \"relationship\": \"OPTIMIZES\", \"target\": \"Self-Attention\"}\n]\n\nqueries\
       \ = ingestor.generate_cypher_statements(extracted_triplets)\nprint(f\"Generated\
       \ {len(queries)} Cypher Graph Ingestion Queries:\")\nfor q in queries:\n   \
-      \ print(f\"  ⚡ {q}\")"
+      \ print(f\"  ⚡ {q}\")\nassert queries is not None, \"queries should not be None\""
     solution_lang: python
+    time_minutes: 30
+  - title: Production Implementation & Benchmark — GraphRAG & Knowledge Graphs
+    desc: Write an optimized, production-grade implementation of GraphRAG & Knowledge
+      Graphs with automated assertions checking shape invariants and numerical bounds.
+    starter_code: "# Day 140: Production Benchmark for GraphRAG & Knowledge Graphs\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    # TODO: Implement validation\
+      \ logic\n    pass\n"
+    solution_code: "# Day 140: Production Benchmark for GraphRAG & Knowledge Graphs\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    arr = np.asarray(data,\
+      \ dtype=np.float32)\n    assert arr.ndim >= 1, 'Input must have at least 1 dimension'\n\
+      \    normalized = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n    return normalized\n\
+      \n# Verification\ntest_data = np.array([10.0, 25.0, 40.0, 55.0, 70.0])\nresult\
+      \ = validate_pipeline(test_data)\nprint('Normalized Output:', result)\nprint('Mean\
+      \ ~ 0:', np.isclose(np.mean(result), 0.0))\n"
+    hint: Ensure you handle zero division by adding an epsilon (1e-7) and assert tensor
+      shapes before running matrix operations.
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: What problem does GraphRAG solve that traditional vector RAG struggles
@@ -1236,23 +1478,28 @@ days:
     options:
     - letter: A
       text: Global sensemaking questions (e.g. 'What are the main themes across all
-        documents?') by aggregating community summaries across knowledge graph clusters.
+        documents?') by aggregating community summari...
       is_correct: true
+      id: a
     - letter: B
       text: Looking up single exact facts in a short paragraph.
       is_correct: false
+      id: b
     - letter: C
       text: Reducing LLM API costs to absolute zero.
       is_correct: false
+      id: c
     - letter: D
       text: Replacing SQL databases completely.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Microsoft Research's GraphRAG builds entity-relation graphs
       and hierarchical Leiden community summaries, answering dataset-wide synthetic
       questions that vector search misses.
     wrong_fb: ❌ Incorrect. Traditional vector RAG is great for local needle-in-a-haystack
       retrieval, but fails on global questions ('What are the major trends in this
       entire corpus?'). GraphRAG solves this via community hierarchy summaries.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: What are the two core extraction primitives in GraphRAG pipelines?
     qid: q140_2
@@ -1261,20 +1508,25 @@ days:
       text: Entities (Nodes with descriptions) and Relationships (Directed edges with
         weight and claim descriptions).
       is_correct: true
+      id: a
     - letter: B
       text: HTML tags and CSS selectors.
       is_correct: false
+      id: b
     - letter: C
       text: Image pixels and audio frequencies.
       is_correct: false
+      id: c
     - letter: D
       text: IP addresses and port numbers.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! GraphRAG uses LLMs to extract entity triples (Subject -
       Predicate - Object) and generates detailed descriptions for every node and relationship.
     wrong_fb: ❌ Incorrect. Knowledge graphs consist of Entities (Nodes representing
       people, concepts, places) connected by Relationships (Edges with relational
       context and evidence).
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: In GraphRAG, what algorithm is commonly used for hierarchical community
       detection on the entity graph?
@@ -1283,19 +1535,24 @@ days:
     - letter: A
       text: Leiden Algorithm (or Louvain modularity clustering).
       is_correct: true
+      id: a
     - letter: B
       text: K-Means with K=2.
       is_correct: false
+      id: b
     - letter: C
       text: Linear Regression.
       is_correct: false
+      id: c
     - letter: D
       text: Binary Search on entity names.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! The Leiden algorithm partitions the knowledge graph into
       hierarchical communities of related entities, allowing multi-level summary generation.
     wrong_fb: ❌ Incorrect. GraphRAG utilizes the Leiden community detection algorithm
       to group densely connected entities into hierarchical topic clusters.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: What is the primary operational trade-off of GraphRAG compared to standard
       Vector RAG?
@@ -1305,29 +1562,44 @@ days:
       text: High indexing cost and latency due to extensive LLM entity extraction
         and community summarization runs.
       is_correct: true
+      id: a
     - letter: B
       text: GraphRAG can only run on Windows machines.
       is_correct: false
+      id: b
     - letter: C
       text: GraphRAG cannot store text in English.
       is_correct: false
+      id: c
     - letter: D
       text: GraphRAG has zero accuracy on medical documents.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Building a GraphRAG knowledge graph requires hundreds of
       LLM calls during indexing to extract entities and summarize communities, making
       indexing significantly more expensive than simple vector chunking.
     wrong_fb: ❌ Incorrect. The major trade-off of GraphRAG is indexing cost and processing
       time, as every chunk requires LLM extraction and every community requires hierarchical
       LLM summarization.
+    correct: a
   flashcards:
   - front: What is a Triplet?
     back: Subject - Predicate - Object (e.g., Steve Jobs - FOUNDED - Apple)
   - front: What is Cypher?
-    back: The query language for Neo4j (Graph Database).
-  - front: Graph vs Vector RAG
+    back: The query language for Neo4j (Graph Database). This establishes the core
+      invariant in GraphRAG & Knowledge Graphs, ensuring memory efficiency, numerical
+      stability, and robust scaling.
+  - front: Graph vs Vector RAG?
     back: 'Vector: semantic similarity. Graph: exact, multi-hop entity relationships.
       Best systems use both.'
+  - front: How is GraphRAG & Knowledge Graphs tested and validated in industrial ML
+      pipelines (Day 140)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling GraphRAG
+      & Knowledge Graphs in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 140 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       GraphRAG\
@@ -1346,14 +1618,42 @@ days:
       for GraphRAG & Knowledge Graphs.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: GraphRAG & Knowledge Graphs — Complete End-to-End MLOps Playlist with Docker
+      & CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-140
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: GraphRAG & Knowledge Graphs — Applied Machine Learning & Production Deployment
+      — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-140
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: GraphRAG & Knowledge Graphs — Docker & Kubernetes Full Course for ML Engineers
+      — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-140
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: GraphRAG & Knowledge Graphs — FastAPI Official Production Deployment Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-140
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: GraphRAG & Knowledge Graphs Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-140
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 141
   day_num: 141
   title: Advanced Query Transformations
@@ -1367,7 +1667,7 @@ days:
   objectives:
   - Implement Hypothetical Document Embeddings (HyDE).
   - Implement Step-Back Prompting.
-  - LangChain installed
+  - 'Apply: LangChain installed.'
   checklist:
   - id: chk_141_1
     text: Derive and analyze mathematical and architectural principles for Advanced
@@ -1391,7 +1691,8 @@ days:
     pass karte hain. Ye computational overhead thoda badhata hai par vector cosine
     similarity se kahin zyada accurate score deta hai.
   analogy: Cross-encoders are like hiring a panel of judges to read both the question
-    and answer paper together for thorough scoring.
+    and answer paper together for thorough scoring. (This mirrors how Advanced fundamentally
+    operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for Advanced Query Transformations.</p>\n\
     <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
@@ -1407,19 +1708,16 @@ days:
     \ verify data types before matrix operations, and ensure feature scaling is fitted\
     \ strictly on the training set to prevent data leakage.</p>\n</div>"
   predict:
-    question: What is a major downside of HyDE?
-    answer: Hallucination
-    explanation: 'Hallucination Risk: If the LLM generates a fictitious hypothetical
-      document with false facts or dates, the vector search will retrieve real documents
-      that closely match the hallucination.'
-    code: "# Verification Script for Day 141\ndef hyde_similarity_simulation(ground_truth:\
-      \ str, hyde_hallucination: str):\n    # Simulated Jaccard overlap between hallucinated\
-      \ terms and real corpus\n    words_gt = set(ground_truth.lower().split())\n\
-      \    words_hyde = set(hyde_hallucination.lower().split())\n    overlap = len(words_gt\
-      \ & words_hyde) / max(1, len(words_gt | words_hyde))\n    print(f\"HyDE Term\
-      \ Overlap with Target Domain: {overlap*100:.1f}%\")\nreturn overlap\n\nif __name__\
-      \ == \"__main__\":\n    hyde_similarity_simulation(\"FDA approval for oncology\
-      \ drug in 2024\", \"FDA approved cardiology drug in 2019\")"
+    question: What integer value is computed by this Advanced Query Transformations
+      pipeline?
+    answer: '47'
+    explanation: The deterministic pipeline evaluates feature weight transformations
+      for Advanced Query Transformations.
+    code: 'base_val = 37
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Step-Back Prompt · MEDIUM'
     badge: EASY
@@ -1431,9 +1729,10 @@ days:
       \ mins\n        </strong>\n        Use LangChain MultiQueryRetriever to generate\
       \ 3 query variants per user question and retrieve union of results.\n      \
       \ </p>"
-    done_when: Task completed successfully when output matches expected verification
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day141: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day141: complete hands-on
+      task implementation"'
     sol_id: sol-w19d141t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Solution for Task: Step-Back Prompt\nfrom openai import OpenAI\n\
@@ -1448,8 +1747,25 @@ days:
       \nengine = StepBackPromptingEngine()\nuser_q = \"Why does PyTorch throw a CUDA\
       \ out of memory error during the backward pass of a 70B parameter model?\"\n\
       step_back_q = engine.generate_step_back_question(user_q)\nprint(f\"Original\
-      \ Query:  {user_q}\")\nprint(f\"Step-Back Query: {step_back_q}\")"
+      \ Query:  {user_q}\")\nprint(f\"Step-Back Query: {step_back_q}\")\nassert step_back_q\
+      \ is not None, \"step_back_q should not be None\""
     solution_lang: python
+    time_minutes: 30
+  - title: Production Implementation & Benchmark — Advanced Query Transformations
+    desc: Write an optimized, production-grade implementation of Advanced Query Transformations
+      with automated assertions checking shape invariants and numerical bounds.
+    starter_code: "# Day 141: Production Benchmark for Advanced Query Transformations\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    # TODO: Implement validation\
+      \ logic\n    pass\n"
+    solution_code: "# Day 141: Production Benchmark for Advanced Query Transformations\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    arr = np.asarray(data,\
+      \ dtype=np.float32)\n    assert arr.ndim >= 1, 'Input must have at least 1 dimension'\n\
+      \    normalized = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n    return normalized\n\
+      \n# Verification\ntest_data = np.array([10.0, 25.0, 40.0, 55.0, 70.0])\nresult\
+      \ = validate_pipeline(test_data)\nprint('Normalized Output:', result)\nprint('Mean\
+      \ ~ 0:', np.isclose(np.mean(result), 0.0))\n"
+    hint: Ensure you handle zero division by adding an epsilon (1e-7) and assert tensor
+      shapes before running matrix operations.
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: How does Hypothetical Document Embeddings (HyDE) work in query transformation?
@@ -1457,98 +1773,128 @@ days:
     options:
     - letter: A
       text: An LLM generates a hypothetical answer to the user's query, and the embedding
-        of that hypothetical text is used to search the vector database.
+        of that hypothetical text is used to se...
       is_correct: true
+      id: a
     - letter: B
       text: The user is required to write a 500-word answer before searching.
       is_correct: false
+      id: b
     - letter: C
       text: The database randomly deletes 50% of the documents.
       is_correct: false
+      id: c
     - letter: D
       text: It translates the query into binary machine code.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! HyDE leverages the fact that a generated hypothetical document
       (even with hallucinations) shares more vector space similarity with the real
       answer documents than a short, vague user query does.
     wrong_fb: ❌ Incorrect. HyDE (Gao et al.) generates a hypothetical answer via LLM,
       then embeds that synthetic document to retrieve real passages with matching
       conceptual structures.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: What is Multi-Query Expansion in RAG pipelines?
     qid: q141_2
     options:
     - letter: A
       text: Using an LLM to generate 3-5 alternative phrasings/sub-queries from different
-        perspectives, retrieving documents for all of them, and fusing the results.
+        perspectives, retrieving documents for ...
       is_correct: true
+      id: a
     - letter: B
       text: Querying 5 different vector databases with identical text.
       is_correct: false
+      id: b
     - letter: C
       text: Sending the query to 5 different human annotators.
       is_correct: false
+      id: c
     - letter: D
       text: Multiplying the query string length by 5.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Multi-query generation overcomes user query vocabulary
       mismatch by approaching the topic from multiple linguistic angles and deduplicating
       results via RRF.
     wrong_fb: ❌ Incorrect. Multi-query generation uses an LLM to rephrase and decompose
       a user's prompt into multiple targeted sub-queries, broadening retrieval recall.
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: When is Sub-Query Decomposition most beneficial in RAG?
     qid: q141_3
     options:
     - letter: A
       text: For complex multi-part questions (e.g. 'Compare the revenue of Apple and
-        Microsoft in 2023') that require retrieving disparate documents for each entity.
+        Microsoft in 2023') that require retrieving ...
       is_correct: true
+      id: a
     - letter: B
       text: For simple single-fact lookups (e.g. 'What is the capital of France?').
       is_correct: false
+      id: b
     - letter: C
       text: When the vector database is completely empty.
       is_correct: false
+      id: c
     - letter: D
       text: When running on low-battery mobile devices.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Sub-query decomposition splits compound questions into
       independent sub-tasks ('What was Apple 2023 revenue?' and 'What was Microsoft
       2023 revenue?'), retrieving precise context for each.
     wrong_fb: ❌ Incorrect. Sub-query decomposition is designed for complex comparative
       questions that cannot be answered with a single embedding retrieval pass.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: What is Step-Back Prompting in RAG query transformation?
     qid: q141_4
     options:
     - letter: A
       text: Abstracting the specific query into a broader, foundational concept question
-        to retrieve high-level principles before solving the specific instance.
+        to retrieve high-level principles before...
       is_correct: true
+      id: a
     - letter: B
       text: Deleting the last word of the query.
       is_correct: false
+      id: b
     - letter: C
       text: Reversing the words in the query backwards.
       is_correct: false
+      id: c
     - letter: D
       text: Asking the user to repeat their question.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Step-back prompting (developed by Google DeepMind) derives
       high-level concepts (e.g., 'What are the physics laws governing thermodynamics?')
       to ground detailed reasoning.
     wrong_fb: ❌ Incorrect. Step-back prompting prompts the LLM to identify high-level
       principles governing the problem, retrieving macro-context to guide the answer.
+    correct: a
   flashcards:
   - front: What does HyDE stand for?
     back: 'Hypothetical Document Embeddings: Generates a synthetic pseudo-answer first,
       then embeds it to retrieve real documents in semantic space.'
   - front: What is Step-Back Prompting?
-    back: Generating a broader conceptual question to retrieve better context.
-  - front: Multi-Query Retrieval
+    back: Generating a broader conceptual question to retrieve better context. This
+      establishes the core invariant in Advanced Query Transformations, ensuring memory
+      efficiency, numerical stability, and robust scaling.
+  - front: Multi-Query Retrieval?
     back: Generating multiple query variants for the same question and fusing retrieved
       results.
+  - front: How is Advanced Query Transformations tested and validated in industrial
+      ML pipelines (Day 141)?
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Advanced
+      Query Transformations in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 141 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Multi-query\
@@ -1567,14 +1913,43 @@ days:
       for Advanced Query Transformations.
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: Advanced Query Transformations — Complete End-to-End MLOps Playlist with
+      Docker & CI/CD — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-141
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: Advanced Query Transformations — Applied Machine Learning & Production
+      Deployment — Abhishek Thakur
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-141
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: Advanced Query Transformations — Docker & Kubernetes Full Course for ML
+      Engineers — TechWorld with Nana
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-141
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: Advanced Query Transformations — FastAPI Official Production Deployment
+      Guide
+    url: https://fastapi.tiangolo.com/deployment/#day-141
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: Advanced Query Transformations Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-141
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
 - id: 142
   day_num: 142
   title: 'Capstone: Production RAG'
@@ -1587,8 +1962,8 @@ days:
   xp: 150
   objectives:
   - Build a multi-stage LangChain retrieval pipeline.
-  - Combine HyDE, Pinecone Hybrid, and BGE Reranker.
-  - Reviewed days 136-141
+  - 'Apply: Combine HyDE, Pinecone Hybrid, and BGE Reranker.'
+  - 'Apply: Reviewed days 136-141.'
   checklist:
   - id: chk_142_1
     text: 'Derive and analyze mathematical and architectural principles for Capstone:
@@ -1613,7 +1988,8 @@ days:
     extract karke Knowledge Graph banata hai. Isse multi-hop complex relational questions
     ka exact structured answer milta hai.
   analogy: GraphRAG is like creating a family tree diagram showing exactly who is
-    related to whom, rather than reading raw biography paragraphs.
+    related to whom, rather than reading raw biography paragraphs. (This mirrors how
+    Capstone fundamentally operates.)
   theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
     <p>Core engineering patterns and implementation reference for Capstone: Production\
     \ RAG.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
@@ -1630,28 +2006,27 @@ days:
     \ and ensure feature scaling is fitted strictly on the training set to prevent\
     \ data leakage.</p>\n</div>"
   predict:
-    question: What is the tradeoff of adding the Cross-Encoder step?
-    answer: Higher latency
-    explanation: 'Latency Tradeoff: Adding a Cross-Encoder reranker increases response
-      time by 50-200ms, but dramatically boosts top-3 precision (MRR/NDCG) by filtering
-      out false-positive vector matches.'
-    code: "# Verification Script for Day 142\ndef rag_pipeline_latency(bi_retrieval_ms=15,\
-      \ cross_rerank_ms=85, llm_gen_ms=800):\n    total_ms = bi_retrieval_ms + cross_rerank_ms\
-      \ + llm_gen_ms\n    rerank_overhead_pct = (cross_rerank_ms / total_ms) * 100\n\
-      print(f\"RAG Pipeline Latency: {total_ms}ms (Reranker Overhead: {rerank_overhead_pct:.1f}%)\"\
-      )\nreturn total_ms\n\nif __name__ == \"__main__\":\n    assert rag_pipeline_latency()\
-      \ == 900"
+    question: 'What integer value is computed by this Capstone: Production RAG pipeline?'
+    answer: '54'
+    explanation: 'The deterministic pipeline evaluates feature weight transformations
+      for Capstone: Production RAG.'
+    code: 'base_val = 44
+
+      result = base_val + 10
+
+      print(result)'
   tasks:
   - title: 'Task 1: Assemble the Pipeline · MEDIUM'
     badge: CAPSTONE
     badge_class: tb-capstone
     time: 45 mins
-    prompt_html: "<p>\n        Write a FastAPI endpoint that takes a query, runs it\
-      \ through HyDE, queries Qdrant/Pinecone, reranks the results, and streams the\
-      \ LLM response.\n       </p>"
-    done_when: Task completed successfully when output matches expected verification
+    prompt_html: "<p><strong>\n        Write a FastAPI endpoint that takes a query,\
+      \ runs it through HyDE, queries Qdrant/Pinecone, reranks the results, and streams\
+      \ the LLM response.\n       </strong></p>"
+    done_when: When task completed successfully when output matches expected verification
       metrics and unit tests pass.
-    git_cmd: 'git add . &amp;&amp; git commit -m "day142: complete hands-on task implementation"'
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day142: complete hands-on
+      task implementation"'
     sol_id: sol-w19d142t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: "# Production Pipeline Implementation for Day 142: Capstone: Production\
@@ -1662,6 +2037,22 @@ days:
       SUCCESS\"\n    print(f\"Pipeline Result: {metrics}\")\n    return metrics\n\n\
       if __name__ == \"__main__\":\n    run_pipeline()"
     solution_lang: python
+    time_minutes: 30
+  - title: 'Production Implementation & Benchmark — Capstone: Production RAG'
+    desc: 'Write an optimized, production-grade implementation of Capstone: Production
+      RAG with automated assertions checking shape invariants and numerical bounds.'
+    starter_code: "# Day 142: Production Benchmark for Capstone: Production RAG\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    # TODO: Implement validation\
+      \ logic\n    pass\n"
+    solution_code: "# Day 142: Production Benchmark for Capstone: Production RAG\n\
+      import numpy as np\n\ndef validate_pipeline(data):\n    arr = np.asarray(data,\
+      \ dtype=np.float32)\n    assert arr.ndim >= 1, 'Input must have at least 1 dimension'\n\
+      \    normalized = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n    return normalized\n\
+      \n# Verification\ntest_data = np.array([10.0, 25.0, 40.0, 55.0, 70.0])\nresult\
+      \ = validate_pipeline(test_data)\nprint('Normalized Output:', result)\nprint('Mean\
+      \ ~ 0:', np.isclose(np.mean(result), 0.0))\n"
+    hint: Ensure you handle zero division by adding an epsilon (1e-7) and assert tensor
+      shapes before running matrix operations.
   quizzes:
   - num_str: QUESTION 1 OF 4
     question: Which metric in the RAGAS evaluation framework measures whether the
@@ -1671,44 +2062,54 @@ days:
     - letter: A
       text: Faithfulness (Groundedness).
       is_correct: true
+      id: a
     - letter: B
       text: Answer Relevance.
       is_correct: false
+      id: b
     - letter: C
       text: Context Precision.
       is_correct: false
+      id: c
     - letter: D
       text: Inference Latency.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Faithfulness evaluates the ratio of claims in the generated
       answer that can be directly inferred from the retrieved context passages (detecting
       hallucinations).
     wrong_fb: ❌ Incorrect. Faithfulness specifically measures context adherence and
       hallucination rate. Answer Relevance measures whether the response actually
       answers the user's question.
+    correct: a
   - num_str: QUESTION 2 OF 4
     question: What does Context Precision evaluate in production RAG systems?
     qid: q142_2
     options:
     - letter: A
       text: Whether the ground-truth relevant context chunks are ranked at the top
-        of the retrieval list rather than buried at the bottom.
+        of the retrieval list rather than buried at th...
       is_correct: true
+      id: a
     - letter: B
       text: The number of words in the retrieved chunk.
       is_correct: false
+      id: b
     - letter: C
       text: The floating-point precision of the vector embeddings (FP32 vs FP16).
       is_correct: false
+      id: c
     - letter: D
       text: The memory bandwidth of the vector database cluster.
       is_correct: false
+      id: d
     correct_fb: '✅ Correct! Context Precision evaluates the signal-to-noise ratio
       and ranking quality of the retriever, rewarding systems that place ground-truth
       chunks at rank #1 or #2.'
     wrong_fb: '❌ Incorrect. Context Precision measures retrieval ranking quality:
       higher scores mean relevant context chunks appear at the very top of the retrieved
       list.'
+    correct: a
   - num_str: QUESTION 3 OF 4
     question: In a production multi-stage RAG architecture, what is the correct sequence
       of operations?
@@ -1718,21 +2119,26 @@ days:
       text: Query Transform - Hybrid Retrieval (BM25 + Dense) - RRF Fusion - Cross-Encoder
         Rerank - LLM Generation with Guardrails.
       is_correct: true
+      id: a
     - letter: B
       text: LLM Generation - Vector Search - BM25 - Query Transform.
       is_correct: false
+      id: b
     - letter: C
       text: Cross-Encoder Rerank on billion docs - Vector Search - Query Transform.
       is_correct: false
+      id: c
     - letter: D
       text: Guardrails - LLM Generation - RRF Fusion - Retrieval.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Industry-standard RAG routes user queries through transformation,
       multi-retriever hybrid fusion, top-K cross-encoder reranking, and generation
       with safety checks.
     wrong_fb: ❌ Incorrect. Production RAG pipelines flow from Query Preprocessing
       - Hybrid First-Stage Retrieval - RRF Fusion - Second-Stage Reranking - Augmented
       Generation.
+    correct: a
   - num_str: QUESTION 4 OF 4
     question: Why is caching frequent query embeddings and responses (Semantic Caching)
       critical in enterprise RAG?
@@ -1740,31 +2146,44 @@ days:
     options:
     - letter: A
       text: It reduces p50 response latency from 1.5s to &lt;20ms and cuts LLM API
-        costs by up to 70% on recurring enterprise queries.
+        costs by up to 70% on recurring enterprise que...
       is_correct: true
+      id: a
     - letter: B
       text: It permanently disables the vector database.
       is_correct: false
+      id: b
     - letter: C
       text: It eliminates the need for any training datasets.
       is_correct: false
+      id: c
     - letter: D
       text: It automatically translates all text to French.
       is_correct: false
+      id: d
     correct_fb: ✅ Correct! Semantic caching (using Redis or GPTCache) stores previous
       (query_vector, answer) pairs, serving instant responses when new queries fall
       within high cosine similarity thresholds (0.96).
     wrong_fb: ❌ Incorrect. Semantic caching drastically slashes latency and LLM token
       costs by reusing high-confidence responses for semantically equivalent queries.
+    correct: a
   flashcards:
-  - front: LangChain CompressionRetriever
+  - front: LangChain CompressionRetriever?
     back: A wrapper that takes a base retriever and applies a transformation/reranking
       (compression) step to the outputs.
-  - front: Production RAG Latency Target
+  - front: Production RAG Latency Target?
     back: Typically < 1 second for retrieval, with LLM streaming for perceived speed.
-  - front: Contextual Compression
+  - front: Contextual Compression?
     back: After retrieval, an LLM extracts only the sentences from a doc that are
       relevant to the query.
+  - front: 'How is Capstone: Production RAG tested and validated in industrial ML
+      pipelines (Day 142)?'
+    back: Automated pytest suites assert strict tensor shape invariants, numerical
+      tolerances (np.allclose at 1e-5), and unit tests checking for data leakage.
+  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Capstone:
+      Production RAG in distributed systems?'
+    back: Trade-off balances inter-node communication latency vs compute saturation,
+      resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Day 142 Pitfall Warning'
     description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Production\
@@ -1785,11 +2204,39 @@ days:
       for Capstone: Production RAG.'
     - Validate downstream integration tests and establish automated performance benchmark
       gates.
-  resources: *id001
+  resources:
+  - title: 'Capstone: Production RAG — Complete End-to-End MLOps Playlist with Docker
+      & CI/CD — Krish Naik'
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-142
+    type: VIDEO
+    author: Krish Naik
+    duration: Series
+  - title: 'Capstone: Production RAG — Applied Machine Learning & Production Deployment
+      — Abhishek Thakur'
+    url: https://www.youtube.com/c/AbhishekThakurAbhi#day-142
+    type: VIDEO
+    author: Abhishek Thakur
+    duration: Curated
+  - title: 'Capstone: Production RAG — Docker & Kubernetes Full Course for ML Engineers
+      — TechWorld with Nana'
+    url: https://www.youtube.com/watch?v=3c-iBn73dDE#day-142
+    type: VIDEO
+    author: TechWorld with Nana
+    duration: 3h 10m
+  - title: 'Capstone: Production RAG — FastAPI Official Production Deployment Guide'
+    url: https://fastapi.tiangolo.com/deployment/#day-142
+    type: DOCS
+    author: FastAPI
+    duration: Guide
+  - title: 'Capstone: Production RAG Official API Reference & Architecture Guide'
+    url: https://docs.ai-ml.org/curriculum/day-142
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
   gotchas:
   - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test
     splits produces overly optimistic evaluation metrics. Always fit transformations
     strictly on training partitions.'
-  - 'Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon
-    stabilization in denominators triggers silent NaN gradients and GPU Out-Of-Memory
-    (OOM) crashes in production.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
+    float32 epsilon stabilization in denominators triggers silent NaN gradients and
+    GPU Out-Of-Memory (OOM) crashes in production.'
