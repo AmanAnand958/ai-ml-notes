@@ -40,49 +40,98 @@ days:
   analogy: 'PagedAttention is like operating system virtual memory paging: instead of requiring a massive contiguous parking
     lot for a 50-car freight train, it breaks the train into separate cars and parks them in whatever open parking spots are
     available across the city.'
-  theory_html: |-
-    <h3 class="sh3">1. GPU VRAM Memory Anatomy in LLM Serving</h3>
-    <p>
-    Serving large language models in production requires managing three distinct memory components:
-    </p>
-    <ol>
-      <li><strong>Model Weights ($M_{\text{weights}}$):</strong> Fixed footprint ($P \times \text{bytes\_per\_param}$). A 70B parameter model in FP16 requires $70 \times 2\text{GB} = 140\text{GB}$ VRAM.</li>
-      <li><strong>Activation Memory:</strong> Intermediate tensor activations during forward passes.</li>
-      <li><strong>Key-Value (KV) Cache ($M_{\text{KV}}$):</strong> Dynamically grows with batch size and context length. For multi-head attention:
-        <div class="math-block">
-        $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{bytes} \times B \times S$$
-        </div>
-      </li>
-    </ol>
-    <p>
-    In legacy serving engines (e.g. Hugging Face TGI 1.0), KV cache tensors were pre-allocated contiguously for the maximum sequence length (e.g. $S = 4096$). This led to massive <strong>internal memory fragmentation</strong> ($60\text{--}80\%$ of GPU VRAM wasted on unused reserved slots) and limited concurrency.
-    </p>
-
-    <h3 class="sh3">2. PagedAttention Architecture: Virtual Memory for KV Cache</h3>
-    <p>
-    Developed by Kwon et al. (UC Berkeley / vLLM), <strong>PagedAttention</strong> draws inspiration from operating system virtual memory paging:
-    </p>
-    <div class="mermaid">
-    graph TD
-        LogicalTokens["Logical Sequence Tokens (0 to 63)"] --> PageTable["Block Table / Page Directory\nMaps Logical Blocks -> Physical Blocks"]
-        PageTable --> Block0["Physical Block 7 (SRAM/HBM: Tokens 0-15)"]
-        PageTable --> Block1["Physical Block 23 (Non-contiguous: Tokens 16-31)"]
-        PageTable --> Block2["Physical Block 12 (Non-contiguous: Tokens 32-47)"]
-        PageTable --> Block3["Physical Block 89 (Non-contiguous: Tokens 48-63)"]
-    </div>
-    <div class="diagram-cap">Figure 150.1: PagedAttention virtual block tables allocating non-contiguous physical GPU VRAM pages.</div>
-    <p>
-    By partitioning the KV cache into fixed-size physical blocks (e.g. 16 or 32 tokens per block), vLLM achieves:
-    </p>
-    <ul>
-      <li><strong>Near-Zero Memory Waste:</strong> Reduces VRAM fragmentation to &lt;4%, allowing <strong>2x - 4x larger concurrent batch sizes</strong>.</li>
-      <li><strong>Copy-on-Write Memory Sharing:</strong> Enables parallel speculative decoding and tree search without duplicating prompt KV cache in memory.</li>
-    </ul>
-
-    <h3 class="sh3">3. Continuous Batching (Iteration-Level Scheduling)</h3>
-    <p>
-    Traditional batching groups requests together until the entire batch finishes generating. Because sequence lengths vary widely, short requests are forced to wait for long requests to complete (the <em>tail latency problem</em>). <strong>Continuous Batching (Orca / vLLM)</strong> dynamically evicts completed sequences and schedules newly arriving requests at each token iteration step, boosting serving throughput by <strong>5x - 10x</strong>.
-    </p>
+  theory_html: "<h3 class=\"sh3\">1. GPU VRAM Memory Anatomy in Production LLM Serving</h3>\n<p>\nServing large language models\
+    \ in production requires managing three distinct memory components in GPU High-Bandwidth Memory (HBM):\n</p>\n<ol>\n \
+    \ <li><strong>Model Weights ($M_{\text{weights}}$):</strong> Fixed static memory ($P \times \text{BytesPerParam}$). For\
+    \ example, Llama-3-70B in 16-bit precision requires $70 \times 2 = 140\text{GB}$ VRAM across GPUs.</li>\n  <li><strong>Activation\
+    \ Tensors:</strong> Ephemeral intermediate tensor activations during forward passes ($O(B \times S \times d)$).</li>\n\
+    \  <li><strong>Key-Value (KV) Cache ($M_{\text{KV}}$):</strong> Dynamically grows linearly with concurrent batch size\
+    \ ($B$) and generation sequence length ($S$). For standard multi-head attention:\n    <div class=\"math-block\">\n   \
+    \ $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{BytesPerElem}\
+    \ \times B \times S$$\n    </div>\n  </li>\n</ol>\n<p>\nIn legacy serving frameworks (e.g. Hugging Face TGI 1.0), KV cache\
+    \ memory was pre-allocated contiguously for the maximum possible context length (e.g. $S = 4096$). Because actual user\
+    \ requests vary widely (most queries are &lt;500 tokens), <strong>60% to 80% of GPU VRAM was permanently wasted</strong>\
+    \ on unused pre-allocated slots, causing severe memory fragmentation and limiting concurrent throughput.\n</p>\n\n<div\
+    \ style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"PagedAttention Virtual Block Table Mapping\" height=\"\
+    260\" viewBox=\"0 0 720 260\" width=\"720\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width: 100%; height: auto;\
+    \ font-family: var(--font-mono, monospace);\">\n  <defs>\n    <linearGradient id=\"paged-bg-21\" x1=\"0%\" y1=\"0%\" x2=\"\
+    100%\" y2=\"100%\">\n      <stop offset=\"0%\" stop-color=\"#09090b\"/>\n      <stop offset=\"100%\" stop-color=\"#18181b\"\
+    />\n    </linearGradient>\n  </defs>\n\n  <rect x=\"10\" y=\"10\" width=\"700\" height=\"240\" rx=\"10\" fill=\"url(#paged-bg-21)\"\
+    \ stroke=\"#27272a\" stroke-width=\"2\"/>\n  <text x=\"25\" y=\"35\" fill=\"#22c55e\" font-size=\"13\" font-weight=\"\
+    bold\">PagedAttention: Virtual Memory Block Mapping (Zero Fragmentation)</text>\n\n  <!-- Logical Sequence Blocks -->\n\
+    \  <rect x=\"30\" y=\"60\" width=\"180\" height=\"170\" rx=\"8\" fill=\"#18181b\" stroke=\"#3f3f46\"/>\n  <text x=\"45\"\
+    \ y=\"85\" fill=\"#a1a1aa\" font-size=\"11\" font-weight=\"bold\">Logical Sequence</text>\n  \n  <rect x=\"40\" y=\"95\"\
+    \ width=\"160\" height=\"35\" rx=\"4\" fill=\"#27272a\" stroke=\"#60a5fa\"/>\n  <text x=\"50\" y=\"117\" fill=\"#60a5fa\"\
+    \ font-size=\"10.5\">Block 0 (Tokens 0-15)</text>\n\n  <rect x=\"40\" y=\"135\" width=\"160\" height=\"35\" rx=\"4\" fill=\"\
+    #27272a\" stroke=\"#f472b6\"/>\n  <text x=\"50\" y=\"157\" fill=\"#f472b6\" font-size=\"10.5\">Block 1 (Tokens 16-31)</text>\n\
+    \n  <rect x=\"40\" y=\"175\" width=\"160\" height=\"35\" rx=\"4\" fill=\"#27272a\" stroke=\"#facc15\"/>\n  <text x=\"\
+    50\" y=\"197\" fill=\"#facc15\" font-size=\"10.5\">Block 2 (Tokens 32-47)</text>\n\n  <!-- Page Table (Mapping Directory)\
+    \ -->\n  <rect x=\"250\" y=\"60\" width=\"180\" height=\"170\" rx=\"8\" fill=\"#18181b\" stroke=\"#22c55e\" stroke-width=\"\
+    1.5\"/>\n  <text x=\"270\" y=\"85\" fill=\"#4ade80\" font-size=\"11\" font-weight=\"bold\">Block Table (Directory)</text>\n\
+    \  <text x=\"265\" y=\"115\" fill=\"#f8fafc\" font-size=\"10.5\">Logical 0 → Physical 7</text>\n  <text x=\"265\" y=\"\
+    155\" fill=\"#f8fafc\" font-size=\"10.5\">Logical 1 → Physical 23</text>\n  <text x=\"265\" y=\"195\" fill=\"#f8fafc\"\
+    \ font-size=\"10.5\">Logical 2 → Physical 12</text>\n\n  <!-- Arrows from logical to table -->\n  <path d=\"M 200 112\
+    \ L 250 112\" stroke=\"#60a5fa\" stroke-width=\"2\"/>\n  <path d=\"M 200 152 L 250 152\" stroke=\"#f472b6\" stroke-width=\"\
+    2\"/>\n  <path d=\"M 200 192 L 250 192\" stroke=\"#facc15\" stroke-width=\"2\"/>\n\n  <!-- Physical Non-Contiguous GPU\
+    \ Memory -->\n  <rect x=\"470\" y=\"60\" width=\"220\" height=\"170\" rx=\"8\" fill=\"#18181b\" stroke=\"#3f3f46\"/>\n\
+    \  <text x=\"490\" y=\"85\" fill=\"#a1a1aa\" font-size=\"11\" font-weight=\"bold\">Physical GPU VRAM Pages</text>\n\n\
+    \  <rect x=\"480\" y=\"95\" width=\"200\" height=\"30\" rx=\"4\" fill=\"#1e293b\" stroke=\"#60a5fa\"/>\n  <text x=\"490\"\
+    \ y=\"115\" fill=\"#60a5fa\" font-size=\"10\">Phys Block 7: Tokens 0-15</text>\n\n  <rect x=\"480\" y=\"130\" width=\"\
+    200\" height=\"30\" rx=\"4\" fill=\"#1e293b\" stroke=\"#3f3f46\"/>\n  <text x=\"490\" y=\"150\" fill=\"#71717a\" font-size=\"\
+    9.5\">Phys Block 8..22: Other Requests</text>\n\n  <rect x=\"480\" y=\"165\" width=\"200\" height=\"30\" rx=\"4\" fill=\"\
+    #1e293b\" stroke=\"#f472b6\"/>\n  <text x=\"490\" y=\"185\" fill=\"#f472b6\" font-size=\"10\">Phys Block 23: Tokens 16-31</text>\n\
+    </svg>\n<div class=\"diagram-cap\">Figure 150.1: PagedAttention Virtual Memory Block Mapping: Physical non-contiguous\
+    \ memory allocation eliminating GPU KV cache fragmentation.</div>\n</div>\n\n<h3 class=\"sh3\">2. PagedAttention Mathematical\
+    \ Architecture</h3>\n<p>\nDeveloped by Kwon et al. (UC Berkeley / vLLM), <strong>PagedAttention</strong> partitions the\
+    \ KV cache of each sequence into fixed-size physical blocks (e.g. 16 or 32 tokens per block). The attention computation\
+    \ over partitioned non-contiguous memory pages is evaluated as:\n</p>\n<div class=\"math-block\">\n$$\\mathbf{A}_i = \f\
+    rac{\\mathbf{q}_i \\mathbf{K}_j^T}{\\sqrt{d_k}} = \frac{1}{\\sqrt{d_k}} \\sum_{t=1}^{N} \\mathbf{q}_i \\mathbf{k}_t^T$$\n\
+    $$\\mathbf{o}_i = \\sum_{j=1}^{\\lceil N / B \rceil} \\sum_{t \\in \text{Block}_j} \text{Softmax}(\\mathbf{A}_{i, t})\
+    \ \\mathbf{v}_t$$\n</div>\n<p>\nBecause blocks are allocated dynamically on demand, memory waste is bounded to at most\
+    \ one partial block per sequence (&lt;4% total VRAM waste), increasing concurrent serving capacity by <strong>2x to 4x</strong>\
+    \ on identical GPU hardware.\n</p>\n\n<h3 class=\"sh3\">3. Production Python Implementation: Block Table Memory Manager</h3>\n\
+    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"\
+    copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code><span class=\"kw\">from</span> typing <span\
+    \ class=\"kw\">import</span> List, Dict, Optional\n<span class=\"kw\">import</span> math\n\n<span class=\"kw\">class</span>\
+    \ <span class=\"fn\">BlockMemoryManager</span>:\n    <span class=\"str\">\"\"\"\n    Simulates vLLM PagedAttention Block\
+    \ Allocator and Virtual Page Directory.\n    \"\"\"</span>\n    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(self,\
+    \ total_gpu_blocks: int = <span class=\"num\">1024</span>, block_size: int = <span class=\"num\">16</span>):\n       \
+    \ self.total_blocks = total_gpu_blocks\n        self.block_size = block_size\n        self.free_blocks: List[int] = list(range(total_gpu_blocks))\n\
+    \        self.block_tables: Dict[str, List[int]] = {}\n\n    <span class=\"kw\">def</span> <span class=\"fn\">allocate_sequence</span>(self,\
+    \ seq_id: str, prompt_len: int) -> List[int]:\n        num_blocks_needed = math.ceil(prompt_len / self.block_size)\n \
+    \       <span class=\"kw\">if</span> len(self.free_blocks) < num_blocks_needed:\n            <span class=\"kw\">raise</span>\
+    \ MemoryError(<span class=\"str\">\"Out of GPU Memory: Cannot allocate KV blocks.\"</span>)\n        \n        allocated\
+    \ = [self.free_blocks.pop(<span class=\"num\">0</span>) <span class=\"kw\">for</span> _ <span class=\"kw\">in</span> range(num_blocks_needed)]\n\
+    \        self.block_tables[seq_id] = allocated\n        <span class=\"kw\">return</span> allocated\n\n    <span class=\"\
+    kw\">def</span> <span class=\"fn\">append_token</span>(self, seq_id: str, current_len: int) -> Optional[int]:\n      \
+    \  <span class=\"cm\"># If token spills over into a new block, allocate dynamic page</span>\n        <span class=\"kw\"\
+    >if</span> current_len % self.block_size == <span class=\"num\">0</span>:\n            <span class=\"kw\">if</span> <span\
+    \ class=\"kw\">not</span> self.free_blocks:\n                <span class=\"kw\">raise</span> MemoryError(<span class=\"\
+    str\">\"GPU VRAM exhausted during token generation.\"</span>)\n            new_block = self.free_blocks.pop(<span class=\"\
+    num\">0</span>)\n            self.block_tables[seq_id].append(new_block)\n            <span class=\"kw\">return</span>\
+    \ new_block\n        <span class=\"kw\">return</span> <span class=\"kw\">None</span>\n\n    <span class=\"kw\">def</span>\
+    \ <span class=\"fn\">free_sequence</span>(self, seq_id: str):\n        <span class=\"kw\">if</span> seq_id <span class=\"\
+    kw\">in</span> self.block_tables:\n            blocks = self.block_tables.pop(seq_id)\n            self.free_blocks.extend(blocks)</code></pre>\n\
+    </div>\n\n<h3 class=\"sh3\">4. Continuous Batching (Iteration-Level Scheduling)</h3>\n<p>\nTraditional static batching\
+    \ groups $B$ requests together until all sequences finish generating. Because text lengths vary widely, short requests\
+    \ are trapped waiting for the longest request in the batch to complete (the <em>head-of-line blocking problem</em>).\n\
+    </p>\n<p>\n<strong>Continuous Batching (Orca / vLLM)</strong> schedules requests at the iteration level: at every forward\
+    \ pass step, finished requests are evicted immediately, free blocks are recycled, and newly arrived queries from the queue\
+    \ are admitted without waiting for the batch boundary.\n</p>\n\n<h3 class=\"sh3\">5. Serving Benchmark Comparison: Throughput\
+    \ vs Latency</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n\
+    \    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\">\n      <th style=\"padding:8px;\">Serving\
+    \ Engine</th>\n      <th style=\"padding:8px;\">Throughput (Tokens/s)</th>\n      <th style=\"padding:8px;\">Memory Fragmentation</th>\n\
+    \      <th style=\"padding:8px;\">Copy-on-Write Sharing</th>\n      <th style=\"padding:8px;\">p95 TTFT</th>\n    </tr>\n\
+    \  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Hugging\
+    \ Face TGI 1.0</strong></td>\n      <td style=\"padding:8px;\">180 tok/s</td>\n      <td style=\"padding:8px;\">68%</td>\n\
+    \      <td style=\"padding:8px;\">No</td>\n      <td style=\"padding:8px;\">140ms</td>\n    </tr>\n    <tr style=\"border-bottom:1px\
+    \ solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>vLLM (PagedAttention)</strong></td>\n      <td style=\"\
+    padding:8px;\"><strong>720 tok/s (4x)</strong></td>\n      <td style=\"padding:8px;\"><strong>&lt;4%</strong></td>\n \
+    \     <td style=\"padding:8px;\"><strong>Yes (Fork/Beam Search)</strong></td>\n      <td style=\"padding:8px;\"><strong>38ms</strong></td>\n\
+    \    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>TensorRT-LLM\
+    \ (NVIDIA)</strong></td>\n      <td style=\"padding:8px;\"><strong>810 tok/s</strong></td>\n      <td style=\"padding:8px;\"\
+    >&lt;5%</td>\n      <td style=\"padding:8px;\">Yes</td>\n      <td style=\"padding:8px;\">32ms</td>\n    </tr>\n  </tbody>\n\
+    </table>"
   predict:
     question: What integer gigabytes of VRAM are required for the KV cache of a batch size 16 request on LLaMA-3-8B (32 layers,
       32 heads, dim 128, seq_len 4096, FP16)?
@@ -1169,50 +1218,67 @@ days:
     99.9% kam ho jate hain.
   analogy: LoRA is like modifying a 1,000-page legal dictionary by attaching a 2-page addendum booklet inside the back cover,
     instead of reprinting and binding the entire 1,000-page book from scratch.
-  theory_html: "\n<div style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"LoRA Low-Rank Decomposition Architecture\"\
-    \ height=\"250\" viewBox=\"0 0 680 250\" width=\"680\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width: 100%; height:\
-    \ auto; font-family: var(--font-mono, monospace);\">\n  <rect x=\"10\" y=\"10\" width=\"660\" height=\"230\" rx=\"10\"\
-    \ fill=\"#0f172a\" stroke=\"#334155\" stroke-width=\"2\"/>\n  <text x=\"25\" y=\"35\" fill=\"#38bdf8\" font-size=\"13\"\
-    \ font-weight=\"bold\">LoRA: Low-Rank Adapter Decomposition (W = W_0 + (α/r)·B·A)</text>\n\n  <!-- Input Vector x -->\n\
-    \  <rect x=\"30\" y=\"90\" width=\"70\" height=\"55\" rx=\"6\" fill=\"#1e293b\" stroke=\"#94a3b8\"/>\n  <text x=\"45\"\
-    \ y=\"122\" fill=\"#f8fafc\" font-size=\"12\" font-weight=\"bold\">x ∈ R^d</text>\n\n  <!-- Branch to Frozen Base Weights\
-    \ W_0 -->\n  <path d=\"M 100 117 L 160 80\" stroke=\"#94a3b8\" stroke-width=\"2\"/>\n  <rect x=\"160\" y=\"50\" width=\"\
-    220\" height=\"60\" rx=\"6\" fill=\"#1e293b\" stroke=\"#64748b\" stroke-width=\"2\"/>\n  <text x=\"175\" y=\"75\" fill=\"\
-    #94a3b8\" font-size=\"11\" font-weight=\"bold\">Frozen Base Weights W_0</text>\n  <text x=\"195\" y=\"95\" fill=\"#ef4444\"\
-    \ font-size=\"10\">d × k (Zero Gradient Updates)</text>\n\n  <!-- Branch to LoRA Adapter A -->\n  <path d=\"M 100 117\
-    \ L 160 160\" stroke=\"#38bdf8\" stroke-width=\"2\"/>\n  <rect x=\"160\" y=\"140\" width=\"130\" height=\"45\" rx=\"6\"\
-    \ fill=\"#0284c7\" stroke=\"#38bdf8\"/>\n  <text x=\"175\" y=\"162\" fill=\"#ffffff\" font-size=\"10.5\" font-weight=\"\
-    bold\">LoRA Matrix A</text>\n  <text x=\"185\" y=\"177\" fill=\"#e0f2fe\" font-size=\"9\">r × k (Gaussian Init)</text>\n\
-    \n  <!-- Intermediate Bottleneck -->\n  <path d=\"M 290 162 L 320 162\" stroke=\"#38bdf8\" stroke-width=\"2\"/>\n  <circle\
-    \ cx=\"330\" cy=\"162\" r=\"8\" fill=\"#38bdf8\"/>\n  <text x=\"323\" y=\"190\" fill=\"#7dd3fc\" font-size=\"9\">rank\
-    \ r=16</text>\n\n  <!-- LoRA Adapter B -->\n  <path d=\"M 340 162 L 370 162\" stroke=\"#38bdf8\" stroke-width=\"2\"/>\n\
-    \  <rect x=\"370\" y=\"140\" width=\"130\" height=\"45\" rx=\"6\" fill=\"#0284c7\" stroke=\"#38bdf8\"/>\n  <text x=\"\
-    175+210\" y=\"162\" fill=\"#ffffff\" font-size=\"10.5\" font-weight=\"bold\">LoRA Matrix B</text>\n  <text x=\"185+210\"\
-    \ y=\"177\" fill=\"#e0f2fe\" font-size=\"9\">d × r (Zero Init)</text>\n\n  <!-- Summation Point (+) -->\n  <path d=\"\
-    M 380 80 L 540 110\" stroke=\"#64748b\" stroke-width=\"2\"/>\n  <path d=\"M 500 162 L 540 125\" stroke=\"#38bdf8\" stroke-width=\"\
-    2\"/>\n  \n  <circle cx=\"550\" cy=\"117\" r=\"14\" fill=\"#22c55e\"/>\n  <text x=\"544\" y=\"122\" fill=\"#ffffff\" font-size=\"\
-    16\" font-weight=\"bold\">+</text>\n\n  <!-- Output Vector h -->\n  <path d=\"M 564 117 L 610 117\" stroke=\"#22c55e\"\
-    \ stroke-width=\"2\"/>\n  <rect x=\"610\" y=\"90\" width=\"50\" height=\"55\" rx=\"6\" fill=\"#1e293b\" stroke=\"#22c55e\"\
-    />\n  <text x=\"625\" y=\"122\" fill=\"#22c55e\" font-size=\"13\" font-weight=\"bold\">h</text>\n</svg>\n<div class=\"\
-    diagram-cap\">Figure 153.2: LoRA Parameter Decomposition: Freezing massive base weights and training low-rank bottleneck\
-    \ projections.</div>\n</div>\n\n<h3 class=\"sh3\">1. Parameter-Efficient Fine-Tuning (PEFT) & Low-Rank Adaptation (LoRA)</h3>\n\
-    <p>\nFull parameter fine-tuning of frontier language models (e.g. Llama-3-70B) requires updating and storing optimizer\
-    \ states (Adam: 8 bytes per parameter) and gradients (4 bytes per parameter) for all 70 billion parameters, requiring\
-    \ &gt;800GB VRAM across multi-GPU nodes.\n</p>\n<p>\n<strong>LoRA (Low-Rank Adaptation)</strong> freezes the pre-trained\
-    \ weight matrix $\\mathbf{W}_0 \\in \\mathbb{R}^{d \\times k}$ and decomposes the parameter update $\\Delta \\mathbf{W}$\
-    \ into two low-rank matrices:\n</p>\n<div class=\"math-block\">\n$$\\mathbf{W} = \\mathbf{W}_0 + \\Delta \\mathbf{W} =\
-    \ \\mathbf{W}_0 + \\frac{\\alpha}{r} (\\mathbf{B} \\cdot \\mathbf{A})$$\n</div>\n<p>\nWhere:\n</p>\n<ul>\n  <li>$\\mathbf{A}\
-    \ \\in \\mathbb{R}^{r \\times k}$ is initialized from a Gaussian distribution $\\mathcal{N}(0, \\sigma^2)$.</li>\n  <li>$\\\
-    mathbf{B} \\in \\mathbb{R}^{d \\times r}$ is initialized to zero, ensuring $\\Delta \\mathbf{W} = 0$ at the start of training.</li>\n\
-    \  <li>$r \\ll \\min(d, k)$ is the adapter rank (typically $r \\in \\{8, 16, 32, 64\\}$), reducing trainable parameters\
-    \ by <strong>&gt;99.9%</strong>.</li>\n  <li>$\\alpha$ is a scaling factor (standard convention $\\alpha = 2r$).</li>\n\
-    </ul>\n\n<h3 class=\"sh3\">2. QLoRA: 4-Bit NormalFloat (NF4) Quantization</h3>\n<p>\n<strong>QLoRA</strong> (Dettmers\
-    \ et al.) enables fine-tuning 70B parameter models on a single 48GB GPU by combining three innovations:\n</p>\n<ol>\n\
-    \  <li><strong>NF4 (NormalFloat4) Quantization:</strong> Information-theoretically optimal quantile quantization for normally\
-    \ distributed base weights.</li>\n  <li><strong>Double Quantization (DQ):</strong> Quantizes the quantization constants\
-    \ themselves, saving an additional 0.37 bits per parameter.</li>\n  <li><strong>Paged Optimizers:</strong> Uses CUDA Unified\
-    \ Memory to automatically page optimizer states to CPU RAM during activation memory spikes, preventing out-of-memory crashes.</li>\n\
-    </ol>"
+  theory_html: "<h3 class=\"sh3\">1. The Computational Cost of Full Fine-Tuning</h3>\n<p>\nFull fine-tuning of a 70-billion\
+    \ parameter foundation model requires updating all parameters $\\mathbf{W} \\in \\mathbb{R}^{d \times k}$. In standard\
+    \ AdamW optimization:\n</p>\n<ul>\n  <li><strong>Model Weights (FP16):</strong> $70\text{B} \times 2\text{B} = 140\text{GB}$.</li>\n\
+    \  <li><strong>Gradients (FP16):</strong> $70\text{B} \times 2\text{B} = 140\text{GB}$.</li>\n  <li><strong>Optimizer\
+    \ States (FP32 First & Second Moments):</strong> $70\text{B} \times 8\text{B} = 560\text{GB}$.</li>\n  <li><strong>Total\
+    \ Minimum VRAM:</strong> $\\mathbf{840\text{GB}}$ across at least 11x NVIDIA A100 (80GB) GPUs.</li>\n</ul>\n\n<div style=\"\
+    margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"LoRA Low-Rank Decomposition Architecture\" height=\"250\"\
+    \ viewBox=\"0 0 680 250\" width=\"680\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width: 100%; height: auto; font-family:\
+    \ var(--font-mono, monospace);\">\n  <rect x=\"10\" y=\"10\" width=\"660\" height=\"230\" rx=\"10\" fill=\"#0f172a\" stroke=\"\
+    #334155\" stroke-width=\"2\"/>\n  <text x=\"25\" y=\"35\" fill=\"#38bdf8\" font-size=\"13\" font-weight=\"bold\">LoRA:\
+    \ Low-Rank Adapter Decomposition (W = W_0 + (α/r)·B·A)</text>\n\n  <rect x=\"30\" y=\"90\" width=\"70\" height=\"55\"\
+    \ rx=\"6\" fill=\"#1e293b\" stroke=\"#94a3b8\"/>\n  <text x=\"45\" y=\"122\" fill=\"#f8fafc\" font-size=\"12\" font-weight=\"\
+    bold\">x ∈ R^d</text>\n\n  <path d=\"M 100 117 L 160 80\" stroke=\"#94a3b8\" stroke-width=\"2\"/>\n  <rect x=\"160\" y=\"\
+    50\" width=\"220\" height=\"60\" rx=\"6\" fill=\"#1e293b\" stroke=\"#64748b\" stroke-width=\"2\"/>\n  <text x=\"175\"\
+    \ y=\"75\" fill=\"#94a3b8\" font-size=\"11\" font-weight=\"bold\">Frozen Base Weights W_0</text>\n  <text x=\"195\" y=\"\
+    95\" fill=\"#ef4444\" font-size=\"10\">d × k (Zero Gradient Updates)</text>\n\n  <path d=\"M 100 117 L 160 160\" stroke=\"\
+    #38bdf8\" stroke-width=\"2\"/>\n  <rect x=\"160\" y=\"140\" width=\"130\" height=\"45\" rx=\"6\" fill=\"#0284c7\" stroke=\"\
+    #38bdf8\"/>\n  <text x=\"175\" y=\"162\" fill=\"#ffffff\" font-size=\"10.5\" font-weight=\"bold\">LoRA Matrix A</text>\n\
+    \  <text x=\"185\" y=\"177\" fill=\"#e0f2fe\" font-size=\"9\">r × k (Gaussian Init)</text>\n\n  <path d=\"M 290 162 L\
+    \ 320 162\" stroke=\"#38bdf8\" stroke-width=\"2\"/>\n  <circle cx=\"330\" cy=\"162\" r=\"8\" fill=\"#38bdf8\"/>\n  <text\
+    \ x=\"323\" y=\"190\" fill=\"#7dd3fc\" font-size=\"9\">rank r=16</text>\n\n  <path d=\"M 340 162 L 370 162\" stroke=\"\
+    #38bdf8\" stroke-width=\"2\"/>\n  <rect x=\"370\" y=\"140\" width=\"130\" height=\"45\" rx=\"6\" fill=\"#0284c7\" stroke=\"\
+    #38bdf8\"/>\n  <text x=\"385\" y=\"162\" fill=\"#ffffff\" font-size=\"10.5\" font-weight=\"bold\">LoRA Matrix B</text>\n\
+    \  <text x=\"395\" y=\"177\" fill=\"#e0f2fe\" font-size=\"9\">d × r (Zero Init)</text>\n\n  <path d=\"M 380 80 L 540 110\"\
+    \ stroke=\"#64748b\" stroke-width=\"2\"/>\n  <path d=\"M 500 162 L 540 125\" stroke=\"#38bdf8\" stroke-width=\"2\"/>\n\
+    \  \n  <circle cx=\"550\" cy=\"117\" r=\"14\" fill=\"#22c55e\"/>\n  <text x=\"544\" y=\"122\" fill=\"#ffffff\" font-size=\"\
+    16\" font-weight=\"bold\">+</text>\n\n  <path d=\"M 564 117 L 610 117\" stroke=\"#22c55e\" stroke-width=\"2\"/>\n  <rect\
+    \ x=\"610\" y=\"90\" width=\"50\" height=\"55\" rx=\"6\" fill=\"#1e293b\" stroke=\"#22c55e\"/>\n  <text x=\"625\" y=\"\
+    122\" fill=\"#22c55e\" font-size=\"13\" font-weight=\"bold\">h</text>\n</svg>\n<div class=\"diagram-cap\">Figure 153.1:\
+    \ LoRA Parameter Decomposition: Freezing massive base weights and training low-rank bottleneck projections.</div>\n</div>\n\
+    \n<h3 class=\"sh3\">2. LoRA Mathematical Formulation</h3>\n<p>\nHu et al. (2021) hypothesized that the weight updates\
+    \ $\\Delta \\mathbf{W}$ during adaptation have a low <strong>intrinsic rank</strong> $r \\ll \\min(d, k)$. The weight\
+    \ matrix forward pass is modified as:\n</p>\n<div class=\"math-block\">\n$$\\mathbf{h} = \\mathbf{W}_0 \\mathbf{x} + \\\
+    Delta \\mathbf{W} \\mathbf{x} = \\mathbf{W}_0 \\mathbf{x} + \frac{\alpha}{r} (\\mathbf{B} \\cdot \\mathbf{A}) \\mathbf{x}$$\n\
+    </div>\n<p>\nWhere:\n</p>\n<ul>\n  <li>$\\mathbf{W}_0 \\in \\mathbb{R}^{d \times k}$ is frozen (zero gradients, zero optimizer\
+    \ states).</li>\n  <li>$\\mathbf{A} \\in \\mathbb{R}^{r \times k}$ is initialized with Gaussian noise $\\mathcal{N}(0,\
+    \ \\sigma^2)$.</li>\n  <li>$\\mathbf{B} \\in \\mathbb{R}^{d \times r}$ is initialized to zero, ensuring $\\Delta \\mathbf{W}\
+    \ = 0$ at the start of training.</li>\n  <li>$\alpha$ is a constant scaling hyperparameter (typically $\alpha = 2r$).</li>\n\
+    </ul>\n\n<h3 class=\"sh3\">3. QLoRA: NormalFloat4 (NF4) & Double Quantization</h3>\n<p>\nDettmers et al. (2023) introduced\
+    \ <strong>QLoRA</strong>, reducing the memory footprint to a single 48GB GPU by combining:\n</p>\n<ol>\n  <li><strong>NF4\
+    \ Quantization:</strong> An information-theoretically optimal quantile quantization data type for normally distributed\
+    \ neural weights.</li>\n  <li><strong>Double Quantization (DQ):</strong> Quantizes the quantization constants themselves,\
+    \ saving an additional 0.37 bits per parameter.</li>\n  <li><strong>Paged Optimizers:</strong> Automatically pages AdamW\
+    \ optimizer states from GPU VRAM to host CPU RAM during memory spikes.</li>\n</ol>\n\n<h3 class=\"sh3\">4. Production\
+    \ PyTorch Custom LoRA Linear Layer</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code><span\
+    \ class=\"kw\">import</span> torch\n<span class=\"kw\">import</span> torch.nn <span class=\"kw\">as</span> nn\n<span class=\"\
+    kw\">import</span> math\n\n<span class=\"kw\">class</span> <span class=\"fn\">LoRALinear</span>(nn.Module):\n    <span\
+    \ class=\"kw\">def</span> <span class=\"fn\">__init__</span>(self, in_features: int, out_features: int, rank: int = <span\
+    \ class=\"num\">16</span>, alpha: float = <span class=\"num\">32.0</span>):\n        super().__init__()\n        self.in_features\
+    \ = in_features\n        self.out_features = out_features\n        self.rank = rank\n        self.scaling = alpha / rank\n\
+    \n        <span class=\"cm\"># 1. Base Weight (Frozen)</span>\n        self.weight = nn.Parameter(torch.randn(out_features,\
+    \ in_features), requires_grad=<span class=\"kw\">False</span>)\n        \n        <span class=\"cm\"># 2. Trainable Low-Rank\
+    \ Adapters</span>\n        self.lora_A = nn.Parameter(torch.zeros(rank, in_features))\n        self.lora_B = nn.Parameter(torch.zeros(out_features,\
+    \ rank))\n        \n        <span class=\"cm\"># 3. Initialization</span>\n        nn.init.kaiming_uniform_(self.lora_A,\
+    \ a=math.sqrt(<span class=\"num\">5</span>))\n        nn.init.zeros_(self.lora_B)\n\n    <span class=\"kw\">def</span>\
+    \ <span class=\"fn\">forward</span>(self, x: torch.Tensor) -> torch.Tensor:\n        base_out = nn.functional.linear(x,\
+    \ self.weight)\n        lora_out = (x @ self.lora_A.T @ self.lora_B.T) * self.scaling\n        <span class=\"kw\">return</span>\
+    \ base_out + lora_out\n\n    <span class=\"kw\">def</span> <span class=\"fn\">merge_weights</span>(self):\n        <span\
+    \ class=\"str\">\"\"\"Permanently fold adapter into base weight for zero-latency inference.\"\"\"</span>\n        self.weight.data\
+    \ += (self.lora_B @ self.lora_A) * self.scaling</code></pre>\n</div>"
   predict:
     question: What percentage of total model parameters are trainable in this LoRA adapter configuration with r=8 on a 100M
       parameter model?

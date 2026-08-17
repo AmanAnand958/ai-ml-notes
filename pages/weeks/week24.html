@@ -206,21 +206,42 @@
         <!-- THEORY SECTION -->
         <div id="day-171-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. MLflow Experiment Tracking Architecture</h3>
+          <h3 class="sh3">1. MLflow Tracking Server Architecture</h3>
 <p>
-In enterprise machine learning, reproducibility and lineage governance require tracking hyperparameter sweeps, metric curves, model binaries, and evaluation artifacts across distributed training runs.
+Production MLOps requires centralizing experiment parameters, code git commits, metrics time-series, and model artifacts in a shared tracking server.
 </p>
-<p>
-<strong>MLflow Tracking Server</strong> decouples the client tracking API from metadata and artifact storage:
-</p>
-<div class="mermaid">
-graph TD
-    Client["Training Script (PyTorch / Scikit-Learn)"] -->|HTTP / REST API| MLflowServer["MLflow Tracking Server (Gunicorn/FastAPI)"]
-    MLflowServer -->|Relational Metadata (Params, Metrics, Tags)| BackendDB["Backend Store (PostgreSQL / MySQL)"]
-    MLflowServer -->|Serialized Model Artifacts (.bin, ONNX)| ArtifactStore["Artifact Storage (AWS S3 / GCS / Azure Blob)"]
-    MLflowServer --> Registry["MLflow Model Registry (Champion / Challenger Aliases)"]
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">import</span> mlflow
+<span class="kw">import</span> mlflow.sklearn
+<span class="kw">from</span> sklearn.ensemble <span class="kw">import</span> GradientBoostingClassifier
+<span class="kw">from</span> sklearn.metrics <span class="kw">import</span> roc_auc_score, accuracy_score
+
+<span class="kw">def</span> <span class="fn">train_and_log_experiment</span>(X_train, y_train, X_val, y_val, params: dict):
+    mlflow.set_experiment(<span class="str">"fraud_detection_production"</span>)
+    
+    <span class="kw">with</span> mlflow.start_run(run_name=<span class="str">"gbdt_baseline_v1"</span>):
+        <span class="cm"># 1. Log Hyperparameters</span>
+        mlflow.log_params(params)
+        
+        <span class="cm"># 2. Train Model</span>
+        model = GradientBoostingClassifier(**params)
+        model.fit(X_train, y_train)
+        
+        <span class="cm"># 3. Evaluate & Log Metrics</span>
+        preds = model.predict_proba(X_val)[:, <span class="num">1</span>]
+        auc = roc_auc_score(y_val, preds)
+        mlflow.log_metric(<span class="str">"val_auc"</span>, auc)
+        
+        <span class="cm"># 4. Log Artifact with Signature</span>
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            artifact_path=<span class="str">"model"</span>,
+            registered_model_name=<span class="str">"fraud_detector"</span>
+        )
+        print(f<span class="str">"Run logged with Val AUC: {auc:.4f}"</span>)</code></pre>
 </div>
-<div class="diagram-cap">Figure 171.1: Production MLflow Tracking & Model Registry Architecture.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->

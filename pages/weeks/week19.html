@@ -1967,69 +1967,79 @@ print("✓ Semantic boundary chunking verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-139-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Exact vs Approximate Nearest Neighbors (ANN)</h3>
+          <h3 class="sh3">1. Vector Indexing Trade-Offs: Precision vs Latency</h3>
 <p>
-Exact search (<strong>Flat Index / FlatL2</strong>) performs exhaustive $O(N \cdot d)$ pairwise distance calculations. While recall is 100%, query latency scales linearly with dataset size ($N$), becoming unusable for datasets exceeding 1,000,000 vectors.
+Exact Flat $k$-NN search calculates pairwise cosine distances across every stored vector ($O(N \cdot d)$), providing $100\%$ recall but taking hundreds of milliseconds on datasets larger than $100,000$ documents. Enterprise systems rely on <strong>Approximate Nearest Neighbor (ANN)</strong> indexing:
 </p>
-<p>
-Production vector databases (Qdrant, Pinecone, Milvus) employ <strong>Approximate Nearest Neighbors (ANN)</strong> algorithms to trade off fractional recall (&gt;98%) for logarithmic or constant lookup speeds:
-</p>
-<ul>
-  <li><strong>Inverted File Index (IVF):</strong> Partitions vector space into $C$ Voronoi cells using k-means. Searches only the centroids closest to the query vector (controlled by parameter <code>nprobe</code>).</li>
-  <li><strong>Hierarchical Navigable Small World (HNSW):</strong> Builds a multi-layer proximity graph where upper layers provide fast long-distance traversal and lower layers provide fine-grained local convergence. $O(\log N)$ search complexity.</li>
-  <li><strong>Product Quantization (PQ):</strong> Subdivides high-dimensional vectors into sub-vectors, quantizing each into centroid codebooks to compress VRAM by 85–95%.</li>
-</ul>
 
-<h3 class="sh3">2. Vector Index Performance Comparison Matrix</h3>
 <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
   <thead>
     <tr style="border-bottom:2px solid var(--border); text-align:left;">
       <th style="padding:8px;">Index Type</th>
       <th style="padding:8px;">Search Complexity</th>
-      <th style="padding:8px;">Recall @ 10</th>
       <th style="padding:8px;">Memory Footprint</th>
-      <th style="padding:8px;">Build Time</th>
+      <th style="padding:8px;">Typical Recall@10</th>
     </tr>
   </thead>
   <tbody>
     <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>Flat (Exact)</strong></td>
-      <td style="padding:8px;">$O(N \cdot d)$</td>
-      <td style="padding:8px;">100%</td>
-      <td style="padding:8px;">1x (Raw Vectors)</td>
-      <td style="padding:8px;">Zero</td>
+      <td style="padding:8px;"><strong>Flat (Exact k-NN)</strong></td>
+      <td style="padding:8px;">$O(N \cdot d)$ (Linear Scan)</td>
+      <td style="padding:8px;">100% (Raw FP32 vectors)</td>
+      <td style="padding:8px;">100.0%</td>
     </tr>
     <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>IVF-Flat</strong></td>
-      <td style="padding:8px;">$O(	ext{nprobe} \cdot rac{N}{C} \cdot d)$</td>
+      <td style="padding:8px;"><strong>IVF-Flat (Inverted File)</strong></td>
+      <td style="padding:8px;">$O(rac{N}{K} \cdot d \cdot 	ext{nprobe})$</td>
+      <td style="padding:8px;">100% + Centroid overhead</td>
       <td style="padding:8px;">92 - 97%</td>
-      <td style="padding:8px;">1.1x</td>
-      <td style="padding:8px;">Fast (K-means clustering)</td>
     </tr>
     <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>HNSW</strong></td>
+      <td style="padding:8px;"><strong>HNSW (Hierarchical Graph)</strong></td>
       <td style="padding:8px;">$O(\log N)$</td>
-      <td style="padding:8px;"><strong>98 - 99.5%</strong></td>
-      <td style="padding:8px;">1.5x - 2.0x (Graph edges)</td>
-      <td style="padding:8px;">Moderate</td>
+      <td style="padding:8px;">150 - 200% (Edge pointers)</td>
+      <td style="padding:8px;">98 - 99.5%</td>
     </tr>
     <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>HNSW + Scalar Quantization (SQ8)</strong></td>
-      <td style="padding:8px;">$O(\log N)$</td>
-      <td style="padding:8px;">97 - 99%</td>
-      <td style="padding:8px;"><strong>0.35x (65% RAM reduction)</strong></td>
-      <td style="padding:8px;">Moderate</td>
+      <td style="padding:8px;"><strong>IVF-PQ (Product Quantization)</strong></td>
+      <td style="padding:8px;">$O(M \cdot 	ext{nprobe})$</td>
+      <td style="padding:8px;"><strong>4 - 8% (Compressed)</strong></td>
+      <td style="padding:8px;">85 - 92%</td>
     </tr>
   </tbody>
 </table>
 
-<h3 class="sh3">3. HNSW Mathematical Graph Traversal Mechanics</h3>
+<h3 class="sh3">2. HNSW Skip-List Graph Architecture</h3>
 <p>
-HNSW constructs a hierarchical set of layers $l \in [0, L_{\max}]$. Probability of an element belonging to layer $l$ decays exponentially: $P(l) = e^{-l \cdot m_L}$ where $m_L = rac{1}{\ln(M)}$.
+<strong>Hierarchical Navigable Small World (HNSW)</strong> constructs a multi-layer graph where upper layers contain sparse, long-range highway edges and lower layers contain dense local neighbor clusters. Greedy routing hops across highway edges on layer $L$ to locate the nearest centroid before descending to layer $L-1$, achieving logarithmic $O(\log N)$ query times under 2ms.
 </p>
-<p>
-Search begins at the entry point of the top layer $L_{\max}$, executing greedy routing until reaching a local minimum, then transitions to layer $l-1$ until converging on Layer 0 with beam size <code>efSearch</code>.
-</p>
+
+<h3 class="sh3">3. Production Python Implementation: FAISS HNSW & IVF-PQ Benchmarking</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> time
+
+<span class="kw">class</span> <span class="fn">VectorIndexBenchmark</span>:
+    <span class="str">"""
+    Benchmarking Framework for ANN Search: Precision, Latency, and Memory.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, dim: int = <span class="num">768</span>, n_vectors: int = <span class="num">50000</span>):
+        self.dim = dim
+        self.n_vectors = n_vectors
+        self.vectors = np.random.randn(n_vectors, dim).astype(<span class="str">'float32'</span>)
+        <span class="cm"># Normalize for cosine similarity</span>
+        norms = np.linalg.norm(self.vectors, axis=<span class="num">1</span>, keepdims=<span class="kw">True</span>)
+        self.vectors = self.vectors / norms
+
+    <span class="kw">def</span> <span class="fn">flat_exact_search</span>(self, query: np.ndarray, k: int = <span class="num">10</span>):
+        t0 = time.perf_counter()
+        scores = np.dot(self.vectors, query)
+        top_k_idx = np.argpartition(scores, -k)[-k:]
+        sorted_idx = top_k_idx[np.argsort(-scores[top_k_idx])]
+        latency_ms = (time.perf_counter() - t0) * <span class="num">1000</span>
+        <span class="kw">return</span> sorted_idx, latency_ms</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2529,78 +2539,55 @@ print("✅ Vector indexing assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-140-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. The Point-Lookup Failure of Standard Vector RAG</h3>
+          <h3 class="sh3">1. Deep Technical Principles: GraphRAG & Knowledge Graphs</h3>
 <p>
-Standard vector similarity retrieval is designed for <strong>local point lookups</strong>: queries that ask for specific, localized facts (e.g. <em>"What is the interest rate on loan #8812?"</em>). However, vector RAG fails completely on <strong>global aggregation and relational reasoning queries</strong>, such as:
+Traditional vector search treats text chunks as isolated semantic points in vector space. When answering complex, global queries across thousands of documents (e.g. <em>"What are the overarching corporate risks across all subsidiaries?"</em>), pure vector search fails because no single chunk contains the answer.
 </p>
-<ul>
-  <li><em>"What are the main systemic supply chain failure modes across all European vendor audits in 2024?"</em></li>
-  <li><em>"How do the security vulnerabilities in the authentication service relate to the incidents reported by the payment gateway?"</em></li>
-</ul>
 <p>
-Because vector embeddings match against isolated chunks, no single chunk contains the macro-level answer. <strong>GraphRAG</strong> (developed by Microsoft Research) bridges this gap by extracting a knowledge graph of entities and relationships from the text, running community detection, and pre-generating hierarchical community summaries.
+<strong>GraphRAG (Edge et al., Microsoft Research)</strong> builds an interconnected Knowledge Graph from raw text corpus:
 </p>
+<ol>
+  <li><strong>Entity & Relationship Extraction:</strong> LLM extracts structured $(u, v, e)$ triples (e.g. <code>(EntityA)-[SUPPLIES]->(EntityB)</code>).</li>
+  <li><strong>Leiden Community Detection:</strong> Hierarchical graph clustering groups densely connected entity subgraphs into modular communities.</li>
+  <li><strong>Community Summarization:</strong> Pre-generates comprehensive narrative summaries for each cluster at multiple resolution tiers.</li>
+</ol>
 
-<div class="mermaid">
-graph TD
-    RawDocs["Corpus Documents"] --> LLMExtract["LLM Extraction Pipeline
-Extract: Entities (Nodes), Claims, & Relations (Edges)"]
-    LLMExtract --> KnowledgeGraph["Knowledge Graph G = (V, E)"]
-    KnowledgeGraph --> Leiden["Leiden Community Detection Algorithm
-Hierarchical Graph Partitioning (Levels C0, C1, C2)"]
-    Leiden --> CommSummaries["Community Summary Generation
-Pre-summarize each cluster with an LLM"]
-    CommSummaries --> GlobalSearch["Global Search Engine
-Query mapped to community summaries -> Map-Reduce Synthesis"]
+<h3 class="sh3">2. Production Python Implementation: Knowledge Graph Triple Extractor</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Tuple
+<span class="kw">import</span> json
+
+<span class="kw">class</span> <span class="fn">KnowledgeGraphStore</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.nodes: Dict[str, Dict] = {}
+        self.edges: List[Tuple[str, str, str]] = []
+
+    <span class="kw">def</span> <span class="fn">add_entity</span>(self, entity_id: str, entity_type: str, description: str):
+        self.nodes[entity_id] = {
+            <span class="str">"type"</span>: entity_type,
+            <span class="str">"description"</span>: description
+        }
+
+    <span class="kw">def</span> <span class="fn">add_relationship</span>(self, src: str, dst: str, rel_type: str):
+        self.edges.append((src, dst, rel_type))
+
+    <span class="kw">def</span> <span class="fn">get_subgraph</span>(self, entity_id: str, depth: int = <span class="num">2</span>) -> List[Tuple[str, str, str]]:
+        <span class="cm"># BFS traversal to extract local knowledge neighborhood</span>
+        visited = set([entity_id])
+        queue = [(entity_id, <span class="num">0</span>)]
+        matched_edges = []
+
+        <span class="kw">while</span> queue:
+            curr, d = queue.pop(<span class="num">0</span>)
+            <span class="kw">if</span> d >= depth: <span class="kw">continue</span>
+            <span class="kw">for</span> s, tgt, r <span class="kw">in</span> self.edges:
+                <span class="kw">if</span> s == curr <span class="kw">and</span> tgt <span class="kw">not</span> <span class="kw">in</span> visited:
+                    visited.add(tgt)
+                    matched_edges.append((s, tgt, r))
+                    queue.append((tgt, d + <span class="num">1</span>))
+        <span class="kw">return</span> matched_edges</code></pre>
 </div>
-<div class="diagram-cap">Figure 140.1: GraphRAG Extraction, Leiden Clustering, and Hierarchical Community Summarization.</div>
-
-<h3 class="sh3">2. Leiden Community Detection & Modularity Math</h3>
-<p>
-The Leiden algorithm partitions the entity graph into densely connected clusters by maximizing network <strong>modularity</strong> $\mathcal{H}$:
-</p>
-<div class="math-block">
-$$\mathcal{H} = rac{1}{2m} \sum_{i,j} \left( A_{ij} - \gamma rac{k_i k_j}{2m} ight) \delta(\sigma_i, \sigma_j)$$
-</div>
-<p>
-Where $A_{ij}$ is the adjacency weight between entity $i$ and $j$, $k_i = \sum_j A_{ij}$ is the degree of node $i$, $m = rac{1}{2}\sum_{ij} A_{ij}$ is the total network edge weight, $\gamma$ is the resolution parameter, and $\delta(\sigma_i, \sigma_j) = 1$ if nodes $i, j$ belong to the same community $\sigma$.
-</p>
-<p>
-Hierarchical community levels allow GraphRAG to answer queries at different levels of abstraction:
-</p>
-<ul>
-  <li><strong>Level C0 (Global Root):</strong> High-level thematic overview across the entire enterprise corpus.</li>
-  <li><strong>Level C1 (Sub-domains):</strong> Department-level clusters (e.g. Risk, Legal, Platform Infrastructure).</li>
-  <li><strong>Level C2 (Fine-grained):</strong> Specific incidents, code repositories, or individual projects.</li>
-</ul>
-
-<h3 class="sh3">3. GraphRAG vs Vector RAG Comparison Matrix</h3>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-  <thead>
-    <tr style="border-bottom:2px solid var(--border); text-align:left;">
-      <th style="padding:8px;">Dimension</th>
-      <th style="padding:8px;">Standard Vector RAG</th>
-      <th style="padding:8px;">GraphRAG (Microsoft)</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>Query Scope</strong></td>
-      <td style="padding:8px;">Local specific facts ("Who signed contract X?")</td>
-      <td style="padding:8px;">Global holistic themes ("What were top risks in 2024?")</td>
-    </tr>
-    <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>Ingestion Cost</strong></td>
-      <td style="padding:8px;">Low ($O(N)$ embedding calls)</td>
-      <td style="padding:8px;">High ($O(N)$ LLM entity extraction + community summaries)</td>
-    </tr>
-    <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>Query Latency</strong></td>
-      <td style="padding:8px;">10ms - 50ms</td>
-      <td style="padding:8px;">200ms - 1.5s (Map-reduce over community summaries)</td>
-    </tr>
-  </tbody>
-</table>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3938,8 +3925,8 @@ print("✓ Capstone RAG benchmark verified.")</pre>
       <div class="day-section" id="day-toolkit" data-xp="500">
         <div class="day-header">
           <div class="day-tag">WEEK 19 · MASTER RESOURCE KIT</div>
-          <h1>Week 19 Master Toolkit: Enterprise RAG & Vector Indexing Blueprint</h1>
-<p>Complete Reference Guide for Hybrid Retrieval, Reranking, and GraphRAG</p>          <div class="meta-row">
+          <h1>Master Toolkit: Advanced Enterprise RAG Architecture</h1>
+<p>Hybrid search recipes, Cross-Encoder reranking pipelines, and vector index tuning.</p>          <div class="meta-row">
             <span class="meta-badge g">⏱ Reference</span>
             <span class="meta-badge o">🧠 Senior Master</span>
             <span class="meta-badge p">⚡ Specialized</span>
@@ -3947,27 +3934,68 @@ print("✓ Capstone RAG benchmark verified.")</pre>
           </div>
         </div>
         <div class="theory">
-          <div class="toolkit-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:1.5rem; margin:1.5rem 0;">
-  <div class="toolkit-card" style="background:var(--bg2); border:1px solid var(--border); padding:1.25rem; border-radius:8px;">
-    <h3 style="color:var(--accent); margin-top:0;">⚡ Vector Index Selection Guide</h3>
-    <ul style="line-height:1.7; padding-left:1.2rem; color:var(--text);">
-      <li><strong>HNSW:</strong> Best for high recall (>98%) and low latency (&lt;10ms). Requires +1.5x RAM overhead.</li>
-      <li><strong>IVFFlat:</strong> Best for memory-constrained indices (&lt;5GB). Requires offline k-means clustering.</li>
-      <li><strong>Product Quantization (PQ):</strong> Compresses embeddings by 4x-16x with minor recall trade-off (85-92%).</li>
-      <li><strong>SCaNN:</strong> Anisotropic vector quantization optimized for AVX-512 CPU architectures.</li>
-    </ul>
-  </div>
-  <div class="toolkit-card" style="background:var(--bg2); border:1px solid var(--border); padding:1.25rem; border-radius:8px;">
-    <h3 style="color:var(--accent); margin-top:0;">🛠️ Enterprise RAG Production Checklist</h3>
-    <ul style="line-height:1.7; padding-left:1.2rem; color:var(--text);">
-      <li>[x] Hybrid Search enabled (BM25 Sparse + Bi-Encoder Dense).</li>
-      <li>[x] Reciprocal Rank Fusion ($k=60$) normalizing rank distributions.</li>
-      <li>[x] Cross-Encoder Re-ranking Stage 2 (Top 100 -> Top 5).</li>
-      <li>[x] Context Groundedness & Hallucination Grader active.</li>
-      <li>[x] Dynamic Sub-Query and HyDE transformations enabled.</li>
-    </ul>
-  </div>
+          <h2 class="sh2">🛠️ Master Toolkit: Enterprise RAG Systems Engineering</h2>
+<p>
+This toolkit contains industrial-grade recipes for building, tuning, and evaluating production Retrieval-Augmented Generation systems.
+</p>
+
+<h3 class="sh3">1. Reciprocal Rank Fusion (RRF) Python Implementation</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from typing import List, Dict
+from collections import defaultdict
+
+def reciprocal_rank_fusion(
+    bm25_ranked_ids: List[str],
+    vector_ranked_ids: List[str],
+    k: int = 60
+) -> List[tuple]:
+    """
+    Merges dense and sparse rankings using Reciprocal Rank Fusion:
+    RRF(d) = sum(1 / (k + rank_i(d)))
+    """
+    rrf_scores = defaultdict(float)
+    
+    for rank, doc_id in enumerate(bm25_ranked_ids, 1):
+        rrf_scores[doc_id] += 1.0 / (k + rank)
+        
+    for rank, doc_id in enumerate(vector_ranked_ids, 1):
+        rrf_scores[doc_id] += 1.0 / (k + rank)
+        
+    return sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)</code></pre>
 </div>
+
+<h3 class="sh3">2. Chunking Strategy Decision Matrix</h3>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left;">
+      <th style="padding:8px;">Document Type</th>
+      <th style="padding:8px;">Optimal Chunking Strategy</th>
+      <th style="padding:8px;">Chunk Size / Overlap</th>
+      <th style="padding:8px;">Embedding Model</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Financial 10-K Reports / Tables</strong></td>
+      <td style="padding:8px;">Markdown Table-Aware Semantic Chunking</td>
+      <td style="padding:8px;">1024 tokens / 128 overlap</td>
+      <td style="padding:8px;">text-embedding-3-large (1536-dim)</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Legal Contracts / Policies</strong></td>
+      <td style="padding:8px;">Parent-Document (Hierarchical) Retrieval</td>
+      <td style="padding:8px;">Child: 200 tok | Parent: 1500 tok</td>
+      <td style="padding:8px;">BAAI/bge-large-en-v1.5</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Technical Documentation / Code</strong></td>
+      <td style="padding:8px;">AST-based Syntax Chunking</td>
+      <td style="padding:8px;">Function / Class Boundary</td>
+      <td style="padding:8px;">Voyage-code-2</td>
+    </tr>
+  </tbody>
+</table>
         </div>
         <button class="complete-btn" id="btn-day-toolkit" onclick="completeDay('toolkit')">
           Mark Toolkit Complete (+500 XP)

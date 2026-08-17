@@ -85,6 +85,9 @@
         <div aria-selected="false" class="day-pill " id="pill-135" onclick="goDay('135')" onkeydown="if(event.key==='Enter'||event.key===' ')goDay('135')" role="tab" tabindex="0">
           135
         </div>
+        <div aria-selected="false" class="day-pill" id="pill-toolkit" onclick="goDay('toolkit')" onkeydown="if(event.key==='Enter'||event.key===' ')goDay('toolkit')" role="tab" tabindex="0" style="border-color:var(--orange);">
+          🛠️
+        </div>
       </div>
     </div>
     <button aria-label="Toggle dark/light mode" class="theme-btn" id="theme-btn" onclick="toggleTheme()">
@@ -139,6 +142,10 @@
       <div class="sb-item " id="sb-135" onclick="goDay('135');closeSidebar()" onkeydown="if(event.key==='Enter')goDay('135')" role="button" tabindex="0">
         <span class="sb-dot" style="background:var(--pink)"></span>
         Day 135 — Mid-Course Milestone: MLOps & System Design Architecture
+      </div>
+      <div class="sb-item" id="sb-toolkit" onclick="goDay('toolkit');closeSidebar()" onkeydown="if(event.key==='Enter')goDay('toolkit')" role="button" tabindex="0" style="border-left: 3px solid var(--orange);">
+        <span class="sb-dot" style="background:var(--orange)"></span>
+        🛠️ Master Toolkit
       </div>
 
       <div class="sb-footer-nav" style="margin-top:auto; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; gap:8px;">
@@ -1836,26 +1843,68 @@ assert best_run is not None, "best_run should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-128-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Capstone Project Track Selection & Technical Architecture</h3>
+          <h3 class="sh3">1. Capstone Track Selection & Systems Blueprint</h3>
 <p>
-The Mid-Course Capstone integrates every concept learned across Weeks 1 to 18 (Python, Pandas, Feature Engineering, Math, Scikit-Learn, Deep Learning, Docker, FastAPI, and MLOps) into a commercial-grade, end-to-end production application.
-</p>
-
-<h3 class="sh3">2. Recommended Industry Tracks</h3>
-<ol>
-  <li><strong>FinTech Track (Credit Risk & Fraud Detection):</strong> High-class imbalance ($<1\%$ fraud), SMOTE resampling, XGBoost/LightGBM with PR-AUC optimization, SHAP feature attribution.</li>
-  <li><strong>E-Commerce Track (Customer Churn & LTV Forecasting):</strong> Survival analysis, customer cohort embeddings, automated feature pipelines, Redis feature store.</li>
-  <li><strong>Healthcare Track (Medical Imaging / Clinical Risk):</strong> Multi-modal clinical tabular data paired with DenseNet vision models, strict HIPAA data validation schemas.</li>
-</ol>
-
-<h3 class="sh3">3. Data Validation & Leakage Prevention</h3>
-<p>
-Data leakage is the most common cause of catastrophic real-world ML failure: when information from the test set or future timestamps leaks into the training pipeline.
+The capstone project serves as the primary technical asset on your engineering portfolio, demonstrating full-lifecycle machine learning competency from raw data ingestion to containerized microservice deployment. Choose one of three enterprise tracks:
 </p>
 <ul>
-  <li><strong>Fit preprocessors strictly on training split:</strong> Never run <code>fit_transform()</code> on the full dataset before splitting. Always fit on $X_{	ext{train}}$, then call <code>transform()</code> on $X_{	ext{test}}$.</li>
-  <li><strong>Time-Series Temporal Splits:</strong> For time-dependent data (e.g. stock market, fraud), never use random k-fold cross-validation. Use <code>TimeSeriesSplit</code> to ensure models train on the past and evaluate on the future.</li>
+  <li><strong>Track A: FinTech Transaction Fraud Detection:</strong> Extreme class imbalance ($0.1\%$ fraud rate), strict 15ms p99 inference SLA, and high financial cost of false negatives.</li>
+  <li><strong>Track B: E-Commerce Dynamic Customer Churn & LTV:</strong> Multi-modal tabular signals, temporal purchase sequences, and survival analysis modeling.</li>
+  <li><strong>Track C: Healthcare Diagnostic Risk Stratification:</strong> High-cardinality clinical features, strict missingness patterns, and interpretable SHAP explainability.</li>
 </ul>
+
+<div class="mermaid">
+graph LR
+    Raw["Raw Parquet / CSV Data"] --> Split["Temporal Train / Test Split (Zero Future Leakage)"]
+    Split --> Pipe["Atomic Scikit-Learn Pipeline
+(RobustScaler + TargetEncoder)"]
+    Pipe --> Train["LightGBM / XGBoost GPU Training"]
+    Train --> Opt["Optuna Hyperparameter Search (100 Trials)"]
+    Opt --> Reg["MLflow Model Registry (@champion)"]
+    Reg --> Fast["FastAPI Asynchronous Microservice"]
+</div>
+<div class="diagram-cap">Figure 128.1: Production ML Systems Architecture: From Raw Features to Registry Artifact.</div>
+
+<h3 class="sh3">2. Preventing Temporal Data Leakage</h3>
+<p>
+A common failure mode in production ML is random train/test splitting on time-series signals. Random cross-validation leaks future trends into past training records, producing falsely inflated test metrics that collapse upon live deployment. Always enforce <strong>TimeSeriesSplit</strong> or strict timestamp boundary partitioning.
+</p>
+
+<h3 class="sh3">3. Production Python Implementation: Temporal Split & Pipeline Architecture</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> sklearn.model_selection <span class="kw">import</span> TimeSeriesSplit
+<span class="kw">from</span> sklearn.compose <span class="kw">import</span> ColumnTransformer
+<span class="kw">from</span> sklearn.pipeline <span class="kw">import</span> Pipeline
+<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> RobustScaler, OneHotEncoder
+<span class="kw">from</span> sklearn.impute <span class="kw">import</span> SimpleImputer
+
+<span class="kw">def</span> <span class="fn">build_capstone_pipeline</span>(numeric_cols: list, categorical_cols: list) -> Pipeline:
+    <span class="str">"""
+    Constructs an atomic, production-safe Scikit-Learn preprocessing pipeline.
+    Guarantees zero data leakage between train, validation, and serving splits.
+    """</span>
+    num_transformer = Pipeline(steps=[
+        (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'median'</span>)),
+        (<span class="str">'scaler'</span>, RobustScaler())
+    ])
+
+    cat_transformer = Pipeline(steps=[
+        (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'constant'</span>, fill_value=<span class="str">'MISSING'</span>)),
+        (<span class="str">'onehot'</span>, OneHotEncoder(handle_unknown=<span class="str">'ignore'</span>, sparse_output=<span class="kw">False</span>))
+    ])
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            (<span class="str">'num'</span>, num_transformer, numeric_cols),
+            (<span class="str">'cat'</span>, cat_transformer, categorical_cols)
+        ]
+    )
+
+    <span class="kw">return</span> Pipeline(steps=[(<span class="str">'preprocessor'</span>, preprocessor)])</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -4691,43 +4740,40 @@ for title, star in STAR_PROJECTS.items():
         <!-- THEORY SECTION -->
         <div id="day-134-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Technical Interview Review: Systems & Algorithms</h3>
+          <h3 class="sh3">1. Core ML Interview Matrix: Theory, Math & System Design</h3>
 <p>
-AI/ML Engineering technical interviews evaluate three distinct skill pillars:
+Senior Machine Learning Engineer interview loops assess depth across three primary pillars:
 </p>
 <ol>
-  <li><strong>Mathematical Theory:</strong> Gradient descent convergence rates, L1 vs L2 regularization sparsity proofs, cross-entropy loss derivatives, eigenvalue decomposition in PCA.</li>
-  <li><strong>Vectorized Coding (NumPy / PyTorch):</strong> Implementing self-attention from scratch, vectorized pairwise cosine distances, custom backpropagation autograd functions.</li>
-  <li><strong>ML System Design:</strong> End-to-end latency budgeting, feature store caching, offline vs online feature skew, model cascading, canary rollouts.</li>
+  <li><strong>Statistical Foundations:</strong> Bias-Variance decomposition, L1 (Lasso) sparsity geometry vs L2 (Ridge) weight decay, and gradient optimization dynamics.</li>
+  <li><strong>Vectorized Coding Drills:</strong> Writing pure NumPy / PyTorch matrix operations without Python loops.</li>
+  <li><strong>System Design & Trade-Offs:</strong> Latency vs throughput budgets, caching, feature stores, and cold-start mitigations.</li>
 </ol>
 
-<h3 class="sh3">2. Core Machine Learning Interview FAQ Matrix</h3>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-  <thead>
-    <tr style="border-bottom:2px solid var(--border); text-align:left;">
-      <th style="padding:8px;">Concept</th>
-      <th style="padding:8px;">Key Equation</th>
-      <th style="padding:8px;">Core Trade-Off / Failure Mode</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>L1 (Lasso) vs L2 (Ridge)</strong></td>
-      <td style="padding:8px;">$+\lambda \|\mathbf{w}\|_1$ vs $+\lambda \|\mathbf{w}\|_2^2$</td>
-      <td style="padding:8px;">L1 induces geometric diamond corner sparsity; L2 penalizes large weights smoothly.</td>
-    </tr>
-    <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>Scaled Dot-Product Attention</strong></td>
-      <td style="padding:8px;">$	ext{Softmax}(rac{\mathbf{QK}^T}{\sqrt{d_k}})\mathbf{V}$</td>
-      <td style="padding:8px;">$rac{1}{\sqrt{d_k}}$ scaling prevents softmax logits from entering zero-gradient saturation regions.</td>
-    </tr>
-    <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>Bias-Variance Tradeoff</strong></td>
-      <td style="padding:8px;">$	ext{MSE} = 	ext{Bias}^2 + 	ext{Var} + \sigma^2$</td>
-      <td style="padding:8px;">High bias $\implies$ underfitting; High variance $\implies$ overfitting on training noise.</td>
-    </tr>
-  </tbody>
-</table>
+<h3 class="sh3">2. Vectorized Self-Attention Implementation in NumPy</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">vectorized_scaled_dot_product_attention</span>(
+    Q: np.ndarray, K: np.ndarray, V: np.ndarray, mask: np.ndarray = <span class="kw">None</span>
+) -> np.ndarray:
+    <span class="str">"""
+    Computes Scaled Dot-Product Attention: Softmax(Q·K^T / sqrt(d_k))·V
+    Shapes: Q, K, V -> (Batch, SeqLen, d_k)
+    """</span>
+    d_k = Q.shape[-<span class="num">1</span>]
+    scores = np.matmul(Q, K.swapaxes(-<span class="num">1</span>, -<span class="num">2</span>)) / np.sqrt(d_k)
+    
+    <span class="kw">if</span> mask <span class="kw">is</span> <span class="kw">not</span> <span class="kw">None</span>:
+        scores = np.where(mask == <span class="num">0</span>, -<span class="num">1e9</span>, scores)
+
+    <span class="cm"># Numerically stable softmax</span>
+    exp_scores = np.exp(scores - np.max(scores, axis=-<span class="num">1</span>, keepdims=<span class="kw">True</span>))
+    attention_weights = exp_scores / np.sum(exp_scores, axis=-<span class="num">1</span>, keepdims=<span class="kw">True</span>)
+    
+    <span class="kw">return</span> np.matmul(attention_weights, V)</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -5564,13 +5610,105 @@ print("✓ Model drift metrics review verified.")</pre>
       </div>
 
       <!-- MASTER TOOLKIT (IF PRESENT) -->
+      <div class="day-section" id="day-toolkit" data-xp="500">
+        <div class="day-header">
+          <div class="day-tag">WEEK 18 · MASTER RESOURCE KIT</div>
+          <h1>Master Toolkit: Full-Stack MLOps & Capstone Engineering Suite</h1>
+<p>Production Docker recipes, PaaS configurations, Scikit-Learn pipelines, and interview rubrics.</p>          <div class="meta-row">
+            <span class="meta-badge g">⏱ Reference</span>
+            <span class="meta-badge o">🧠 Senior Master</span>
+            <span class="meta-badge p">⚡ Specialized</span>
+            <span class="meta-badge b">🔬 Graduate Mathematics</span>
+          </div>
+        </div>
+        <div class="theory">
+          <h2 class="sh2">🛠️ Master Toolkit: Production Full-Stack MLOps & Deployment</h2>
+<p>
+This toolkit serves as your comprehensive reference manual for containerizing, deploying, and monitoring end-to-end Machine Learning systems.
+</p>
+
+<h3 class="sh3">1. Production Multi-Stage Dockerfile Recipe for ML Microservices</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">dockerfile — Dockerfile.production</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code># STAGE 1: Builder
+FROM python:3.11-slim AS builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# STAGE 2: Minimal Distroless / Slim Runtime
+FROM python:3.11-slim AS runtime
+WORKDIR /app
+COPY --from=builder /root/.local /root/.local
+COPY app/ ./app
+COPY models/ ./models
+ENV PATH=/root/.local/bin:$PATH PYTHONUNBUFFERED=1
+RUN useradd -m -u 1001 mluser && chown -R mluser:mluser /app
+USER mluser
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3   CMD curl -f http://localhost:8000/health || exit 1
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]</code></pre>
+</div>
+
+<h3 class="sh3">2. Declarative Infrastructure-as-Code: Render & Railway Blueprint</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">yaml — render.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>services:
+  - type: web
+    name: capstone-ml-api
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: MODEL_VERSION
+        value: "v1.2.0"
+      - key: ENVIRONMENT
+        value: "production"</code></pre>
+</div>
+
+<h3 class="sh3">3. ML Interview Quick-Reference Cheat Sheet</h3>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left;">
+      <th style="padding:8px;">Concept</th>
+      <th style="padding:8px;">Core Formula / Mechanism</th>
+      <th style="padding:8px;">Interview Red Flag to Avoid</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>L1 vs L2 Regularization</strong></td>
+      <td style="padding:8px;">L1 produces sparse zero weights (diamond contour); L2 shrinks weights smoothly (circular contour).</td>
+      <td style="padding:8px;">Claiming L2 creates sparse feature selection.</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>ROC-AUC vs PR-AUC</strong></td>
+      <td style="padding:8px;">PR-AUC evaluates precision across recall levels, impervious to massive true-negative dominance in imbalanced data.</td>
+      <td style="padding:8px;">Using ROC-AUC on 99.9% imbalanced fraud detection.</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Data Leakage</strong></td>
+      <td style="padding:8px;">Fitting transformers (scalers, encoders, imputers) on the full dataset before train/test splitting.</td>
+      <td style="padding:8px;">Calling <code>fit_transform()</code> on the test set.</td>
+    </tr>
+  </tbody>
+</table>
+        </div>
+        <button class="complete-btn" id="btn-day-toolkit" onclick="completeDay('toolkit')">
+          Mark Toolkit Complete (+500 XP)
+        </button>
+      </div>
     </main>
   </div>
 
   <!-- RUNTIME STATE & SCRIPTS -->
   <script>
     const WEEK = 18;
-    const DAYS = [125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135];
+    const DAYS = [125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, "toolkit"];
   </script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="if(window.initKaTeX)window.initKaTeX();"></script>
