@@ -4117,8 +4117,8 @@ print("✓ Fine-tuned deployment specification verified.")</pre>
       <div class="day-section" id="day-toolkit" data-xp="500">
         <div class="day-header">
           <div class="day-tag">WEEK 21 · MASTER RESOURCE KIT</div>
-          <h1>Week 21 Master Toolkit: High-Throughput Serving & LoRA Tuning Guide</h1>
-<p>Mathematical Formulations, VRAM Calculators, and vLLM Deployment Reference</p>          <div class="meta-row">
+          <h1>Master Toolkit: High-Throughput LLM Serving & PEFT Fine-Tuning Suite</h1>
+<p>vLLM production server flags, DeepSpeed ZeRO-3 JSON configs, and LoRA weight merging recipes.</p>          <div class="meta-row">
             <span class="meta-badge g">⏱ Reference</span>
             <span class="meta-badge o">🧠 Senior Master</span>
             <span class="meta-badge p">⚡ Specialized</span>
@@ -4126,26 +4126,75 @@ print("✓ Fine-tuned deployment specification verified.")</pre>
           </div>
         </div>
         <div class="theory">
-          <div class="toolkit-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:1.5rem; margin:1.5rem 0;">
-  <div class="toolkit-card" style="background:var(--bg2); border:1px solid var(--border); padding:1.25rem; border-radius:8px;">
-    <h3 style="color:var(--accent); margin-top:0;">⚡ vLLM CLI Quick Reference</h3>
-    <pre style="background:var(--bg3); padding:0.75rem; border-radius:6px; font-family:var(--font-mono); font-size:12px; overflow-x:auto;"><code>python3 -m vllm.entrypoints.openai.api_server \
-  --model meta-llama/Meta-Llama-3-8B-Instruct \
-  --tensor-parallel-size 1 \
-  --gpu-memory-utilization 0.90 \
-  --max-model-len 8192 \
-  --quantization awq \
-  --port 8000</code></pre>
-  </div>
-  <div class="toolkit-card" style="background:var(--bg2); border:1px solid var(--border); padding:1.25rem; border-radius:8px;">
-    <h3 style="color:var(--accent); margin-top:0;">📐 Parameter & VRAM Sizing Rules</h3>
-    <ul style="line-height:1.7; padding-left:1.2rem; color:var(--text);">
-      <li><strong>Model Weights:</strong> $Parameters \times PrecisionBytes$ (70B in FP16 = 140GB).</li>
-      <li><strong>KV Cache Sizing:</strong> $2 \times P \times L \times H \times d \times B \times S$.</li>
-      <li><strong>LoRA Trainable Params:</strong> $2 \times L \times d_{model} \times r \ll TotalParams$ (&lt; 0.5% weights).</li>
-      <li><strong>Speculative Decoding:</strong> 1.5x-2.5x speedup with draft model validation in 1 forward pass.</li>
-    </ul>
-  </div>
+          <h2 class="sh2">🛠️ Master Toolkit: High-Throughput Serving & PEFT Alignment</h2>
+<p>
+This toolkit serves as your production operations manual for configuring high-throughput LLM serving engines and orchestrating parameter-efficient fine-tuning pipelines.
+</p>
+
+<h3 class="sh3">1. Production vLLM Multi-GPU Server Launch Configuration</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">bash — vllm-prod-server.sh</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>#!/usr/bin/env bash
+# Production vLLM launch script with Tensor Parallelism and FlashAttention-2
+python3 -m vllm.entrypoints.openai.api_server   --model meta-llama/Meta-Llama-3-70B-Instruct   --tensor-parallel-size 4   --gpu-memory-utilization 0.94   --max-model-len 8192   --max-num-seqs 256   --enable-chunked-prefill   --kv-cache-dtype auto   --port 8000   --host 0.0.0.0   --served-model-name llama-3-70b-prod</code></pre>
+</div>
+
+<h3 class="sh3">2. DeepSpeed ZeRO-3 JSON Configuration</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">json — ds_zero3_config.json</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>{
+  "fp16": { "enabled": true },
+  "zero_optimization": {
+    "stage": 3,
+    "offload_optimizer": {
+      "device": "cpu",
+      "pin_memory": true
+    },
+    "offload_param": {
+      "device": "cpu",
+      "pin_memory": true
+    },
+    "overlap_comm": true,
+    "contiguous_gradients": true,
+    "sub_group_size": 1e9,
+    "stage3_prefetch_bucket_size": "auto",
+    "stage3_param_persistence_threshold": "auto"
+  },
+  "train_micro_batch_size_per_gpu": 2,
+  "gradient_accumulation_steps": 8
+}</code></pre>
+</div>
+
+<h3 class="sh3">3. LoRA Zero-Latency Weight Merging Pipeline</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — merge_peft_adapter.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+
+def merge_and_export_lora(base_model_path: str, adapter_path: str, output_path: str):
+    """
+    Permanently folds LoRA weights into base weights for zero-overhead inference.
+    W_fused = W_0 + (alpha/r) * (B @ A)
+    """
+    print("Loading base model in FP16...")
+    base_model = AutoModelForCausalLM.from_pretrained(
+        base_model_path,
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    tokenizer = AutoTokenizer.from_pretrained(base_model_path)
+
+    print("Attaching LoRA adapter...")
+    peft_model = PeftModel.from_pretrained(base_model, adapter_path)
+
+    print("Merging weights into base model tensors...")
+    fused_model = peft_model.merge_and_unload()
+
+    print(f"Exporting standalone fused model to {output_path}...")
+    fused_model.save_pretrained(output_path, safe_serialization=True)
+    tokenizer.save_pretrained(output_path)
+    print("✓ Merging complete!")</code></pre>
 </div>
         </div>
         <button class="complete-btn" id="btn-day-toolkit" onclick="completeDay('toolkit')">
