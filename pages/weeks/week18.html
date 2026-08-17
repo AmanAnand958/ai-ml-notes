@@ -218,11 +218,11 @@
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">Kubernetes cluster ek hotel manager jaisa hai — pods (rooms) ko schedule karta hai, replicas (extra rooms) ready rakhta hai, aur Service LoadBalancer traffic ko sahi pod tak pahunchata hai. Kubectl se poora cluster control karte ho!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">Kubernetes ek container orchestration engine hai jo hamare ML model containers (Pods) ko auto-scale, self-heal aur load balance karta hai. Agar koi model container crash hota hai toh K8s automatically naya pod spawn kar deta hai.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">🚀 Analogy: End-to-End MLOps Pipeline is like an automated car assembly line — raw steel (data) enters on one end, undergoes robotic quality testing (CI/CD), and drives off the line as a certified production vehicle (API endpoint). (This mirrors how Kubernetes fundamentally operates.)</div>
+        <div class="analogy">Kubernetes is like an automated airport traffic controller: instead of managing individual flights manually, it routes incoming traffic to available gates (Services), replaces broken planes instantly (ReplicaSets), and scales runways during peak rush hour (HPA).</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -235,92 +235,84 @@
         <!-- THEORY SECTION -->
         <div id="day-125-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Kubernetes Basics for ML Deployments.</p>
+          <h3 class="sh3">1. Kubernetes Core Primitives for ML Engineers</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+Deploying machine learning models in production requires high availability, rolling zero-downtime updates, and automated self-healing. <strong>Kubernetes (K8s)</strong> manages containerized ML workloads across compute clusters using five fundamental primitives:
+</p>
+<div class="mermaid">
+graph TD
+  Client["Client / Web Traffic"] --> Ingress["Ingress Controller (NGINX / ALB)"]
+  Ingress --> Svc["ClusterIP Service (Load Balancer)"]
+  Svc --> Pod1["Pod 1: FastAPI Model Worker
+(GPU/CPU Limit: 4GiB)"]
+  Svc --> Pod2["Pod 2: FastAPI Model Worker
+(GPU/CPU Limit: 4GiB)"]
+  Svc --> Pod3["Pod 3: FastAPI Model Worker
+(GPU/CPU Limit: 4GiB)"]
+  RS["ReplicaSet (Desired: 3)"] -.->|Maintains Count| Pod1 & Pod2 & Pod3
+</div>
+<div class="diagram-cap">Kubernetes Ingress, Service, and ReplicaSet Architecture for High-Availability Model Serving.</div>
+
+<h3 class="sh3">2. Production Pod Manifest Specification</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+A production ML deployment requires explicit resource boundaries and readiness probes to ensure traffic is only routed after model weights are loaded into VRAM/RAM:
+</p>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 125: Kubernetes Basics for ML Deployments
-import os
-import sys
-
-def execute_module():
-    print("Executing Kubernetes Basics for ML Deployments pipeline...")
-    config = {"module": "Kubernetes Basics for ML Deployments", "status": "ACTIVE", "day": 125}
-    print("Configuration:", config)
-    return config
-
-if __name__ == "__main__":
-    execute_module()</code></pre>
+  <div class="cb-head"><span class="cb-lang">yaml — model-deployment.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-inference-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ml-serving
+  template:
+    metadata:
+      labels:
+        app: ml-serving
+    spec:
+      containers:
+      - name: fastapi-model
+        image: my-registry.io/ml-service:v1.0.0
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10</code></pre>
 </div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps &amp; MLflow
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone spec
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Model Pipeline
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        FastAPI &amp; Docker
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deploy &amp; stream
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Mock Drills I
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Mock Drills II
-       </span>
-</div>
+
+<h3 class="sh3">3. Production Python Health Check & Cluster Verification</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — k8s_health_monitor.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>from typing import Dict, Any
+
+class ModelHealthChecker:
+    def __init__(self, model_loaded: bool, memory_usage_mb: float, memory_limit_mb: float = 4096.0):
+        self.model_loaded = model_loaded
+        self.memory_usage_mb = memory_usage_mb
+        self.memory_limit_mb = memory_limit_mb
+
+    def evaluate_readiness(self) -> Dict[str, Any]:
+        if not self.model_loaded:
+            return {"status": "UNREADY", "code": 503, "reason": "Model weights still loading into memory"}
+        if self.memory_usage_mb > (self.memory_limit_mb * 0.95):
+            return {"status": "DEGRADED", "code": 500, "reason": "Near OOM memory threshold"}
+        return {"status": "HEALTHY", "code": 200, "memory_pct": round(self.memory_usage_mb / self.memory_limit_mb * 100, 2)}
+
+checker = ModelHealthChecker(model_loaded=True, memory_usage_mb=1850.0)
+print("Kubernetes Probe Response:", checker.evaluate_readiness())</code></pre>
 </div>
         </div>
 
@@ -618,8 +610,8 @@ spec:
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:Kubernetes Basics still needs service, deployment, and rollout checks before shipping.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Missing Resource Requests Leading to Node OOM Kills</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">If you don't define `resources.requests` and `resources.limits` for memory and CPU in your ML Pod manifest, a single heavy batch prediction can consume all RAM on the node, causing the Linux OOM-killer to terminate the kubelet and crash the entire node.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -755,11 +747,11 @@ spec:
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">Render aur GitHub Actions se deploy karna matlab code push karte hi CI pipeline build karti hai, tests chalti hai, aur app cloud par live ho jati hai. Environment variables secrets ko code se alag rakhte hain!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">PaaS (Platform as a Service) platforms jaise Render aur Railway par hum direct GitHub repository connect karke auto-deploy kar sakte hain. Dockerfile se container build hota hai, HTTPS endpoint milta hai aur Git push karte hi CI/CD pipeline chal padti hai.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale Cloud Deployment, verify the inputs, dependencies, and deployment steps first.</div>
+        <div class="analogy">PaaS deployment is like renting a fully furnished smart apartment: you bring your luggage (code and Dockerfile), and the landlord handles electricity, water, security, and maintenance automatically.</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -772,92 +764,54 @@ spec:
         <!-- THEORY SECTION -->
         <div id="day-126-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Cloud Deployment on Render & Railway.</p>
+          <h3 class="sh3">1. PaaS Architecture: Render & Railway Continuous Delivery</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+Platform-as-a-Service (PaaS) solutions simplify ML deployment by automating container compilation, SSL certificate provisioning, and ingress routing:
+</p>
+<div class="mermaid">
+graph LR
+  Git["Git Push to main"] --> Webhook["GitHub Webhook"]
+  Webhook --> Render["Render / Railway Build Runner"]
+  Render --> Build["Docker Multi-Stage Build
+(Deps + App)"]
+  Build --> S3["Fetch Weights from S3 / HF Hub"]
+  S3 --> Deploy["Zero-Downtime Live Container
+(Public HTTPS Domain)"]
+</div>
+<div class="diagram-cap">Automated Git-Driven Cloud CI/CD Deployment Flow on PaaS Infrastructure.</div>
+
+<h3 class="sh3">2. Infrastructure as Code: Blueprint Specification</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 126: Cloud Deployment on Render & Railway
-import os
-import sys
-
-def execute_module():
-    print("Executing Cloud Deployment on Render & Railway pipeline...")
-    config = {"module": "Cloud Deployment on Render & Railway", "status": "ACTIVE", "day": 126}
-    print("Configuration:", config)
-    return config
-
-if __name__ == "__main__":
-    execute_module()</code></pre>
+  <div class="cb-head"><span class="cb-lang">yaml — render.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>services:
+  - type: web
+    name: ai-inference-service
+    env: docker
+    plan: standard
+    healthCheckPath: /health
+    envVars:
+      - key: MODEL_STORAGE_URL
+        value: https://huggingface.co/models/my-weights
+      - key: PORT
+        value: 8000</code></pre>
 </div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+
+<h3 class="sh3">3. Production Python Model Startup Loader</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — startup_weight_fetcher.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>import os
+
+def initialize_service(model_name: str, cache_dir: str = "/tmp/models") -> dict:
+    os.makedirs(cache_dir, exist_ok=True)
+    weight_path = os.path.join(cache_dir, f"{model_name}.bin")
+    # Simulate downloading if not cached
+    if not os.path.exists(weight_path):
+        with open(weight_path, "w") as f:
+            f.write("WEIGHT_METADATA_HEADER_V1")
+    return {"model": model_name, "path": weight_path, "status": "LOADED"}
+
+result = initialize_service("churn_classifier_v1")
+print("Startup Initialization Result:", result)</code></pre>
 </div>
         </div>
 
@@ -1206,8 +1160,8 @@ if __name__ == '__main__':
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:Cloud deployment still needs endpoint tests, environment variable validation, and rollback rehearsal.Fact:Deeper models have higher capacity to overfit. Regularization (dropout, weight decay, early stopping) is crucial to maintain test set accuracy.</p>
+          <strong>⚠️ Gotcha: Heavy Model Weights in Git Repositories</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Never commit gigabyte-sized `.bin` or `.pt` model weight files directly into Git! Git history will balloon, causing Render/Railway builds to timeout. Store model weights in cloud object storage (S3 / HuggingFace Hub) and download them on container startup.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -1343,11 +1297,11 @@ if __name__ == '__main__':
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">MLflow experiments ka lab notebook hai — har run ke params, metrics aur artifacts track hote hain. Compare runs karke best model choose karo aur registry se versions manage karo!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">ML experiments mein jab hum 50 models train karte hain, toh yaad rakhna mushkil hota hai ki kaunse hyperparameters se best accuracy aayi thi. MLflow har run ke parameters, metrics (accuracy, loss) aur model artifact ko database mein log karta hai.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale MLOps &amp; MLflow, verify the inputs, dependencies, and deployment steps first.</div>
+        <div class="analogy">MLflow is like an automated scientific laboratory notebook: every time you conduct an experiment, it logs exact chemical ratios (hyperparameters), temperature curves (loss curves), and stores the resulting compound (model artifact).</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -1360,92 +1314,50 @@ if __name__ == '__main__':
         <!-- THEORY SECTION -->
         <div id="day-127-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for MLOps Basics & Experiment Tracking.</p>
+          <h3 class="sh3">1. The MLflow Experiment Tracking Ecosystem</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+MLflow is the industry standard open-source MLOps platform for managing the end-to-end machine learning lifecycle across four major components: <strong>Tracking</strong>, <strong>Projects</strong>, <strong>Models</strong>, and <strong>Model Registry</strong>.
+</p>
+<div class="mermaid">
+graph TD
+  Train["Training Job (PyTorch / Scikit)"] -->|Logs Params & Metrics| Track["MLflow Tracking Server"]
+  Train -->|Saves Artifacts| S3[("Remote Object Store
+(S3 / GCS)")]
+  Track --> DB[("PostgreSQL Metadata Store")]
+  Track --> Reg["MLflow Model Registry
+(Staging -> Champion)"]
+  Reg --> Deploy["Production Inference API"]
+</div>
+<div class="diagram-cap">MLflow Enterprise Architecture: Tracking parameters, versioning artifacts, and promoting models through the Registry.</div>
+
+<h3 class="sh3">2. Production Python MLflow Tracking & Artifact Logging</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 127: MLOps Basics & Experiment Tracking
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">python — mlflow_tracker.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>from typing import Dict, Any
 
-def execute_module():
-    print("Executing MLOps Basics & Experiment Tracking pipeline...")
-    config = {"module": "MLOps Basics & Experiment Tracking", "status": "ACTIVE", "day": 127}
-    print("Configuration:", config)
-    return config
+class ExperimentLogger:
+    def __init__(self, experiment_name: str):
+        self.experiment_name = experiment_name
+        self.runs = []
 
-if __name__ == "__main__":
-    execute_module()</code></pre>
-</div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+    def log_run(self, params: Dict[str, Any], metrics: Dict[str, float], model_tag: str) -> Dict[str, Any]:
+        run_data = {
+            "run_id": f"run_{len(self.runs) + 1:04d}",
+            "params": params,
+            "metrics": metrics,
+            "tag": model_tag,
+            "status": "FINISHED"
+        }
+        self.runs.append(run_data)
+        return run_data
+
+logger = ExperimentLogger("customer_churn_prediction")
+run1 = logger.log_run(
+    params={"learning_rate": 0.001, "batch_size": 32, "optimizer": "AdamW"},
+    metrics={"val_loss": 0.182, "f1_score": 0.934, "roc_auc": 0.961},
+    model_tag="candidate_v2"
+)
+print("Logged MLflow Run:", run1)</code></pre>
 </div>
         </div>
 
@@ -1763,8 +1675,8 @@ assert best_run is not None, "best_run should not be None"</pre>
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:MLOps & MLflow still needs experiment naming, metric logging, and model registry checks.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Storing Large Model Artifacts in Local Filesystems</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">By default, MLflow logs artifacts to `./mlruns` on your local laptop. In production, always configure a remote artifact store (`s3://...` or `gcs://...`) with a centralized PostgreSQL backend store so team members can access reproducible experiment lineage.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -1900,11 +1812,11 @@ assert best_run is not None, "best_run should not be None"</pre>
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">Capstone shuru karne se pehle proposal solid hona chahiye: problem statement, dataset, evaluation metric, aur milestones. Achha spec likhna aadhi ladai jeetna hai!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">Capstone project ka pehla step coding nahi balki System Architecture design karna hota hai. Hum define karte hain ki data kahan se aayega (Ingestion), feature store kaise store karega, model kaise serve hoga aur frontend dashboard kaise interact karega.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale Capstone Specification, verify the inputs, dependencies, and deployment steps first.</div>
+        <div class="analogy">Architecture design is like creating the blueprint of a skyscraper before pouring concrete: it defines structural pillars, plumbing, and electrical load capacities so the building doesn't collapse under load.</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -1917,104 +1829,48 @@ assert best_run is not None, "best_run should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-128-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Capstone Part 1: Project Architecture Specification.</p>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 128: Capstone Part 1: Project Architecture Specification
-import os
-import sys
-
-def execute_module():
-    print("Executing Capstone Part 1: Project Architecture Specification pipeline...")
-    config = {"module": "Capstone Part 1: Project Architecture Specification", "status": "ACTIVE", "day": 128}
-    print("Configuration:", config)
-    return config
-
-if __name__ == "__main__":
-    execute_module()</code></pre>
-</div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
-</div>
-<div class="diagram-container" style="background:var(--bg3); padding:1.2rem; border-radius:8px; margin:1.5rem auto; border:1px solid var(--border); text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-<h4 style="color:var(--accent); margin-top:0; font-size:1.05rem;">Architecture Blueprint: CUDA Kernel Fusion (Eliminating VRAM Roundtrips)</h4>
+          <h3 class="sh3">1. End-to-End Enterprise ML Capstone Architecture</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+A complete enterprise-grade machine learning system integrates data ingestion, model serving, API validation, and an interactive presentation layer:
+</p>
 <div class="mermaid">
 graph TD
-    subgraph Unfused["Unfused PyTorch Pipeline (3 VRAM Roundtrips)"]
-        U1["Matrix Mult GEMM"] -->|Write to VRAM| UV1["VRAM Buffer 1"] -->|Read| U2["Add Bias"] -->|Write| UV2["VRAM Buffer 2"] -->|Read| U3["GELU Activation"]
-    end
-    subgraph Fused["Fused CUDA / Triton Kernel (1 VRAM Read, 1 VRAM Write)"]
-        F1["Single GPU Kernel: Compute GEMM + Add Bias + Apply GELU in SRAM / Registers"]
-    end
+  User["User / Web Browser"] --> UI["Streamlit Frontend UI
+(Port 8501)"]
+  UI -->|REST JSON Payloads| API["FastAPI Backend API
+(Port 8000)"]
+  API --> Pydantic["Pydantic Schema Validation"]
+  Pydantic --> Cache["Redis Feature / Prediction Cache"]
+  Cache --> Model["PyTorch / Scikit Model Worker"]
+  Model --> Monitor["Telemetry & Prometheus Metrics"]
 </div>
+<div class="diagram-cap">End-to-End Microservices Architecture for the Enterprise AI Capstone Project.</div>
+
+<h3 class="sh3">2. Typed Configuration Specification</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — project_config.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class ServiceConfig:
+    app_name: str
+    version: str
+    host: str
+    port: int
+    model_path: str
+    latency_sla_ms: float
+    enable_cache: bool
+
+config = ServiceConfig(
+    app_name="Enterprise Fraud Detection Engine",
+    version="1.0.0",
+    host="0.0.0.0",
+    port=8000,
+    model_path="models/fraud_detector_v1.pt",
+    latency_sla_ms=50.0,
+    enable_cache=True
+)
+print("Validated Architecture Configuration:", config)</code></pre>
 </div>
         </div>
 
@@ -2396,8 +2252,8 @@ if __name__ == '__main__':
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:Capstone Specification still needs architecture review, dependency mapping, and interface validation.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Premature Optimization Without SLA Definition</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Never build distributed Kafka queues and multi-node GPU clusters for a service that only receives 5 requests per minute. Always define your latency SLA (e.g. p95 < 100ms) and throughput QPS targets first.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -2533,11 +2389,11 @@ if __name__ == '__main__':
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">💡 Capstone Part 2 Pipeline: Production model training mein data preprocessing pipeline deterministic honi chahiye. Missing values impute karo, categorical features encode karo, aur pipeline object ko serialize (.joblib) karke save karo.</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">Capstone ke is part mein hum data cleaning, train-test split, feature engineering aur automated hyperparameter tuning (Optuna) execute karte hain. Final model ko evaluate karke binary format mein export karte hain.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale Model Training &amp; Pipeline, verify the inputs, dependencies, and deployment steps first.</div>
+        <div class="analogy">Model training is like tuning an F1 race engine: engineers run diagnostic tests across fuel-air mixtures (hyperparameters) on dyno tracks (cross-validation) to extract peak horsepower (accuracy) without blowing the engine (overfitting).</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -2550,92 +2406,40 @@ if __name__ == '__main__':
         <!-- THEORY SECTION -->
         <div id="day-129-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Capstone Part 2: Model Training & Core Pipeline.</p>
+          <h3 class="sh3">1. Rigorous Training & Validation Pipeline</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+The training pipeline ingests raw data, executes deterministic feature transformations, runs stratified cross-validation, and logs evaluation metrics:
+</p>
+<div class="mermaid">
+graph LR
+  Raw["Raw Dataset"] --> Split["Stratified Train / Test Split"]
+  Split --> Train["Train Set (80%)"]
+  Split --> Test["Test Set (20%)"]
+  Train --> Pipe["Feature Pipeline fit_transform()"]
+  Pipe --> Optuna["Hyperparameter Search (Optuna)"]
+  Optuna --> Best["Best Model Weights"]
+  Best & Test --> Eval["Final Evaluation (F1, ROC-AUC)"]
+</div>
+<div class="diagram-cap">Machine Learning Training & Cross-Validation Pipeline Architecture.</div>
+
+<h3 class="sh3">2. Production Python Training & Evaluation Implementation</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 129: Capstone Part 2: Model Training & Core Pipeline
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">python — train_pipeline.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>import numpy as np
 
-def execute_module():
-    print("Executing Capstone Part 2: Model Training & Core Pipeline pipeline...")
-    config = {"module": "Capstone Part 2: Model Training & Core Pipeline", "status": "ACTIVE", "day": 129}
-    print("Configuration:", config)
-    return config
+def compute_classification_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    tp = np.sum((y_true == 1) & (y_pred == 1))
+    fp = np.sum((y_true == 0) & (y_pred == 1))
+    fn = np.sum((y_true == 1) & (y_pred == 0))
+    precision = tp / (tp + fp + 1e-9)
+    recall = tp / (tp + fn + 1e-9)
+    f1 = 2 * (precision * recall) / (precision + recall + 1e-9)
+    return {"precision": round(float(precision), 4), "recall": round(float(recall), 4), "f1": round(float(f1), 4)}
 
-if __name__ == "__main__":
-    execute_module()</code></pre>
-</div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+y_true = np.array([1, 0, 1, 1, 0, 1, 0, 0, 1, 0])
+y_pred = np.array([1, 0, 1, 0, 0, 1, 0, 1, 1, 0])
+metrics = compute_classification_metrics(y_true, y_pred)
+print("Pipeline Validation Metrics:", metrics)</code></pre>
 </div>
         </div>
 
@@ -2990,8 +2794,8 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:Model Training & Pipeline still needs checkpointing, data validation, and convergence checks.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Data Leakage in Feature Scaler Fitting</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Always call `fit_transform` strictly on the training partition and only `transform` on the test partition. Fitting scalers or imputers on the combined dataset leaks distribution statistics, inflating validation metrics.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -3127,11 +2931,11 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">FastAPI route request aate hi model inference karta hai aur JSON response return karta hai. Docker image app + dependencies ko bundle karta hai taaki kahin bhi same environment mile!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">Trained model ko production mein expose karne ke liye hum FastAPI use karte hain. Pydantic request body validate karta hai, model memory mein load rehta hai aur multi-stage Dockerfile se 150MB ka lightweight production container banta hai.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Before you scale FastAPI &amp; Docker, verify the inputs, dependencies, and deployment steps first. (This mirrors how Capstone fundamentally operates.)</div>
+        <div class="analogy">The API wrapper is like a pharmacy drive-thru: customers present valid prescriptions (Pydantic schemas), the pharmacist dispenses the exact dosage (model prediction), and the drive-thru operates 24/7 inside a secure booth (Docker container).</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -3144,92 +2948,59 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
         <!-- THEORY SECTION -->
         <div id="day-130-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Capstone Part 3: API Wrapper & Containerization.</p>
+          <h3 class="sh3">1. High-Performance Asynchronous FastAPI Architecture</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+Production inference APIs leverage asynchronous I/O and Pydantic data validation to achieve sub-20ms p95 latencies:
+</p>
+<div class="mermaid">
+graph LR
+  Req["Client Request"] --> Pyd["Pydantic Validator"]
+  Pyd -->|Valid Payload| Handler["FastAPI Async Handler"]
+  Handler --> InMem["In-Memory Model Worker"]
+  InMem --> Resp["JSON Response: Prediction & Confidence"]
+  Pyd -->|Invalid| Err["HTTP 422 Unprocessable Entity"]
+</div>
+<div class="diagram-cap">FastAPI Inference Service Pipeline with Schema Validation.</div>
+
+<h3 class="sh3">2. Multi-Stage Dockerfile Blueprint</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 130: Capstone Part 3: API Wrapper & Containerization
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">dockerfile — Dockerfile</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code># Stage 1: Build & Dependencies
+FROM python:3.11-slim as builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-def execute_module():
-    print("Executing Capstone Part 3: API Wrapper & Containerization pipeline...")
-    config = {"module": "Capstone Part 3: API Wrapper & Containerization", "status": "ACTIVE", "day": 130}
-    print("Configuration:", config)
-    return config
+# Stage 2: Final Minimal Runtime
+FROM python:3.11-slim
+WORKDIR /app
+COPY --from=builder /root/.local /root/.local
+COPY . .
+ENV PATH=/root/.local/bin:$PATH
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+</div>
 
-if __name__ == "__main__":
-    execute_module()</code></pre>
-</div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+<h3 class="sh3">3. Production Python FastAPI Service Code</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — main.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>from pydantic import BaseModel, Field
+
+class PredictionRequest(BaseModel):
+    feature_1: float = Field(..., ge=0.0, description="Feature 1 magnitude")
+    feature_2: float = Field(..., description="Feature 2 value")
+    category: str = Field(default="tier_1")
+
+class PredictionResponse(BaseModel):
+    prediction: int
+    probability: float
+    status: str = "SUCCESS"
+
+# Simulation
+req = PredictionRequest(feature_1=14.2, feature_2=-1.8)
+prob = 0.94
+resp = PredictionResponse(prediction=1, probability=prob)
+print("API Response Output:", resp.model_dump())</code></pre>
 </div>
         </div>
 
@@ -3618,8 +3389,8 @@ if __name__ == '__main__':
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:FastAPI & Docker still needs schema validation, container builds, and health-check verification.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Re-loading Model Weights Inside Request Handlers</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Never call `torch.load()` or `joblib.load()` inside your FastAPI `@app.post('/predict')` endpoint function! Loading weights takes hundreds of milliseconds per request. Always load model weights once globally during the FastAPI `lifespan` startup event.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -3755,11 +3526,11 @@ if __name__ == '__main__':
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">Model ko cloud par serve karna matlab inference endpoint + autoscaling + monitoring. Streamlit UI se non-technical users bhi model ke saath interact kar sakte hain!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">Frontend ke liye hum Streamlit dashboard banate hain jahan non-technical users data upload karke live predictions, confidence scores aur explanation charts dekh sakte hain. Backend API aur Frontend dono cloud par live deploy hote hain.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale Cloud Deploy &amp; stream, verify the inputs, dependencies, and deployment steps first.</div>
+        <div class="analogy">The frontend dashboard is the cockpit instruments of an aircraft: while the powerful jet engine (backend ML model) works under the hood, the pilot sees clear gauges, dials, and flight status on the dashboard.</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -3772,92 +3543,34 @@ if __name__ == '__main__':
         <!-- THEORY SECTION -->
         <div id="day-131-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Capstone Part 4: Cloud Deployment & Frontend.</p>
+          <h3 class="sh3">1. Frontend-Backend Cloud Communication Topology</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+The decoupled microservice architecture separates the presentation layer (Streamlit) from high-throughput computation (FastAPI):
+</p>
+<div class="mermaid">
+graph LR
+  User["End User Browser"] --> Streamlit["Streamlit UI (Port 8501)"]
+  Streamlit -->|HTTP POST Request| API["FastAPI Endpoint (Port 8000)"]
+  API --> Engine["Inference Engine"]
+  Engine --> API -->|JSON Response| Streamlit
+  Streamlit --> Charts["Interactive Plotly Charts & Confidence Gauges"]
+</div>
+<div class="diagram-cap">Decoupled Microservice Topology: Streamlit Frontend to FastAPI Inference Engine.</div>
+
+<h3 class="sh3">2. Production Python Streamlit Client Implementation</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 131: Capstone Part 4: Cloud Deployment & Frontend
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">python — app_frontend.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>from typing import Dict, Any
 
-def execute_module():
-    print("Executing Capstone Part 4: Cloud Deployment & Frontend pipeline...")
-    config = {"module": "Capstone Part 4: Cloud Deployment & Frontend", "status": "ACTIVE", "day": 131}
-    print("Configuration:", config)
-    return config
+def render_prediction_badge(prediction_data: Dict[str, Any]) -> str:
+    pred = prediction_data.get("prediction", 0)
+    prob = prediction_data.get("probability", 0.0)
+    label = "POSITIVE / HIGH RISK" if pred == 1 else "NEGATIVE / LOW RISK"
+    color = "red" if pred == 1 else "green"
+    return f"Prediction: {label} (Confidence: {prob * 100:.1f}%) [Badge: {color}]"
 
-if __name__ == "__main__":
-    execute_module()</code></pre>
-</div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+sample_resp = {"prediction": 1, "probability": 0.942, "status": "SUCCESS"}
+print("Rendered UI Component:", render_prediction_badge(sample_resp))</code></pre>
 </div>
         </div>
 
@@ -4160,8 +3873,8 @@ if submit_btn and user_input:
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:Cloud deployment still needs live endpoint checks, UI integration tests, and recovery plans.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Hardcoding Localhost URLs in Production Frontends</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Never hardcode `http://localhost:8000/predict` in your Streamlit application! When deployed to cloud environments, client browsers cannot reach localhost. Use environment variables like `os.getenv('BACKEND_API_URL')`.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -4297,11 +4010,11 @@ if submit_btn and user_input:
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">Portfolio repo ka README pehla impression hai — clear project description, architecture diagram, setup instructions aur screenshots. Recruiters kuch minute mein decide kar lete hain!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">Ek standard GitHub repo se recruiter impress nahi hota. Top portfolio repos mein dynamic architecture diagrams, live demo GIF, benchmark tables, 1-line Docker quickstart command aur comprehensive API documentation hoti hai.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale GitHub Portfolio Polish, verify the inputs, dependencies, and deployment steps first.</div>
+        <div class="analogy">Your GitHub repository is your storefront: a messy store with no signage gets passed by; a beautifully lit storefront with clear product displays and customer reviews drives immediate sales.</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -4314,92 +4027,40 @@ if submit_btn and user_input:
         <!-- THEORY SECTION -->
         <div id="day-132-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for GitHub Portfolio Polish.</p>
+          <h3 class="sh3">1. Anatomy of a Tier-1 AI/ML GitHub Repository</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+Senior engineering hiring managers evaluate code quality, repository structure, test coverage, and documentation clarity:
+</p>
+<div class="mermaid">
+graph TD
+  Repo["GitHub Repository"] --> Badges["CI/CD Badges, License & Python Version"]
+  Repo --> Arch["System Architecture Diagram (Mermaid / SVG)"]
+  Repo --> Demo["Live Interactive Demo Link / GIF"]
+  Repo --> Quickstart["1-Line Docker Quickstart (docker run -p 8000:8000)"]
+  Repo --> Benchmarks["Latency vs Accuracy Benchmark Table"]
+  Repo --> Tests["Automated Pytest Suite (Coverage > 90%)"]
+</div>
+<div class="diagram-cap">Standard Structural Components of an Industry-Grade AI Portfolio Repository.</div>
+
+<h3 class="sh3">2. Production README.md Structure Template</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 132: GitHub Portfolio Polish
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">markdown — README.md</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code># 🚀 Enterprise Real-Time Fraud Detection Engine
 
-def execute_module():
-    print("Executing GitHub Portfolio Polish pipeline...")
-    config = {"module": "GitHub Portfolio Polish", "status": "ACTIVE", "day": 132}
-    print("Configuration:", config)
-    return config
+[![CI/CD](https://github.com/user/repo/actions/workflows/ci.yml/badge.svg)](https://github.com)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://docker.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-if __name__ == "__main__":
-    execute_module()</code></pre>
-</div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+## ⚡ Quickstart
+```bash
+docker run -p 8000:8000 my-docker-username/fraud-detector:latest
+```
+
+## 📊 Benchmark Results
+| Model Variant | p95 Latency | F1-Score | Memory Footprint |
+| :--- | :--- | :--- | :--- |
+| **LightGBM (INT8)** | **4.2 ms** | **0.941** | **45 MB** |
+| XGBoost (FP32) | 14.8 ms | 0.943 | 180 MB |</code></pre>
 </div>
         </div>
 
@@ -4748,8 +4409,8 @@ print(generate_capstone_readme("End-to-End Enterprise RAG", "https://github.com/
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:GitHub Portfolio Polish still needs README review, link validation, and screenshot checks.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Missing MIT License and Contribution Guidelines</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Open source recruiters look for industry engineering standards. Repositories without a `LICENSE` file, `.gitignore` (accidentally committing `.env` secrets or `.DS_Store`), or `requirements.txt` look amateur.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -4885,11 +4546,11 @@ print(generate_capstone_readme("End-to-End Enterprise RAG", "https://github.com/
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">Resume mein MLOps keywords (Kubernetes, MLflow, CI/CD) ATS filters se pass karwate hain. Achievements numbers mein likho — 'latency 40% kam ki' — aur STAR format use karo!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">Resume par generic lines ('Worked on ML model') likhne se shortlist nahi hoti. Google XYZ formula follow karo: 'Accomplished [X] as measured by [Y] by doing [Z]'. Example: 'Reduced inference latency by 45% (p95 < 20ms) by quantizing PyTorch model to INT8 ONNX runtime.'</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale Resume &amp; LinkedIn, verify the inputs, dependencies, and deployment steps first.</div>
+        <div class="analogy">An optimized resume is like a high-converting landing page: the headline grabs recruiter attention in 6 seconds, the metrics build instant credibility, and the call-to-action leads directly to an interview invite.</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -4902,92 +4563,21 @@ print(generate_capstone_readme("End-to-End Enterprise RAG", "https://github.com/
         <!-- THEORY SECTION -->
         <div id="day-133-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Resume & LinkedIn Optimization.</p>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 133: Resume & LinkedIn Optimization
-import os
-import sys
-
-def execute_module():
-    print("Executing Resume & LinkedIn Optimization pipeline...")
-    config = {"module": "Resume & LinkedIn Optimization", "status": "ACTIVE", "day": 133}
-    print("Configuration:", config)
-    return config
-
-if __name__ == "__main__":
-    execute_module()</code></pre>
+          <h3 class="sh3">1. The Google XYZ Resume Framework for AI Engineers</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+Every bullet point on your resume should follow the standardized metric-driven formula:
+</p>
+<div class="math-block">
+$$\text{Bullet Point} = \text{Accomplished [X]} + \text{Measured by [Y]} + \text{By doing [Z]}$$
 </div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+
+<div class="table-wrap">
+<table class="concept-table">
+  <tr><th>Weak / Amateur Bullet</th><th>Strong / Google XYZ Formatted Bullet</th></tr>
+  <tr><td>Built a RAG chatbot using LangChain and OpenAI.</td><td><strong>Engineered enterprise Hybrid RAG system achieving 94% context recall and &lt;45ms latency by combining BM25, HNSW dense retrieval, and Reciprocal Rank Fusion (RRF).</strong></td></tr>
+  <tr><td>Trained a computer vision model for defect detection.</td><td><strong>Trained and quantized a YOLOv8 vision pipeline reducing inspection false positives by 38% while achieving 60 FPS throughput on edge NVIDIA Jetson hardware.</strong></td></tr>
+  <tr><td>Deployed models using Docker and Kubernetes.</td><td><strong>Architected autoscaling Kubernetes inference cluster serving 12M daily requests with zero downtime across rolling Canary deployments.</strong></td></tr>
+</table>
 </div>
         </div>
 
@@ -5328,8 +4918,8 @@ for title, star in STAR_PROJECTS.items():
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:Resume & LinkedIn still needs keyword alignment, ATS formatting, and profile consistency checks.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Listing Skills Without Quantifiable Production Impact</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Never list a wall of 50 buzzwords (e.g. 'Python, PyTorch, Kubernetes, Spark, Kafka') without demonstrating them in bullet points with quantifiable performance metrics ($X\%$, latency ms, dollar savings).</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -5465,11 +5055,11 @@ for title, star in STAR_PROJECTS.items():
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">Imposter syndrome common hai — sab experience karte hain. Tumhe sab kuch nahi pata hona zaroori nahi. Learning capacity aur problem-solving approach zyada important hai!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">Tech interviews mein theory, math derivations aur live coding tino check hote hain. Core concepts jaise Backpropagation chain rule, Cross-Entropy loss derivation, Bias-Variance tradeoff aur attention matrix computation $O(N^2)$ tips par hone chahiye.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale Mock Interview Drills I, verify the inputs, dependencies, and deployment steps first.</div>
+        <div class="analogy">An ML technical interview is like a master chess match: opening moves test foundational rules (ML theory), middle game tests tactical execution (live coding), and endgame tests deep strategic vision (system design).</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -5482,92 +5072,35 @@ for title, star in STAR_PROJECTS.items():
         <!-- THEORY SECTION -->
         <div id="day-134-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Final Interview Prep: ML Theory & Coding.</p>
+          <h3 class="sh3">1. Core Mathematical Derivations: Cross-Entropy & Softmax</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+The Cross-Entropy loss for multi-class classification with true distribution $y$ and predicted probabilities $\hat{y} = \text{Softmax}(z)$ is:
+</p>
+<div class="math-block">
+$$\mathcal{L}_{\text{CE}} = -\sum_{i=1}^C y_i \log(\hat{y}_i) \quad \text{where } \hat{y}_i = \frac{e^{z_i}}{\sum_j e^{z_j}}$$
+$$\frac{\partial \mathcal{L}}{\partial z_i} = \hat{y}_i - y_i \quad \text{(Gradient is simply predicted prob minus true label!)}$$
+</div>
+
+<h3 class="sh3">2. Vectorized Python Implementation (Live Coding Question)</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 134: Final Interview Prep: ML Theory & Coding
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">python — cross_entropy_gradient.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>import numpy as np
 
-def execute_module():
-    print("Executing Final Interview Prep: ML Theory & Coding pipeline...")
-    config = {"module": "Final Interview Prep: ML Theory & Coding", "status": "ACTIVE", "day": 134}
-    print("Configuration:", config)
-    return config
+def softmax(logits: np.ndarray) -> np.ndarray:
+    e_x = np.exp(logits - np.max(logits, axis=-1, keepdims=True))
+    return e_x / np.sum(e_x, axis=-1, keepdims=True)
 
-if __name__ == "__main__":
-    execute_module()</code></pre>
-</div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+def cross_entropy_loss_and_grad(logits: np.ndarray, target_idx: int):
+    probs = softmax(logits)
+    loss = -np.log(probs[target_idx] + 1e-12)
+    grad = probs.copy()
+    grad[target_idx] -= 1.0 # dL/dz = p_i - y_i
+    return loss, grad
+
+logits = np.array([2.0, 1.0, 0.1])
+loss, grad = cross_entropy_loss_and_grad(logits, target_idx=0)
+print(f"Computed Loss: {loss:.4f}")
+print("Exact Analytical Gradient:", [round(float(g), 4) for g in grad])</code></pre>
 </div>
         </div>
 
@@ -5962,8 +5495,8 @@ if __name__ == '__main__':
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:Mock Interview Drills I still needs timed practice, explanation quality, and gap review.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Jumping to Code Before Clarifying Constraints</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">In live coding rounds, never start typing code immediately! Always clarify input types, edge cases (empty lists, NaN values, billion-row scale), and state time/space complexity before writing a single line.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -6099,11 +5632,11 @@ if __name__ == '__main__':
         <!-- HINGLISH EXPLANATION -->
         <div class="callout ci" style="margin:1.5rem 0;">
           <strong>💬 Hinglish Explanation:</strong>
-          <p style="margin:0.5rem 0 0;line-height:1.7;">Aage kya karo: ek production-grade project deploy karo, Kaggle competition mein participate karo, open-source contribute karo, job apply karo. Ek step ek baar — aur rukna mat!</p>
+          <p style="margin:0.5rem 0 0;line-height:1.7;">System Design interviews mein candidate ko end-to-end distributed ML system design karna hota hai (e.g. YouTube Recommendation ya Real-time Ad CTR Prediction). 4-step framework follow karo: Scope & SLA -> Data Pipeline & Storage -> Model & Serving -> Monitoring & Fallbacks.</p>
         </div>
 
         <!-- ANALOGY -->
-        <div class="analogy">Think of it like this: Before you scale Mock Interview Drills II, verify the inputs, dependencies, and deployment steps first. (This mirrors how Course fundamentally operates.)</div>
+        <div class="analogy">An ML System Design interview is like designing the civil engineering infrastructure for a metropolis: water supply (data streaming), traffic highways (load balancers), power plants (GPU clusters), and emergency disaster response (fallback models).</div>
 
         <!-- QUICK SECTION JUMP BAR -->
         <div class="quick-jumps" style="display:flex; gap:10px; margin: 1.5rem 0; flex-wrap:wrap;">
@@ -6116,92 +5649,37 @@ if __name__ == '__main__':
         <!-- THEORY SECTION -->
         <div id="day-135-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Mid-Course Milestone: MLOps & System Design Architecture.</p>
+          <h3 class="sh3">1. Tier-1 ML System Design 4-Step Framework</h3>
+<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
+Mastering the 45-minute Principal / Senior ML System Design interview loop requires structured execution:
+</p>
+<div class="mermaid">
+graph TD
+  Step1["1. Problem Scope & Constraints
+(100M MAU, 50k QPS, p99 under 50ms)"] --> Step2["2. High-Level Architecture
+(Data Ingestion, Offline Training, Online Serving)"]
+  Step2 --> Step3["3. Deep Component Design
+(Two-Tower ANN, Feature Store, Redis Cache, Re-ranker)"]
+  Step3 --> Step4["4. Production Operations
+(Data Drift, Canary Rollout, Fallback Degradation)"]
+</div>
+<div class="diagram-cap">Standard 4-Step Technical Framework for Senior ML System Design Interviews.</div>
+
+<h3 class="sh3">2. System Capacity & Latency Budget Math</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Architectural Reference for Day 135: Mid-Course Milestone: MLOps & System Design Architecture
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">python — latency_budget_calculator.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
+  <pre><code>def evaluate_system_latency_budget(network_ms: float, ann_retrieval_ms: float, feature_fetch_ms: float, model_forward_ms: float, rerank_ms: float, max_sla_ms: float = 50.0):
+    total = network_ms + ann_retrieval_ms + feature_fetch_ms + model_forward_ms + rerank_ms
+    passed = total <= max_sla_ms
+    return {
+        "total_latency_ms": round(total, 2),
+        "sla_target_ms": max_sla_ms,
+        "is_within_budget": passed,
+        "headroom_ms": round(max_sla_ms - total, 2)
+    }
 
-def execute_module():
-    print("Executing Mid-Course Milestone: MLOps & System Design Architecture pipeline...")
-    config = {"module": "Mid-Course Milestone: MLOps & System Design Architecture", "status": "ACTIVE", "day": 135}
-    print("Configuration:", config)
-    return config
-
-if __name__ == "__main__":
-    execute_module()</code></pre>
-</div>
-<div class="callout" style="background:rgba(108,140,255,.03); border:1px dashed var(--blue); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.8rem;">
-<strong style="color:var(--blue); font-family:var(--font-head); font-size:14px; display:block; margin-bottom:0.75rem;">
-       🗺️ Weekly Concept Map &amp; Dependency Flow
-      </strong>
-<div class="concept-map-flow" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--font-mono); font-size: 12.5px; margin-bottom:0.75rem;">
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Kubernetes Basics for ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Cloud Deployment on Rende
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        MLOps Basics &amp; Experiment
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 1: Project
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 2: Model Tr
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 3: API Wrap
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Capstone Part 4: Cloud De
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        GitHub Portfolio Polish
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Resume &amp; LinkedIn Optimiz
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: ML
-       </span>
-<span style="color:var(--muted); font-weight:bold;">
-        ➔
-       </span>
-<span style="background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); white-space:nowrap;">
-        Final Interview Prep: Sys
-       </span>
-</div>
+budget = evaluate_system_latency_budget(network_ms=8.0, ann_retrieval_ms=10.0, feature_fetch_ms=5.0, model_forward_ms=18.0, rerank_ms=4.0)
+print("System Design Latency Audit:", budget)</code></pre>
 </div>
         </div>
 
@@ -6513,8 +5991,8 @@ if __name__ == '__main__':
 
         <!-- GOTCHAS -->
         <div class="gotcha-box">
-          <strong>⚠️ Common Pitfall & Gotcha</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">⚠️ Common Misconception:Mock Interview Drills II still needs system design clarity, tradeoff discussion, and monitoring plans.Fact:Har dataset ki characteristics alag hoti hain, isliye hyperparameter tuning aur proper features scaling model performance ke liye zaroori hain.</p>
+          <strong>⚠️ Gotcha: Focusing Only on Modeling and Ignoring Serving Latency</strong>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Junior engineers spend 40 minutes discussing neural network architectures and 0 minutes on feature stores, caching, latency budgets, or fallback heuristics. Senior roles grade heavily on production trade-offs and operational resilience.</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->

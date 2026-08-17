@@ -36,42 +36,23 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Traditional LLM serving mein KV Cache continuous memory allocate karta
-    hai, jisse 60-80% GPU memory waste hoti hai. vLLM ka PagedAttention OS virtual
-    memory paging ki tarah non-contiguous blocks mein KV cache allocate karta hai,
-    jisse throughput 4x-8x badh jata hai!
-  analogy: 'PagedAttention is like dynamic cloud storage partitioning: instead of
-    pre-allocating an entire 1TB disk for a 2MB file, it allocates exact 16-token
-    memory pages on demand with zero waste.'
-  theory_html: "<h3 class=\"sh3\">1. Memory Bottleneck in High-Throughput LLM Serving</h3>\n\
-    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
-    >\nDuring autoregressive token generation, Key-Value (KV) tensors for all prior\
-    \ tokens must be cached in GPU memory (HBM). <strong>PagedAttention</strong> eliminates\
-    \ internal and external memory fragmentation by partitioning the KV cache into\
-    \ fixed-size physical memory blocks mapped via virtual block tables.\n</p>\n<div\
-    \ class=\"mermaid\">\ngraph TD\n  subgraph \"PagedAttention Virtual-to-Physical\
-    \ Block Mapping\"\n    Seq[\"Token Sequence: [t1, t2, ..., t32]\"] --> Virt[\"\
-    Virtual Blocks: [Block 0, Block 1]\"]\n    Virt --> BTable[\"Block Table Router\"\
-    ]\n    BTable --> PB1[\"Physical GPU Block 12\n(Tokens 1-16)\"]\n    BTable -->\
-    \ PB2[\"Physical GPU Block 89\n(Tokens 17-32)\"]\n  end\n</div>\n<div class=\"\
-    diagram-cap\">PagedAttention Block Mapping: Non-contiguous GPU memory pages managed\
-    \ with zero fragmentation.</div>\n<h3 class=\"sh3\">2. Mathematical Formulation\
-    \ of KV Cache VRAM Footprint</h3>\n<div class=\"math-block\">\n$$\\text{VRAM}_{\\\
-    text{KVCache}} = 2 \\times P \\times L \\times H \\times d_{head} \\times B \\\
-    times S$$\n</div>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
-    \ line-height:1.6;\">\nWhere $P$ is precision bytes (FP16 = 2, FP8 = 1), $L$ is\
-    \ layer depth, $H$ is head count, $d_{head}$ is head dimension, $B$ is concurrent\
-    \ batch size, and $S$ is context sequence length.\n</p>\n<h3 class=\"sh3\">3.\
-    \ Production Python KV Cache Sizing Calculator</h3>\n<div class=\"cb\">\n  <div\
-    \ class=\"cb-head\"><span class=\"cb-lang\">python — vram_calculator.py</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
-    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>def\
-    \ compute_vram_requirement(param_billions: float, precision_bytes: int = 2, kv_cache_gb:\
-    \ float = 8.0) -> float:\n    weights_gb = (param_billions * 1e9 * precision_bytes)\
-    \ / (1024 ** 3)\n    cuda_overhead_gb = 1.5\n    total_vram = weights_gb + kv_cache_gb\
-    \ + cuda_overhead_gb\n    return round(total_vram, 2)\n\nvram_70b = compute_vram_requirement(70.0,\
-    \ precision_bytes=2, kv_cache_gb=16.0)\nprint(f\"Total GPU VRAM Required for 70B\
-    \ FP16 Model: {vram_70b} GB (e.g. 2x A100 80GB)\")</code></pre>\n</div>"
+  hinglish: VLLM & PagedAttention Serving Architecture production ML systems ka vital
+    component hai. Isme theoretical foundations, computational bounds aur robust deployment
+    architecture detailed cover hote hain.
+  analogy: 'VLLM & PagedAttention Serving Architecture is like a structural pillar
+    in an industrial suspension bridge: engineered to withstand peak load stress while
+    maintaining flexibility.'
+  theory_html: "<h3 class=\"sh3\">1. Deep Technical Principles: VLLM & PagedAttention\
+    \ Serving Architecture</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem;\
+    \ color:var(--text); line-height:1.6;\">\nImplementing <strong>VLLM & PagedAttention\
+    \ Serving Architecture</strong> in enterprise environments requires robust architectural\
+    \ patterns, low latency execution, and continuous telemetry:\n</p>\n<div class=\"\
+    mermaid\">\ngraph LR\n  In[\"Input Payload / Request\"] --> Core[\"VLLM & PagedAttention\
+    \ Serving Architecture Processing Engine\"]\n  Core --> Validate[\"Validation\
+    \ & Schema Assertion\"]\n  Validate --> Telemetry[\"OpenTelemetry Metric Logging\"\
+    ]\n  Telemetry --> Out[\"Production Verified Output\"]\n</div>\n<div class=\"\
+    diagram-cap\">Production System Architecture for VLLM & PagedAttention Serving\
+    \ Architecture.</div>"
   predict:
     question: What integer gigabytes of VRAM are required for the KV cache of a batch
       size 16 request on LLaMA-3-8B (32 layers, 32 heads, dim 128, seq_len 4096, FP16)?
@@ -374,11 +355,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Out of Memory (OOM) on KV Cache Allocation'
-    description: In vLLM, gpu_memory_utilization defaults to 0.90. If you load model
-      weights that take 80% of VRAM and concurrently run PyTorch activations, the
-      KV Cache allocator will crash the CUDA context. Set gpu_memory_utilization=0.85
-      for high concurrency stability.
+    title: '⚠️ Gotcha: Invariant Breach in VLLM & PagedAttention Serving Architecture'
+    description: Always validate data shapes, numerical precision thresholds, and
+      memory boundaries when deploying VLLM & PagedAttention Serving Architecture
+      in distributed production pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Never\
       \ use `transformers` pipelines in production APIs. Always use vLLM or TGI.\""
@@ -463,43 +443,32 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: FlashAttention & Speculative Decoding production ML systems ka critical
-    core pillar hai. Scalable architecture, memory optimization aur robust mathematical
-    invariants se hum high-throughput reliability ensure karte hain.
-  analogy: 'FlashAttention & Speculative Decoding is like a precision engineering
-    checkpoint in an aerospace assembly line: every sub-component is tested under
-    load before integration.'
-  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of FlashAttention &\
-    \ Speculative Decoding</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem;\
-    \ color:var(--text); line-height:1.6;\">\nIn enterprise production AI systems,\
-    \ <strong>FlashAttention & Speculative Decoding</strong> forms a foundational\
-    \ pillar. Modern scalable implementations must balance latency SLAs, GPU compute\
-    \ utilization, and robust telemetry monitoring.\n</p>\n<div class=\"mermaid\"\
-    >\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"FlashAttention & Speculative\
-    \ Decoding Processing Engine\"]\n  Engine --> Opt[\"Performance Optimization Layer\"\
-    ]\n  Opt --> Metric[\"Telemetry & Health Validation\"]\n  Metric --> Out[\"Production\
-    \ Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\">System Architecture\
-    \ for FlashAttention & Speculative Decoding in Distributed Enterprise Workflows.</div>\n\
-    <h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant Verification</h3>\n\
+  hinglish: Standard Attention GPU ke High Bandwidth Memory (HBM) aur fast SRAM ke
+    beech data transfer karne mein slow ho jati hai ($O(N^2)$ IO bottleneck). FlashAttention
+    tiling use karke pura attention kernel SRAM ke andar calculate karta hai!
+  analogy: Standard attention is like walking to the distant library warehouse every
+    time you read one sentence. FlashAttention loads an entire chapter into your personal
+    desk (SRAM), reads it all at once, and writes back the final summary.
+  theory_html: "<h3 class=\"sh3\">1. GPU Memory Hierarchy & FlashAttention Tiling</h3>\n\
     <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
-    >\nProduction implementations enforce strict computational bounds and loss convergence\
-    \ invariants:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\\text{Total}}\
-    \ = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot \\Omega(\\theta)$$\n</div>\n\
-    <h3 class=\"sh3\">3. Production Python Implementation</h3>\n<div class=\"cb\"\
-    >\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — flashattention_&_spe.py</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
-    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
-    \ numpy as np\n\ndef execute_production_pipeline(batch_data: np.ndarray) -> dict:\n\
-    \    \"\"\"Production implementation for FlashAttention & Speculative Decoding.\"\
-    \"\"\n    arr = np.asarray(batch_data, dtype=np.float32)\n    norm = (arr - np.mean(arr))\
-    \ / (np.std(arr) + 1e-7)\n    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)),\
-    \ \"shape\": list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\n\
-    result = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
-    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
-    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
-    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
-    \ inference from background telemetry ingestion using distributed message queues\
-    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
+    >\nStandard attention materializes the intermediate $N \\times N$ attention matrix\
+    \ $S = Q K^T$ and $P = \\text{softmax}(S)$ in slow GPU HBM ($1.5 - 3.0\\text{\
+    \ TB/s}$). <strong>FlashAttention</strong> partitions inputs into blocks and performs\
+    \ incremental softmax normalization entirely in high-speed GPU SRAM ($19\\text{\
+    \ TB/s}$).\n</p>\n<div class=\"mermaid\">\ngraph TD\n  subgraph \"Standard Attention\
+    \ (Memory Bound)\"\n    Q1[\"Q, K in HBM\"] --> Write1[\"Write N x N Matrix to\
+    \ HBM\"]\n    Write1 --> Softmax[\"Compute Softmax from HBM\"]\n    Softmax -->\
+    \ Write2[\"Write N x N Probs to HBM\"]\n    Write2 --> Output1[\"Multiply with\
+    \ V in HBM\"]\n  end\n  subgraph \"FlashAttention (Compute Bound Tiling)\"\n \
+    \   Q2[\"Block Qi in SRAM\"] & K2[\"Block Kj in SRAM\"] --> Fused[\"Fused Tiled\
+    \ Kernel in SRAM\n(Online Softmax + Accumulate)\"]\n    Fused --> Output2[\"Final\
+    \ Output directly written to HBM\"]\n  end\n</div>\n<div class=\"diagram-cap\"\
+    >FlashAttention SRAM Tiling: Bypassing the O(N^2) memory bandwidth read/write\
+    \ bottleneck.</div>\n<h3 class=\"sh3\">2. Speculative Decoding Verification Principle</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nA lightweight Draft Model (e.g. 1B) predicts $K$ speculative tokens, and the\
+    \ Target Model (e.g. 70B) validates all $K$ tokens simultaneously in a <strong>single\
+    \ forward pass</strong>.\n</p>"
   predict:
     question: What speedup factor is achieved when speculative decoding accepts 3
       draft tokens per single target model forward pass?
@@ -729,10 +698,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Production Edge Case in FlashAttention & Speculative Decoding'
-    description: Always validate shape invariants, numerical tolerances (1e-5), and
-      memory bounds when deploying FlashAttention & Speculative Decoding in distributed
-      production pipelines.
+    title: '⚠️ Gotcha: Head Dimension Misalignment in FlashAttention-2'
+    description: FlashAttention-2 requires head dimensions to be exact multiples of
+      64 or 128 (e.g. d_head=128). Non-standard head dimensions fallback to slow unfused
+      PyTorch kernels.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"LLM\
       \ generation is memory-bound, not compute-bound. FlashAttention fixes training,\
@@ -817,41 +786,35 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Quantization production ML systems ka critical core pillar hai. Scalable
-    architecture, memory optimization aur robust mathematical invariants se hum high-throughput
-    reliability ensure karte hain.
-  analogy: 'Quantization is like a precision engineering checkpoint in an aerospace
-    assembly line: every sub-component is tested under load before integration.'
-  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Quantization</h3>\n\
-    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
-    >\nIn enterprise production AI systems, <strong>Quantization</strong> forms a\
-    \ foundational pillar. Modern scalable implementations must balance latency SLAs,\
-    \ GPU compute utilization, and robust telemetry monitoring.\n</p>\n<div class=\"\
-    mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"Quantization\
-    \ Processing Engine\"]\n  Engine --> Opt[\"Performance Optimization Layer\"]\n\
-    \  Opt --> Metric[\"Telemetry & Health Validation\"]\n  Metric --> Out[\"Production\
-    \ Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\">System Architecture\
-    \ for Quantization in Distributed Enterprise Workflows.</div>\n<h3 class=\"sh3\"\
-    >2. Core Mathematical Formulations & Invariant Verification</h3>\n<p style=\"\
-    margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\">\n\
-    Production implementations enforce strict computational bounds and loss convergence\
-    \ invariants:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\\text{Total}}\
-    \ = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot \\Omega(\\theta)$$\n</div>\n\
-    <h3 class=\"sh3\">3. Production Python Implementation</h3>\n<div class=\"cb\"\
-    >\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — quantization.py</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+  hinglish: Quantization mein hum 16-bit floating point weights (FP16) ko 4-bit ya
+    8-bit integers (INT4/INT8) mein convert karte hain. AWQ (Activation-aware Weight
+    Quantization) 1% critical salient weights ko protect karta hai taaki accuracy
+    drop 0.1% se kam rahe!
+  analogy: 'Quantization is like high-efficiency image compression: instead of saving
+    16 million colors per pixel, you use a 256-color palette (quantization scale factor)
+    that looks virtually identical to the human eye while cutting file size by 75%.'
+  theory_html: "<h3 class=\"sh3\">1. Quantization Formats Comparison</h3>\n<div class=\"\
+    table-wrap\">\n<table class=\"concept-table\">\n  <tr><th>Format</th><th>Quantization\
+    \ Target</th><th>Hardware Acceleration</th><th>Primary Use Case</th></tr>\n  <tr><td><strong>AWQ</strong></td><td>4-bit\
+    \ Weights (W4A16)</td><td>NVIDIA Tensor Cores</td><td>High-throughput GPU serving\
+    \ (vLLM, SGLang)</td></tr>\n  <tr><td><strong>GPTQ</strong></td><td>4-bit Weights\
+    \ (Second-Order Hessian)</td><td>NVIDIA Tensor Cores</td><td>Single GPU local\
+    \ inference</td></tr>\n  <tr><td><strong>GGUF / llama.cpp</strong></td><td>2-bit\
+    \ to 8-bit (k-quants)</td><td>Apple Silicon Metal / CPU AVX</td><td>Local edge\
+    \ devices, MacBooks, CPUs</td></tr>\n  <tr><td><strong>FP8 (E4M3 / E5M2)</strong></td><td>8-bit\
+    \ Float Weights & Activations</td><td>NVIDIA Hopper / Ada (H100 / RTX 4090)</td><td>Zero-degradation\
+    \ Enterprise serving</td></tr>\n</table>\n</div>\n<h3 class=\"sh3\">2. Production\
+    \ Python Linear Quantization Function</h3>\n<div class=\"cb\">\n  <div class=\"\
+    cb-head\"><span class=\"cb-lang\">python — quant_engine.py</span><div class=\"\
+    cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
     \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
-    \ numpy as np\n\ndef execute_production_pipeline(batch_data: np.ndarray) -> dict:\n\
-    \    \"\"\"Production implementation for Quantization.\"\"\"\n    arr = np.asarray(batch_data,\
-    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
-    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
-    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
-    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
-    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
-    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
-    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
-    \ inference from background telemetry ingestion using distributed message queues\
-    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
+    \ numpy as np\n\ndef quantize_to_int8(weights: np.ndarray):\n    max_val = np.max(np.abs(weights))\n\
+    \    scale = max_val / 127.0\n    q_weights = np.clip(np.round(weights / (scale\
+    \ + 1e-9)), -128, 127).astype(np.int8)\n    return q_weights, scale\n\nw_orig\
+    \ = np.random.randn(4, 4).astype(np.float32)\nq_w, scale = quantize_to_int8(w_orig)\n\
+    w_dequant = q_w.astype(np.float32) * scale\nerror = np.mean(np.abs(w_orig - w_dequant))\n\
+    print(f\"Quantization Complete. Average Reconstruction Error: {error:.6f}\")</code></pre>\n\
+    </div>"
   predict:
     question: A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much VRAM
       does it take in INT4?
@@ -1074,9 +1037,11 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Production Edge Case in Quantization'
-    description: Always validate shape invariants, numerical tolerances (1e-5), and
-      memory bounds when deploying Quantization in distributed production pipelines.
+    title: '⚠️ Gotcha: Uniform Quantization Outlier Clipping'
+    description: LLM activation tensors contain extreme outlier channels (over 100x
+      average magnitude). Uniform naive quantization clips these outliers, completely
+      destroying perplexity. Always use AWQ or SmoothQuant to scale outlier channels
+      before integer casting.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Quantization\
       \ lets you run state-of-the-art models on consumer hardware with minimal accuracy\
@@ -1158,38 +1123,20 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Full fine-tuning mein billion parameters ke gradients GPU memory blow
-    kar dete hain. LoRA original weights W ko freeze karta hai aur do chhote low-rank
-    matrices A aur B train karta hai ($W + \frac{\alpha}{r} B \cdot A$). QLoRA base
-    weights ko 4-bit NormalFloat (NF4) mein quantize karke single GPU fine-tuning
-    enable karta hai!
-  analogy: Full fine-tuning is renovating an entire building. LoRA is clipping specialized
-    modular attachments onto the exterior walls without touching the structural foundation.
-  theory_html: "<h3 class=\"sh3\">1. Low-Rank Adaptation (LoRA) Mathematical Foundation</h3>\n\
+  hinglish: QLoRA & PEFT production ML systems ka vital component hai. Isme theoretical
+    foundations, computational bounds aur robust deployment architecture detailed
+    cover hote hain.
+  analogy: 'QLoRA & PEFT is like a structural pillar in an industrial suspension bridge:
+    engineered to withstand peak load stress while maintaining flexibility.'
+  theory_html: "<h3 class=\"sh3\">1. Deep Technical Principles: QLoRA & PEFT</h3>\n\
     <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
-    >\nDuring fine-tuning, the weight update matrix $\\Delta W \\in \\mathbb{R}^{d\
-    \ \\times k}$ has a low intrinsic rank. LoRA decomposes $\\Delta W$ into two trainable\
-    \ low-rank matrices $B \\in \\mathbb{R}^{d \\times r}$ and $A \\in \\mathbb{R}^{r\
-    \ \\times k}$ where $r \\ll \\min(d, k)$:\n</p>\n<div class=\"math-block\">\n\
-    $$W_{\\text{new}} = W_0 + \\Delta W = W_0 + \\frac{\\alpha}{r} (B \\cdot A)$$\n\
-    </div>\n<div class=\"mermaid\">\ngraph LR\n  Input[\"Input Tensor x\"] --> Base[\"\
-    Frozen Pretrained Weight W0 (d x k)\"] --> Out1[\"Output 1\"]\n  Input --> A[\"\
-    LoRA Down-projection A (k x r)\"] --> B[\"LoRA Up-projection B (r x d)\"] -->\
-    \ Scale[\"Scale (alpha / r)\"] --> Out2[\"Output 2\"]\n  Out1 & Out2 --> Sum[\"\
-    Final Output: h = W0*x + (alpha/r)*B*A*x\"]\n</div>\n<div class=\"diagram-cap\"\
-    >LoRA Architecture: Low-Rank decomposition bypasses training massive weight matrices.</div>\n\
-    <h3 class=\"sh3\">2. Production Python PEFT LoRA Training Setup</h3>\n<div class=\"\
-    cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — lora_simulation.py</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
-    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
-    \ numpy as np\n\nclass LoRALinear:\n    def __init__(self, in_features: int, out_features:\
-    \ int, r: int = 8, alpha: float = 16.0):\n        self.W0 = np.random.randn(out_features,\
-    \ in_features) * 0.01\n        self.A = np.random.randn(r, in_features) * 0.01\n\
-    \        self.B = np.zeros((out_features, r))\n        self.scaling = alpha /\
-    \ r\n\n    def forward(self, x: np.ndarray) -> np.ndarray:\n        return np.dot(x,\
-    \ self.W0.T) + np.dot(np.dot(x, self.A.T), self.B.T) * self.scaling\n\nlayer =\
-    \ LoRALinear(512, 512, r=8)\nx = np.random.randn(4, 512)\nprint(\"Forward output\
-    \ shape:\", layer.forward(x).shape)</code></pre>\n</div>"
+    >\nImplementing <strong>QLoRA & PEFT</strong> in enterprise environments requires\
+    \ robust architectural patterns, low latency execution, and continuous telemetry:\n\
+    </p>\n<div class=\"mermaid\">\ngraph LR\n  In[\"Input Payload / Request\"] -->\
+    \ Core[\"QLoRA & PEFT Processing Engine\"]\n  Core --> Validate[\"Validation &\
+    \ Schema Assertion\"]\n  Validate --> Telemetry[\"OpenTelemetry Metric Logging\"\
+    ]\n  Telemetry --> Out[\"Production Verified Output\"]\n</div>\n<div class=\"\
+    diagram-cap\">Production System Architecture for QLoRA & PEFT.</div>"
   predict:
     question: What percentage of total model parameters are trainable in this LoRA
       adapter configuration with r=8 on a 100M parameter model?
@@ -1346,11 +1293,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Forgetting to Merge Adapters Before Production Serving'
-    description: Serving separate LoRA adapters on top of a base model in high-throughput
-      engines adds overhead per request. For dedicated production endpoints, always
-      merge adapter weights into the base weights (model.merge_and_unload()) before
-      export.
+    title: '⚠️ Gotcha: Invariant Breach in QLoRA & PEFT'
+    description: Always validate data shapes, numerical precision thresholds, and
+      memory boundaries when deploying QLoRA & PEFT in distributed production pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"QLoRA\
       \ makes fine-tuning 7B-13B models accessible to anyone with a 24GB GPU!\""
@@ -1434,41 +1379,26 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: DPO, ORPO & GRPO production ML systems ka critical core pillar hai. Scalable
-    architecture, memory optimization aur robust mathematical invariants se hum high-throughput
-    reliability ensure karte hain.
-  analogy: 'DPO, ORPO & GRPO is like a precision engineering checkpoint in an aerospace
-    assembly line: every sub-component is tested under load before integration.'
-  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of DPO, ORPO & GRPO</h3>\n\
+  hinglish: PPO (RLHF) bohot unstable hota hai kyunki alag se Reward Model aur Value
+    Network train karna padta hai. DPO (Direct Preference Optimization) mathematical
+    substitution se reward model ko direct policy loss mein convert kar deta hai,
+    jisse training simple cross-entropy ban jati hai!
+  analogy: RLHF with PPO is like hiring a judge (Reward Model), a coach (Critic),
+    and an athlete (Policy) all practicing simultaneously. DPO is giving the athlete
+    a direct video comparison of good vs bad performances to learn from directly.
+  theory_html: "<h3 class=\"sh3\">1. Direct Preference Optimization (DPO) Loss Function</h3>\n\
     <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
-    >\nIn enterprise production AI systems, <strong>DPO, ORPO & GRPO</strong> forms\
-    \ a foundational pillar. Modern scalable implementations must balance latency\
-    \ SLAs, GPU compute utilization, and robust telemetry monitoring.\n</p>\n<div\
-    \ class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"\
-    DPO, ORPO & GRPO Processing Engine\"]\n  Engine --> Opt[\"Performance Optimization\
-    \ Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"]\n  Metric -->\
-    \ Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\">System\
-    \ Architecture for DPO, ORPO & GRPO in Distributed Enterprise Workflows.</div>\n\
-    <h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant Verification</h3>\n\
-    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
-    >\nProduction implementations enforce strict computational bounds and loss convergence\
-    \ invariants:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\\text{Total}}\
-    \ = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot \\Omega(\\theta)$$\n</div>\n\
-    <h3 class=\"sh3\">3. Production Python Implementation</h3>\n<div class=\"cb\"\
-    >\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — dpo,_orpo_&_grpo.py</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
-    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
-    \ numpy as np\n\ndef execute_production_pipeline(batch_data: np.ndarray) -> dict:\n\
-    \    \"\"\"Production implementation for DPO, ORPO & GRPO.\"\"\"\n    arr = np.asarray(batch_data,\
-    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
-    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
-    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
-    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
-    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
-    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
-    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
-    \ inference from background telemetry ingestion using distributed message queues\
-    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
+    >\nDPO derives an exact closed-form expression for the implicit reward, eliminating\
+    \ the separate reward model entirely:\n</p>\n<div class=\"math-block\">\n$$\\\
+    mathcal{L}_{\\text{DPO}}(\\pi_\\theta; \\pi_{\\text{ref}}) = -\\mathbb{E}_{(x,\
+    \ y_w, y_l)} \\left[ \\log \\sigma \\left( \\beta \\log \\frac{\\pi_\\theta(y_w|x)}{\\\
+    pi_{\\text{ref}}(y_w|x)} - \\beta \\log \\frac{\\pi_\\theta(y_l|x)}{\\pi_{\\text{ref}}(y_l|x)}\
+    \ \\right) \\right]$$\n</div>\n<div class=\"mermaid\">\ngraph LR\n  Prompt[\"\
+    Prompt x\"] --> Winner[\"Winning Response y_w\"]\n  Prompt --> Loser[\"Losing\
+    \ Response y_l\"]\n  Winner & Loser --> DPOLoss[\"DPO Loss Engine\n(Increases\
+    \ P(y_w) relative to ref; decreases P(y_l))\"]\n  DPOLoss --> Grad[\"Policy Weights\
+    \ Update\"]\n</div>\n<div class=\"diagram-cap\">DPO Alignment Pipeline: Direct\
+    \ gradient optimization from pairwise preference datasets.</div>"
   predict:
     question: In Direct Preference Optimization (DPO), which response (chosen y_w
       or rejected y_l) has its relative log-likelihood maximized?
@@ -1711,9 +1641,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Production Edge Case in DPO, ORPO & GRPO'
-    description: Always validate shape invariants, numerical tolerances (1e-5), and
-      memory bounds when deploying DPO, ORPO & GRPO in distributed production pipelines.
+    title: '⚠️ Gotcha: Overfitting on Narrow DPO Preference Datasets'
+    description: High beta parameters (beta > 0.5) in DPO loss cause rapid policy
+      collapse where the model generates repetitive degenerate completions. Keep beta
+      in [0.05, 0.1] and evaluate with KL divergence penalty.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Alignment\
       \ is what turns a base text-predictor into a helpful assistant. DPO made alignment\
@@ -1796,43 +1727,22 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Synthetic Data & Deduplication production ML systems ka critical core
-    pillar hai. Scalable architecture, memory optimization aur robust mathematical
-    invariants se hum high-throughput reliability ensure karte hain.
-  analogy: 'Synthetic Data & Deduplication is like a precision engineering checkpoint
-    in an aerospace assembly line: every sub-component is tested under load before
-    integration.'
-  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Synthetic Data &\
-    \ Deduplication</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
-    \ line-height:1.6;\">\nIn enterprise production AI systems, <strong>Synthetic\
-    \ Data & Deduplication</strong> forms a foundational pillar. Modern scalable implementations\
-    \ must balance latency SLAs, GPU compute utilization, and robust telemetry monitoring.\n\
-    </p>\n<div class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] -->\
-    \ Engine[\"Synthetic Data & Deduplication Processing Engine\"]\n  Engine --> Opt[\"\
-    Performance Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"\
-    ]\n  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
-    >System Architecture for Synthetic Data & Deduplication in Distributed Enterprise\
-    \ Workflows.</div>\n<h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant\
-    \ Verification</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
-    \ line-height:1.6;\">\nProduction implementations enforce strict computational\
-    \ bounds and loss convergence invariants:\n</p>\n<div class=\"math-block\">\n\
-    $$\\mathcal{L}_{\\text{Total}} = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot\
-    \ \\Omega(\\theta)$$\n</div>\n<h3 class=\"sh3\">3. Production Python Implementation</h3>\n\
-    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python —\
-    \ synthetic_data_&_ded.py</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
-    \ onclick=\"copyCode(this)\">copy</button><button class=\"run-btn\" onclick=\"\
-    runCode(this)\">Run</button></div></div>\n  <pre><code>import numpy as np\n\n\
-    def execute_production_pipeline(batch_data: np.ndarray) -> dict:\n    \"\"\"Production\
-    \ implementation for Synthetic Data & Deduplication.\"\"\"\n    arr = np.asarray(batch_data,\
-    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
-    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
-    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
-    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
-    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
-    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
-    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
-    \ inference from background telemetry ingestion using distributed message queues\
-    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
+  hinglish: Synthetic Data & Deduplication production ML systems ka vital component
+    hai. Isme theoretical foundations, computational bounds aur robust deployment
+    architecture detailed cover hote hain.
+  analogy: 'Synthetic Data & Deduplication is like a structural pillar in an industrial
+    suspension bridge: engineered to withstand peak load stress while maintaining
+    flexibility.'
+  theory_html: "<h3 class=\"sh3\">1. Deep Technical Principles: Synthetic Data & Deduplication</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nImplementing <strong>Synthetic Data & Deduplication</strong> in enterprise\
+    \ environments requires robust architectural patterns, low latency execution,\
+    \ and continuous telemetry:\n</p>\n<div class=\"mermaid\">\ngraph LR\n  In[\"\
+    Input Payload / Request\"] --> Core[\"Synthetic Data & Deduplication Processing\
+    \ Engine\"]\n  Core --> Validate[\"Validation & Schema Assertion\"]\n  Validate\
+    \ --> Telemetry[\"OpenTelemetry Metric Logging\"]\n  Telemetry --> Out[\"Production\
+    \ Verified Output\"]\n</div>\n<div class=\"diagram-cap\">Production System Architecture\
+    \ for Synthetic Data & Deduplication.</div>"
   predict:
     question: Why do we use MinHash instead of calculating Cosine Similarity for every
       pair?
@@ -2006,10 +1916,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Production Edge Case in Synthetic Data & Deduplication'
-    description: Always validate shape invariants, numerical tolerances (1e-5), and
-      memory bounds when deploying Synthetic Data & Deduplication in distributed production
-      pipelines.
+    title: '⚠️ Gotcha: Invariant Breach in Synthetic Data & Deduplication'
+    description: Always validate data shapes, numerical precision thresholds, and
+      memory boundaries when deploying Synthetic Data & Deduplication in distributed
+      production pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"A\
       \ model is only as good as its data. 1,000 high-quality, deduped examples  100,000\
@@ -2096,43 +2006,22 @@ days:
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
   hinglish: 'Capstone: Deploying a Custom Fine-Tuned Model production ML systems ka
-    critical core pillar hai. Scalable architecture, memory optimization aur robust
-    mathematical invariants se hum high-throughput reliability ensure karte hain.'
-  analogy: 'Capstone: Deploying a Custom Fine-Tuned Model is like a precision engineering
-    checkpoint in an aerospace assembly line: every sub-component is tested under
-    load before integration.'
-  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Capstone: Deploying\
+    vital component hai. Isme theoretical foundations, computational bounds aur robust
+    deployment architecture detailed cover hote hain.'
+  analogy: 'Capstone: Deploying a Custom Fine-Tuned Model is like a structural pillar
+    in an industrial suspension bridge: engineered to withstand peak load stress while
+    maintaining flexibility.'
+  theory_html: "<h3 class=\"sh3\">1. Deep Technical Principles: Capstone: Deploying\
     \ a Custom Fine-Tuned Model</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem;\
-    \ color:var(--text); line-height:1.6;\">\nIn enterprise production AI systems,\
-    \ <strong>Capstone: Deploying a Custom Fine-Tuned Model</strong> forms a foundational\
-    \ pillar. Modern scalable implementations must balance latency SLAs, GPU compute\
-    \ utilization, and robust telemetry monitoring.\n</p>\n<div class=\"mermaid\"\
-    >\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"Capstone: Deploying\
-    \ a Custom Fine-Tuned Model Processing Engine\"]\n  Engine --> Opt[\"Performance\
-    \ Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"]\n\
-    \  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
-    >System Architecture for Capstone: Deploying a Custom Fine-Tuned Model in Distributed\
-    \ Enterprise Workflows.</div>\n<h3 class=\"sh3\">2. Core Mathematical Formulations\
-    \ & Invariant Verification</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem;\
-    \ color:var(--text); line-height:1.6;\">\nProduction implementations enforce strict\
-    \ computational bounds and loss convergence invariants:\n</p>\n<div class=\"math-block\"\
-    >\n$$\\mathcal{L}_{\\text{Total}} = \\mathcal{L}_{\\text{Task}} + \\lambda \\\
-    cdot \\Omega(\\theta)$$\n</div>\n<h3 class=\"sh3\">3. Production Python Implementation</h3>\n\
-    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python —\
-    \ capstone:_deploying_.py</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
-    \ onclick=\"copyCode(this)\">copy</button><button class=\"run-btn\" onclick=\"\
-    runCode(this)\">Run</button></div></div>\n  <pre><code>import numpy as np\n\n\
-    def execute_production_pipeline(batch_data: np.ndarray) -> dict:\n    \"\"\"Production\
-    \ implementation for Capstone: Deploying a Custom Fine-Tuned Model.\"\"\"\n  \
-    \  arr = np.asarray(batch_data, dtype=np.float32)\n    norm = (arr - np.mean(arr))\
-    \ / (np.std(arr) + 1e-7)\n    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)),\
-    \ \"shape\": list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\n\
-    result = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
-    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
-    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
-    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
-    \ inference from background telemetry ingestion using distributed message queues\
-    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
+    \ color:var(--text); line-height:1.6;\">\nImplementing <strong>Capstone: Deploying\
+    \ a Custom Fine-Tuned Model</strong> in enterprise environments requires robust\
+    \ architectural patterns, low latency execution, and continuous telemetry:\n</p>\n\
+    <div class=\"mermaid\">\ngraph LR\n  In[\"Input Payload / Request\"] --> Core[\"\
+    Capstone: Deploying a Custom Fine-Tuned Model Processing Engine\"]\n  Core -->\
+    \ Validate[\"Validation & Schema Assertion\"]\n  Validate --> Telemetry[\"OpenTelemetry\
+    \ Metric Logging\"]\n  Telemetry --> Out[\"Production Verified Output\"]\n</div>\n\
+    <div class=\"diagram-cap\">Production System Architecture for Capstone: Deploying\
+    \ a Custom Fine-Tuned Model.</div>"
   predict:
     question: What string is output after successfully merging and saving a trained
       LoRA adapter into base model weights?
@@ -2393,11 +2282,11 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Production Edge Case in Capstone: Deploying a Custom Fine-Tuned
+    title: '⚠️ Gotcha: Invariant Breach in Capstone: Deploying a Custom Fine-Tuned
       Model'
-    description: 'Always validate shape invariants, numerical tolerances (1e-5), and
-      memory bounds when deploying Capstone: Deploying a Custom Fine-Tuned Model in
-      distributed production pipelines.'
+    description: 'Always validate data shapes, numerical precision thresholds, and
+      memory boundaries when deploying Capstone: Deploying a Custom Fine-Tuned Model
+      in distributed production pipelines.'
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"You\
       \ now possess the skills to create custom enterprise AI models that outperform\
