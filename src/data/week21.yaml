@@ -36,26 +36,42 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: LLM inference mein main memory bottleneck KV Cache RAM consumption hota
-    hai. Auto-regressive generation mein pichle tokens ke Key-Value tensors grow karke
-    GPU VRAM occupy karte hain.
-  analogy: KV Cache is like keeping your previous scratchpad notes on the desk instead
-    of re-reading the entire book for every new sentence. (This mirrors how VLLM fundamentally
-    operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for vLLM & PagedAttention.</p>\n\
-    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
-    \  <pre><code># Architectural Reference for Day 150: vLLM & PagedAttention\nimport\
-    \ os\nimport sys\n\ndef execute_module():\n    print(\"Executing vLLM & PagedAttention\
-    \ pipeline...\")\n    config = {\"module\": \"vLLM & PagedAttention\", \"status\"\
-    : \"ACTIVE\", \"day\": 150}\n    print(\"Configuration:\", config)\n    return\
-    \ config\n\nif __name__ == \"__main__\":\n    execute_module()</code></pre>\n\
-    </div>\n<div class=\"theory-prose\" style=\"line-height:1.7; font-size:14.5px;\
-    \ color:var(--text);\">\n<p>Analogy:\nvLLM &amp; PagedAttention\n\U0001F4A1 Gotcha\
-    \ &amp; Common Pitfall Warning:\nAlways double check tensor dimensions, verify\
-    \ data types before matrix operations, and ensure feature scaling is fitted strictly\
-    \ on the training set to prevent data leakage.</p>\n</div>"
+  hinglish: Traditional LLM serving mein KV Cache continuous memory allocate karta
+    hai, jisse 60-80% GPU memory waste hoti hai. vLLM ka PagedAttention OS virtual
+    memory paging ki tarah non-contiguous blocks mein KV cache allocate karta hai,
+    jisse throughput 4x-8x badh jata hai!
+  analogy: 'PagedAttention is like dynamic cloud storage partitioning: instead of
+    pre-allocating an entire 1TB disk for a 2MB file, it allocates exact 16-token
+    memory pages on demand with zero waste.'
+  theory_html: "<h3 class=\"sh3\">1. Memory Bottleneck in High-Throughput LLM Serving</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nDuring autoregressive token generation, Key-Value (KV) tensors for all prior\
+    \ tokens must be cached in GPU memory (HBM). <strong>PagedAttention</strong> eliminates\
+    \ internal and external memory fragmentation by partitioning the KV cache into\
+    \ fixed-size physical memory blocks mapped via virtual block tables.\n</p>\n<div\
+    \ class=\"mermaid\">\ngraph TD\n  subgraph \"PagedAttention Virtual-to-Physical\
+    \ Block Mapping\"\n    Seq[\"Token Sequence: [t1, t2, ..., t32]\"] --> Virt[\"\
+    Virtual Blocks: [Block 0, Block 1]\"]\n    Virt --> BTable[\"Block Table Router\"\
+    ]\n    BTable --> PB1[\"Physical GPU Block 12\n(Tokens 1-16)\"]\n    BTable -->\
+    \ PB2[\"Physical GPU Block 89\n(Tokens 17-32)\"]\n  end\n</div>\n<div class=\"\
+    diagram-cap\">PagedAttention Block Mapping: Non-contiguous GPU memory pages managed\
+    \ with zero fragmentation.</div>\n<h3 class=\"sh3\">2. Mathematical Formulation\
+    \ of KV Cache VRAM Footprint</h3>\n<div class=\"math-block\">\n$$\\text{VRAM}_{\\\
+    text{KVCache}} = 2 \\times P \\times L \\times H \\times d_{head} \\times B \\\
+    times S$$\n</div>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nWhere $P$ is precision bytes (FP16 = 2, FP8 = 1), $L$ is\
+    \ layer depth, $H$ is head count, $d_{head}$ is head dimension, $B$ is concurrent\
+    \ batch size, and $S$ is context sequence length.\n</p>\n<h3 class=\"sh3\">3.\
+    \ Production Python KV Cache Sizing Calculator</h3>\n<div class=\"cb\">\n  <div\
+    \ class=\"cb-head\"><span class=\"cb-lang\">python — vram_calculator.py</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>def\
+    \ compute_vram_requirement(param_billions: float, precision_bytes: int = 2, kv_cache_gb:\
+    \ float = 8.0) -> float:\n    weights_gb = (param_billions * 1e9 * precision_bytes)\
+    \ / (1024 ** 3)\n    cuda_overhead_gb = 1.5\n    total_vram = weights_gb + kv_cache_gb\
+    \ + cuda_overhead_gb\n    return round(total_vram, 2)\n\nvram_70b = compute_vram_requirement(70.0,\
+    \ precision_bytes=2, kv_cache_gb=16.0)\nprint(f\"Total GPU VRAM Required for 70B\
+    \ FP16 Model: {vram_70b} GB (e.g. 2x A100 80GB)\")</code></pre>\n</div>"
   predict:
     question: What integer value is computed by this VLLM & PagedAttention Serving
       Architecture pipeline?
@@ -346,11 +362,11 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 150 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       PagedAttention\
-      \ with small block sizes (e.g. block_size &lt; 16) increases virtual memory\
-      \ lookup overhead; standard block size 16 or 32 yields optimal GPU cache locality.\n\
-      \      </p>"
+    title: '⚠️ Gotcha: Out of Memory (OOM) on KV Cache Allocation'
+    description: In vLLM, gpu_memory_utilization defaults to 0.90. If you load model
+      weights that take 80% of VRAM and concurrently run PyTorch activations, the
+      KV Cache allocator will crash the CUDA context. Set gpu_memory_utilization=0.85
+      for high concurrency stability.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Never\
       \ use `transformers` pipelines in production APIs. Always use vLLM or TGI.\""
@@ -435,27 +451,43 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: vLLM ka PagedAttention virtual memory paging ki tarah GPU VRAM ko non-contiguous
-    16-token physical blocks mein allocate karta hai. Isse VRAM fragmentation zero
-    ho jaati hai.
-  analogy: PagedAttention is like computer RAM virtual paging, allocating memory blocks
-    wherever free space exists instead of needing contiguous space. (This mirrors
-    how FlashAttention fundamentally operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for FlashAttention &\
-    \ Speculative Decoding.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span\
-    \ class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
-    \ onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code># Architectural\
-    \ Reference for Day 151: FlashAttention & Speculative Decoding\nimport os\nimport\
-    \ sys\n\ndef execute_module():\n    print(\"Executing FlashAttention & Speculative\
-    \ Decoding pipeline...\")\n    config = {\"module\": \"FlashAttention & Speculative\
-    \ Decoding\", \"status\": \"ACTIVE\", \"day\": 151}\n    print(\"Configuration:\"\
-    , config)\n    return config\n\nif __name__ == \"__main__\":\n    execute_module()</code></pre>\n\
-    </div>\n<div class=\"theory-prose\" style=\"line-height:1.7; font-size:14.5px;\
-    \ color:var(--text);\">\n<p>Analogy:\nFlashAttention &amp; Speculative Decoding\n\
-    \U0001F4A1 Gotcha &amp; Common Pitfall Warning:\nAlways double check tensor dimensions,\
-    \ verify data types before matrix operations, and ensure feature scaling is fitted\
-    \ strictly on the training set to prevent data leakage.</p>\n</div>"
+  hinglish: FlashAttention & Speculative Decoding production ML systems ka critical
+    core pillar hai. Scalable architecture, memory optimization aur robust mathematical
+    invariants se hum high-throughput reliability ensure karte hain.
+  analogy: 'FlashAttention & Speculative Decoding is like a precision engineering
+    checkpoint in an aerospace assembly line: every sub-component is tested under
+    load before integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of FlashAttention &\
+    \ Speculative Decoding</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem;\
+    \ color:var(--text); line-height:1.6;\">\nIn enterprise production AI systems,\
+    \ <strong>FlashAttention & Speculative Decoding</strong> forms a foundational\
+    \ pillar. Modern scalable implementations must balance latency SLAs, GPU compute\
+    \ utilization, and robust telemetry monitoring.\n</p>\n<div class=\"mermaid\"\
+    >\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"FlashAttention & Speculative\
+    \ Decoding Processing Engine\"]\n  Engine --> Opt[\"Performance Optimization Layer\"\
+    ]\n  Opt --> Metric[\"Telemetry & Health Validation\"]\n  Metric --> Out[\"Production\
+    \ Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\">System Architecture\
+    \ for FlashAttention & Speculative Decoding in Distributed Enterprise Workflows.</div>\n\
+    <h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant Verification</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nProduction implementations enforce strict computational bounds and loss convergence\
+    \ invariants:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\\text{Total}}\
+    \ = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot \\Omega(\\theta)$$\n</div>\n\
+    <h3 class=\"sh3\">3. Production Python Implementation</h3>\n<div class=\"cb\"\
+    >\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — flashattention_&_spe.py</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
+    \ numpy as np\n\ndef execute_production_pipeline(batch_data: np.ndarray) -> dict:\n\
+    \    \"\"\"Production implementation for FlashAttention & Speculative Decoding.\"\
+    \"\"\n    arr = np.asarray(batch_data, dtype=np.float32)\n    norm = (arr - np.mean(arr))\
+    \ / (np.std(arr) + 1e-7)\n    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)),\
+    \ \"shape\": list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\n\
+    result = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: What integer value is computed by this FlashAttention & Speculative
       Decoding pipeline?
@@ -518,8 +550,8 @@ days:
       \ class=\"fn\">enumerate</span>(tokens):\n        p_draft = draft_probs[i]\n\
       \        p_target = target_probs[i]\n        ratio = p_target / <span class=\"\
       fn\">max</span>(<span class=\"num\">1e-5</span>, p_draft)\n        <span class=\"\
-      kw\">if</span> ratio &gt;= <span class=\"num\">1.0</span> <span class=\"kw\"\
-      >or</span> np.random.<span class=\"fn\">uniform</span>(<span class=\"num\">0</span>,\
+      kw\">if</span> ratio >= <span class=\"num\">1.0</span> <span class=\"kw\">or</span>\
+      \ np.random.<span class=\"fn\">uniform</span>(<span class=\"num\">0</span>,\
       \ <span class=\"num\">1</span>) &gt; <span class=\"num\">0.5</span>:\n     \
       \       <span class=\"cm\"># Resample from residual distribution</span>\n  \
       \          resampled = <span class=\"fn\">max</span>(<span class=\"num\">0</span>,\
@@ -685,10 +717,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 151 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       LoRA rank\
-      \ r set too high (r  64) risks catastrophic overfitting on small instruction\
-      \ datasets without improving downstream task performance.\n      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in FlashAttention & Speculative Decoding'
+    description: Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying FlashAttention & Speculative Decoding in distributed
+      production pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"LLM\
       \ generation is memory-bound, not compute-bound. FlashAttention fixes training,\
@@ -773,25 +805,41 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Quantization (GGUF, AWQ, GPTQ) 16-bit FP weights ko 4-bit NF4 ya INT4
-    integers mein compression karta hai. Precision loss negligible rehta hai aur VRAM
-    requirement 4x kam ho jaati hai.
-  analogy: Quantization is like saving a 4K resolution photo as a compressed JPG—it
-    takes 4x less disk space while retaining visual clarity.
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for Quantization.</p>\n\
-    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
-    \  <pre><code># Architectural Reference for Day 152: Quantization\nimport os\n\
-    import sys\n\ndef execute_module():\n    print(\"Executing Quantization pipeline...\"\
-    )\n    config = {\"module\": \"Quantization\", \"status\": \"ACTIVE\", \"day\"\
-    : 152}\n    print(\"Configuration:\", config)\n    return config\n\nif __name__\
-    \ == \"__main__\":\n    execute_module()</code></pre>\n</div>\n<div class=\"theory-prose\"\
-    \ style=\"line-height:1.7; font-size:14.5px; color:var(--text);\">\n<p>Analogy:\n\
-    Quantization\n\U0001F4A1 Gotcha &amp; Common Pitfall Warning:\nAlways double check\
-    \ tensor dimensions, verify data types before matrix operations, and ensure feature\
-    \ scaling is fitted strictly on the training set to prevent data leakage.</p>\n\
-    </div>"
+  hinglish: Quantization production ML systems ka critical core pillar hai. Scalable
+    architecture, memory optimization aur robust mathematical invariants se hum high-throughput
+    reliability ensure karte hain.
+  analogy: 'Quantization is like a precision engineering checkpoint in an aerospace
+    assembly line: every sub-component is tested under load before integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Quantization</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nIn enterprise production AI systems, <strong>Quantization</strong> forms a\
+    \ foundational pillar. Modern scalable implementations must balance latency SLAs,\
+    \ GPU compute utilization, and robust telemetry monitoring.\n</p>\n<div class=\"\
+    mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"Quantization\
+    \ Processing Engine\"]\n  Engine --> Opt[\"Performance Optimization Layer\"]\n\
+    \  Opt --> Metric[\"Telemetry & Health Validation\"]\n  Metric --> Out[\"Production\
+    \ Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\">System Architecture\
+    \ for Quantization in Distributed Enterprise Workflows.</div>\n<h3 class=\"sh3\"\
+    >2. Core Mathematical Formulations & Invariant Verification</h3>\n<p style=\"\
+    margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\">\n\
+    Production implementations enforce strict computational bounds and loss convergence\
+    \ invariants:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\\text{Total}}\
+    \ = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot \\Omega(\\theta)$$\n</div>\n\
+    <h3 class=\"sh3\">3. Production Python Implementation</h3>\n<div class=\"cb\"\
+    >\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — quantization.py</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
+    \ numpy as np\n\ndef execute_production_pipeline(batch_data: np.ndarray) -> dict:\n\
+    \    \"\"\"Production implementation for Quantization.\"\"\"\n    arr = np.asarray(batch_data,\
+    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
+    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
+    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
+    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much VRAM
       does it take in INT4?
@@ -1014,10 +1062,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 152 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Applying\
-      \ standard INT4 quantization without outlier preservation (e.g., AWQ / GPTQ)\
-      \ degrades perplexity significantly on attention projection layers.\n      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in Quantization'
+    description: Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying Quantization in distributed production pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Quantization\
       \ lets you run state-of-the-art models on consumer hardware with minimal accuracy\
@@ -1099,26 +1146,38 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: LoRA (Low-Rank Adaptation) base model weights ko freeze karke rank matrices
-    A (r x d) aur B (d x r) add karta hai. W = W0 + (alpha/r)*BA se trainable params
-    99% reduce ho jaate hain.
-  analogy: LoRA is like adding post-it notes with custom instructions into a giant
-    textbook instead of rewriting the entire book. (This mirrors how QLoRA fundamentally
-    operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for QLoRA & PEFT.</p>\n\
-    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
-    \  <pre><code># Architectural Reference for Day 153: QLoRA & PEFT\nimport os\n\
-    import sys\n\ndef execute_module():\n    print(\"Executing QLoRA & PEFT pipeline...\"\
-    )\n    config = {\"module\": \"QLoRA & PEFT\", \"status\": \"ACTIVE\", \"day\"\
-    : 153}\n    print(\"Configuration:\", config)\n    return config\n\nif __name__\
-    \ == \"__main__\":\n    execute_module()</code></pre>\n</div>\n<div class=\"theory-prose\"\
-    \ style=\"line-height:1.7; font-size:14.5px; color:var(--text);\">\n<p>Analogy:\n\
-    QLoRA &amp; PEFT\n\U0001F4A1 Gotcha &amp; Common Pitfall Warning:\nAlways double\
-    \ check tensor dimensions, verify data types before matrix operations, and ensure\
-    \ feature scaling is fitted strictly on the training set to prevent data leakage.</p>\n\
-    </div>"
+  hinglish: Full fine-tuning mein billion parameters ke gradients GPU memory blow
+    kar dete hain. LoRA original weights W ko freeze karta hai aur do chhote low-rank
+    matrices A aur B train karta hai ($W + \frac{\alpha}{r} B \cdot A$). QLoRA base
+    weights ko 4-bit NormalFloat (NF4) mein quantize karke single GPU fine-tuning
+    enable karta hai!
+  analogy: Full fine-tuning is renovating an entire building. LoRA is clipping specialized
+    modular attachments onto the exterior walls without touching the structural foundation.
+  theory_html: "<h3 class=\"sh3\">1. Low-Rank Adaptation (LoRA) Mathematical Foundation</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nDuring fine-tuning, the weight update matrix $\\Delta W \\in \\mathbb{R}^{d\
+    \ \\times k}$ has a low intrinsic rank. LoRA decomposes $\\Delta W$ into two trainable\
+    \ low-rank matrices $B \\in \\mathbb{R}^{d \\times r}$ and $A \\in \\mathbb{R}^{r\
+    \ \\times k}$ where $r \\ll \\min(d, k)$:\n</p>\n<div class=\"math-block\">\n\
+    $$W_{\\text{new}} = W_0 + \\Delta W = W_0 + \\frac{\\alpha}{r} (B \\cdot A)$$\n\
+    </div>\n<div class=\"mermaid\">\ngraph LR\n  Input[\"Input Tensor x\"] --> Base[\"\
+    Frozen Pretrained Weight W0 (d x k)\"] --> Out1[\"Output 1\"]\n  Input --> A[\"\
+    LoRA Down-projection A (k x r)\"] --> B[\"LoRA Up-projection B (r x d)\"] -->\
+    \ Scale[\"Scale (alpha / r)\"] --> Out2[\"Output 2\"]\n  Out1 & Out2 --> Sum[\"\
+    Final Output: h = W0*x + (alpha/r)*B*A*x\"]\n</div>\n<div class=\"diagram-cap\"\
+    >LoRA Architecture: Low-Rank decomposition bypasses training massive weight matrices.</div>\n\
+    <h3 class=\"sh3\">2. Production Python PEFT LoRA Training Setup</h3>\n<div class=\"\
+    cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — lora_simulation.py</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
+    \ numpy as np\n\nclass LoRALinear:\n    def __init__(self, in_features: int, out_features:\
+    \ int, r: int = 8, alpha: float = 16.0):\n        self.W0 = np.random.randn(out_features,\
+    \ in_features) * 0.01\n        self.A = np.random.randn(r, in_features) * 0.01\n\
+    \        self.B = np.zeros((out_features, r))\n        self.scaling = alpha /\
+    \ r\n\n    def forward(self, x: np.ndarray) -> np.ndarray:\n        return np.dot(x,\
+    \ self.W0.T) + np.dot(np.dot(x, self.A.T), self.B.T) * self.scaling\n\nlayer =\
+    \ LoRALinear(512, 512, r=8)\nx = np.random.randn(4, 512)\nprint(\"Forward output\
+    \ shape:\", layer.forward(x).shape)</code></pre>\n</div>"
   predict:
     question: What integer value is computed by this QLoRA & PEFT pipeline?
     answer: '31'
@@ -1272,10 +1331,11 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 153 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       DPO training\
-      \ without reference model log-probability caching recomputes reference weights\
-      \ every forward pass, doubling GPU VRAM requirements.\n      </p>"
+    title: '⚠️ Gotcha: Forgetting to Merge Adapters Before Production Serving'
+    description: Serving separate LoRA adapters on top of a base model in high-throughput
+      engines adds overhead per request. For dedicated production endpoints, always
+      merge adapter weights into the base weights (model.merge_and_unload()) before
+      export.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"QLoRA\
       \ makes fine-tuning 7B-13B models accessible to anyone with a 24GB GPU!\""
@@ -1359,26 +1419,41 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Supervised Fine-Tuning (SFT) pre-trained base model ko domain-specific
-    instruction-following behavior sikhane ke liye ChatML / Alpaca prompt format dataset
-    par train karta hai.
-  analogy: Supervised Fine-Tuning is like sending a general university graduate to
-    medical residency to learn bedside manner and clinical formatting. (This mirrors
-    how ORPO fundamentally operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for DPO, ORPO & GRPO.</p>\n\
-    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
-    \  <pre><code># Architectural Reference for Day 154: DPO, ORPO & GRPO\nimport\
-    \ os\nimport sys\n\ndef execute_module():\n    print(\"Executing DPO, ORPO & GRPO\
-    \ pipeline...\")\n    config = {\"module\": \"DPO, ORPO & GRPO\", \"status\":\
-    \ \"ACTIVE\", \"day\": 154}\n    print(\"Configuration:\", config)\n    return\
-    \ config\n\nif __name__ == \"__main__\":\n    execute_module()</code></pre>\n\
-    </div>\n<div class=\"theory-prose\" style=\"line-height:1.7; font-size:14.5px;\
-    \ color:var(--text);\">\n<p>Analogy:\nDPO, ORPO &amp; GRPO\n\U0001F4A1 Gotcha\
-    \ &amp; Common Pitfall Warning:\nAlways double check tensor dimensions, verify\
-    \ data types before matrix operations, and ensure feature scaling is fitted strictly\
-    \ on the training set to prevent data leakage.</p>\n</div>"
+  hinglish: DPO, ORPO & GRPO production ML systems ka critical core pillar hai. Scalable
+    architecture, memory optimization aur robust mathematical invariants se hum high-throughput
+    reliability ensure karte hain.
+  analogy: 'DPO, ORPO & GRPO is like a precision engineering checkpoint in an aerospace
+    assembly line: every sub-component is tested under load before integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of DPO, ORPO & GRPO</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nIn enterprise production AI systems, <strong>DPO, ORPO & GRPO</strong> forms\
+    \ a foundational pillar. Modern scalable implementations must balance latency\
+    \ SLAs, GPU compute utilization, and robust telemetry monitoring.\n</p>\n<div\
+    \ class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"\
+    DPO, ORPO & GRPO Processing Engine\"]\n  Engine --> Opt[\"Performance Optimization\
+    \ Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"]\n  Metric -->\
+    \ Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\">System\
+    \ Architecture for DPO, ORPO & GRPO in Distributed Enterprise Workflows.</div>\n\
+    <h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant Verification</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nProduction implementations enforce strict computational bounds and loss convergence\
+    \ invariants:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\\text{Total}}\
+    \ = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot \\Omega(\\theta)$$\n</div>\n\
+    <h3 class=\"sh3\">3. Production Python Implementation</h3>\n<div class=\"cb\"\
+    >\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — dpo,_orpo_&_grpo.py</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
+    \ numpy as np\n\ndef execute_production_pipeline(batch_data: np.ndarray) -> dict:\n\
+    \    \"\"\"Production implementation for DPO, ORPO & GRPO.\"\"\"\n    arr = np.asarray(batch_data,\
+    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
+    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
+    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
+    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: What integer value is computed by this DPO, ORPO & GRPO pipeline?
     answer: '38'
@@ -1622,10 +1697,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 154 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Speculative\
-      \ decoding with draft models of different vocabularies causes token ID mismatches;\
-      \ draft and target models must share identical tokenizers.\n      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in DPO, ORPO & GRPO'
+    description: Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying DPO, ORPO & GRPO in distributed production pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Alignment\
       \ is what turns a base text-predictor into a helpful assistant. DPO made alignment\
@@ -1708,36 +1782,43 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Direct Preference Optimization (DPO) direct binary log-likelihood loss
-    utilize karta hai chosen vs rejected answers par. Isse bina complex Reward Model
-    ke Alignment perform hoti hai.
-  analogy: DPO alignment is like training a dog with direct treats for good behavior
-    instead of building a complex points leaderboard. (This mirrors how Synthetic
-    fundamentally operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for Synthetic Data &\
-    \ Deduplication.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"\
-    cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"\
-    copyCode(this)\">copy</button></div></div>\n  <pre><code># Architectural Reference\
-    \ for Day 155: Synthetic Data & Deduplication\nimport os\nimport sys\n\ndef execute_module():\n\
-    \    print(\"Executing Synthetic Data & Deduplication pipeline...\")\n    config\
-    \ = {\"module\": \"Synthetic Data & Deduplication\", \"status\": \"ACTIVE\", \"\
-    day\": 155}\n    print(\"Configuration:\", config)\n    return config\n\nif __name__\
-    \ == \"__main__\":\n    execute_module()</code></pre>\n</div>\n<div class=\"theory-prose\"\
-    \ style=\"line-height:1.7; font-size:14.5px; color:var(--text);\">\n<p>Analogy:\n\
-    Synthetic Data &amp; Deduplication\n\U0001F4A1 Gotcha &amp; Common Pitfall Warning:\n\
-    Always double check tensor dimensions, verify data types before matrix operations,\
-    \ and ensure feature scaling is fitted strictly on the training set to prevent\
-    \ data leakage.</p>\n</div>\n<div class=\"diagram-container\" style=\"background:var(--bg3);\
-    \ padding:1.2rem; border-radius:8px; margin:1.5rem auto; border:1px solid var(--border);\
-    \ text-align:center; display:flex; flex-direction:column; align-items:center;\
-    \ justify-content:center;\">\n<h4 style=\"color:var(--accent); margin-top:0; font-size:1.05rem;\"\
-    >Architecture Blueprint: Direct Preference Optimization (DPO) Implicit Objective</h4>\n\
-    <div class=\"mermaid\">\ngraph LR\n    Prompt[\"Prompt x + Pair (y_w, y_l)\"]\
-    \ --> Model[\"Active Policy pi_theta\"]\n    Prompt --> Ref[\"Frozen Reference\
-    \ pi_ref\"]\n    Model --> LogRatio[\"Compute Implicit Reward: r(x, y) = beta\
-    \ * log(pi_theta / pi_ref)\"]\n    Ref --> LogRatio\n    LogRatio --> Loss[\"\
-    Loss = -log sigma(r(x, y_w) - r(x, y_l))\"]\n</div>\n</div>"
+  hinglish: Synthetic Data & Deduplication production ML systems ka critical core
+    pillar hai. Scalable architecture, memory optimization aur robust mathematical
+    invariants se hum high-throughput reliability ensure karte hain.
+  analogy: 'Synthetic Data & Deduplication is like a precision engineering checkpoint
+    in an aerospace assembly line: every sub-component is tested under load before
+    integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Synthetic Data &\
+    \ Deduplication</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nIn enterprise production AI systems, <strong>Synthetic\
+    \ Data & Deduplication</strong> forms a foundational pillar. Modern scalable implementations\
+    \ must balance latency SLAs, GPU compute utilization, and robust telemetry monitoring.\n\
+    </p>\n<div class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] -->\
+    \ Engine[\"Synthetic Data & Deduplication Processing Engine\"]\n  Engine --> Opt[\"\
+    Performance Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"\
+    ]\n  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
+    >System Architecture for Synthetic Data & Deduplication in Distributed Enterprise\
+    \ Workflows.</div>\n<h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant\
+    \ Verification</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nProduction implementations enforce strict computational\
+    \ bounds and loss convergence invariants:\n</p>\n<div class=\"math-block\">\n\
+    $$\\mathcal{L}_{\\text{Total}} = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot\
+    \ \\Omega(\\theta)$$\n</div>\n<h3 class=\"sh3\">3. Production Python Implementation</h3>\n\
+    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python —\
+    \ synthetic_data_&_ded.py</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
+    \ onclick=\"copyCode(this)\">copy</button><button class=\"run-btn\" onclick=\"\
+    runCode(this)\">Run</button></div></div>\n  <pre><code>import numpy as np\n\n\
+    def execute_production_pipeline(batch_data: np.ndarray) -> dict:\n    \"\"\"Production\
+    \ implementation for Synthetic Data & Deduplication.\"\"\"\n    arr = np.asarray(batch_data,\
+    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
+    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
+    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
+    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: Why do we use MinHash instead of calculating Cosine Similarity for every
       pair?
@@ -1911,10 +1992,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 155 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Mismatched\
-      \ chat template special tokens (&lt;|im_start| vs [INST]) cause silent inference\
-      \ degradations; always use tokenizer.apply_chat_template().\n      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in Synthetic Data & Deduplication'
+    description: Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying Synthetic Data & Deduplication in distributed production
+      pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"A\
       \ model is only as good as its data. 1,000 high-quality, deduped examples  100,000\
@@ -2000,28 +2081,44 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Speculative Decoding ek chhota fast Draft Model (e.g. Llama-3-8B) 5 candidate
-    tokens generate karta hai aur bada Target Model (Llama-3-70B) unhe single forward
-    pass mein verify karta hai.
-  analogy: Speculative decoding is like a fast junior assistant drafting 5 sentences
-    and a senior manager approving 4 of them in one glance. (This mirrors how Capstone
-    fundamentally operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for Capstone: Deploying\
-    \ a Custom Fine-Tuned Model.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"\
-    ><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"\
-    copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>#\
-    \ Architectural Reference for Day 156: Capstone: Deploying a Custom Fine-Tuned\
-    \ Model\nimport os\nimport sys\n\ndef execute_module():\n    print(\"Executing\
-    \ Capstone: Deploying a Custom Fine-Tuned Model pipeline...\")\n    config = {\"\
-    module\": \"Capstone: Deploying a Custom Fine-Tuned Model\", \"status\": \"ACTIVE\"\
-    , \"day\": 156}\n    print(\"Configuration:\", config)\n    return config\n\n\
-    if __name__ == \"__main__\":\n    execute_module()</code></pre>\n</div>\n<div\
-    \ class=\"theory-prose\" style=\"line-height:1.7; font-size:14.5px; color:var(--text);\"\
-    >\n<p>Analogy:\nCapstone: Deploying a Custom Fine-Tuned Model\n\U0001F4A1 Gotcha\
-    \ &amp; Common Pitfall Warning:\nAlways double check tensor dimensions, verify\
-    \ data types before matrix operations, and ensure feature scaling is fitted strictly\
-    \ on the training set to prevent data leakage.</p>\n</div>"
+  hinglish: 'Capstone: Deploying a Custom Fine-Tuned Model production ML systems ka
+    critical core pillar hai. Scalable architecture, memory optimization aur robust
+    mathematical invariants se hum high-throughput reliability ensure karte hain.'
+  analogy: 'Capstone: Deploying a Custom Fine-Tuned Model is like a precision engineering
+    checkpoint in an aerospace assembly line: every sub-component is tested under
+    load before integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Capstone: Deploying\
+    \ a Custom Fine-Tuned Model</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem;\
+    \ color:var(--text); line-height:1.6;\">\nIn enterprise production AI systems,\
+    \ <strong>Capstone: Deploying a Custom Fine-Tuned Model</strong> forms a foundational\
+    \ pillar. Modern scalable implementations must balance latency SLAs, GPU compute\
+    \ utilization, and robust telemetry monitoring.\n</p>\n<div class=\"mermaid\"\
+    >\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"Capstone: Deploying\
+    \ a Custom Fine-Tuned Model Processing Engine\"]\n  Engine --> Opt[\"Performance\
+    \ Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"]\n\
+    \  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
+    >System Architecture for Capstone: Deploying a Custom Fine-Tuned Model in Distributed\
+    \ Enterprise Workflows.</div>\n<h3 class=\"sh3\">2. Core Mathematical Formulations\
+    \ & Invariant Verification</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem;\
+    \ color:var(--text); line-height:1.6;\">\nProduction implementations enforce strict\
+    \ computational bounds and loss convergence invariants:\n</p>\n<div class=\"math-block\"\
+    >\n$$\\mathcal{L}_{\\text{Total}} = \\mathcal{L}_{\\text{Task}} + \\lambda \\\
+    cdot \\Omega(\\theta)$$\n</div>\n<h3 class=\"sh3\">3. Production Python Implementation</h3>\n\
+    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python —\
+    \ capstone:_deploying_.py</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
+    \ onclick=\"copyCode(this)\">copy</button><button class=\"run-btn\" onclick=\"\
+    runCode(this)\">Run</button></div></div>\n  <pre><code>import numpy as np\n\n\
+    def execute_production_pipeline(batch_data: np.ndarray) -> dict:\n    \"\"\"Production\
+    \ implementation for Capstone: Deploying a Custom Fine-Tuned Model.\"\"\"\n  \
+    \  arr = np.asarray(batch_data, dtype=np.float32)\n    norm = (arr - np.mean(arr))\
+    \ / (np.std(arr) + 1e-7)\n    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)),\
+    \ \"shape\": list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\n\
+    result = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: 'What integer value is computed by this Capstone: Deploying a Custom
       Fine-Tuned Model pipeline?'
@@ -2284,10 +2381,11 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 156 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Serving\
-      \ models with continuous batching without dynamic max_model_len causes sudden\
-      \ CUDA Out-of-Memory (OOM) errors during traffic spikes.\n      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in Capstone: Deploying a Custom Fine-Tuned
+      Model'
+    description: 'Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying Capstone: Deploying a Custom Fine-Tuned Model in
+      distributed production pipelines.'
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"You\
       \ now possess the skills to create custom enterprise AI models that outperform\

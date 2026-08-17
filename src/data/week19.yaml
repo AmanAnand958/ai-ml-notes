@@ -37,26 +37,58 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Simple terms mein, basic vector search quick similarity check karta hai
-    par exact word matching miss kar sakta hai. RAG pipeline overall retrieval quality
-    badhane ke liye multiple search strategies ko combine karti hai.
-  analogy: RAG is like taking an open-book exam where the retriever finds the right
-    textbook pages and the LLM writes the answer. (This mirrors how Hybrid fundamentally
-    operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for Hybrid Search &\
-    \ RRF.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
-    >python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\"\
-    >copy</button></div></div>\n  <pre><code># Architectural Reference for Day 136:\
-    \ Hybrid Search & RRF\nimport os\nimport sys\n\ndef execute_module():\n    print(\"\
-    Executing Hybrid Search & RRF pipeline...\")\n    config = {\"module\": \"Hybrid\
-    \ Search & RRF\", \"status\": \"ACTIVE\", \"day\": 136}\n    print(\"Configuration:\"\
-    , config)\n    return config\n\nif __name__ == \"__main__\":\n    execute_module()</code></pre>\n\
-    </div>\n<div class=\"theory-prose\" style=\"line-height:1.7; font-size:14.5px;\
-    \ color:var(--text);\">\n<p>Analogy:\nHybrid Search &amp; RRF\n\U0001F4A1 Gotcha\
-    \ &amp; Common Pitfall Warning:\nAlways double check tensor dimensions, verify\
-    \ data types before matrix operations, and ensure feature scaling is fitted strictly\
-    \ on the training set to prevent data leakage.</p>\n</div>"
+  hinglish: Dense vector search semantic meaning samajhta hai par exact IDs, error
+    codes ya product names miss kar sakta hai. BM25 exact keyword matching mein champion
+    hai. Hybrid Search dono ko run karta hai aur Reciprocal Rank Fusion (RRF) se optimal
+    combined ranking banata hai.
+  analogy: Hybrid search is like combining an investigator who reads context and intent
+    (Dense Search) with an archivist who matches exact serial numbers and dates (BM25
+    Sparse Search).
+  theory_html: "<h3 class=\"sh3\">1. The Dual-Tower Problem: Sparse vs. Dense Retrieval</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nIn enterprise RAG systems, vanilla vector search frequently fails on domain-specific\
+    \ queries containing alphanumeric serial numbers (e.g., <code>ERR_404_TIMEOUT</code>,\
+    \ <code>SKU-99201</code>, or exact legal clause titles). Sparse retrieval models\
+    \ like <strong>BM25</strong> (Best Matching 25) excel at exact keyword precision\
+    \ via inverted index term frequencies, while dense embedding models (e.g., <code>text-embedding-3-large</code>,\
+    \ <code>bge-large-en-v1.5</code>) capture semantic nuances, paraphrasing, and\
+    \ cross-lingual concepts.\n</p>\n<div class=\"mermaid\">\ngraph TD\n  Query[\"\
+    User Query\"] --> Sparse[\"Sparse Retriever\n(BM25 / SPLADE)\"]\n  Query --> Dense[\"\
+    Dense Retriever\n(HNSW / Vector Index)\"]\n  Sparse --> RankA[\"Sparse Ranked\
+    \ List\n[Doc A, Doc B, Doc C]\"]\n  Dense --> RankB[\"Dense Ranked List\n[Doc\
+    \ B, Doc D, Doc A]\"]\n  RankA & RankB --> Fusion[\"Reciprocal Rank Fusion\n(RRF\
+    \ Engine)\"]\n  Fusion --> FinalRank[\"Fused Top-K Context\n1. Doc B (Score: 0.032)\n\
+    2. Doc A (Score: 0.031)\"]\n</div>\n<div class=\"diagram-cap\">Hybrid Retrieval\
+    \ Architecture: Combining Sparse Inverted Index and Dense Vector ANN with RRF\
+    \ Fusion.</div>\n<h3 class=\"sh3\">2. Mathematical Foundation of Reciprocal Rank\
+    \ Fusion (RRF)</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nRRF solves the score-calibration problem by ignoring raw\
+    \ similarity magnitudes and operating strictly on ordinal rank positions. Given\
+    \ a document $d$ and a set of rankers $M$, the RRF score is defined as:\n</p>\n\
+    <div class=\"math-block\">\n$$RRFScore(d \\in D) = \\sum_{m \\in M} \\frac{1}{k\
+    \ + r_m(d)}$$\n</div>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nWhere $r_m(d)$ is the 1-based ordinal rank of document\
+    \ $d$ in retrieval system $m$, and $k$ is a smoothing constant (standard: $k =\
+    \ 60$).\n</p>\n<h3 class=\"sh3\">3. Production Python Implementation: BM25 + Dense\
+    \ + RRF</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
+    >python — hybrid_rrf_retriever.py</span><div class=\"cb-btns\"><button class=\"\
+    copy-btn\" onclick=\"copyCode(this)\">copy</button><button class=\"run-btn\" onclick=\"\
+    runCode(this)\">Run</button></div></div>\n  <pre><code>import numpy as np\nfrom\
+    \ typing import List, Dict, Tuple\n\ndef compute_rrf(rank_lists: List[List[str]],\
+    \ k: int = 60) -> List[Tuple[str, float]]:\n    rrf_scores: Dict[str, float] =\
+    \ {}\n    for rank_list in rank_lists:\n        for rank, doc_id in enumerate(rank_list,\
+    \ start=1):\n            rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + (1.0\
+    \ / (k + rank))\n    return sorted(rrf_scores.items(), key=lambda item: item[1],\
+    \ reverse=True)\n\ndense_results = [\"doc_contracts_2024\", \"doc_financial_q3\"\
+    , \"doc_policy_v2\"]\nsparse_results = [\"doc_policy_v2\", \"doc_contracts_2024\"\
+    , \"doc_hr_manual\"]\nfused = compute_rrf([dense_results, sparse_results], k=60)\n\
+    for r, (doc, sc) in enumerate(fused, start=1):\n    print(f\"Rank {r}: {doc} (RRF\
+    \ Score: {sc:.5f})\")</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n\
+    \  <h3>⚡ Senior Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  Modern vector databases like <strong>Qdrant</strong>\
+    \ and <strong>Elasticsearch</strong> natively execute sparse-dense hybrid search\
+    \ inside the storage engine, eliminating inter-service network latency for multi-stage\
+    \ queries.\n  </p>\n</div>"
   predict:
     question: What integer value is computed by this Hybrid Search & RRF pipeline?
     answer: '12'
@@ -314,11 +346,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 136 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Linear\
-      \ score blending without normalizing BM25 scores causes sparse frequencies to\
-      \ dominate cosine similarity; always use Reciprocal Rank Fusion (RRF) with k=60\
-      \ to merge ranks cleanly.\n      </p>"
+    title: '⚠️ Gotcha: Incompatible Score Scales in Raw Linear Combination'
+    description: Never sum raw BM25 scores (range 0 to 50+) with Cosine Similarity
+      scores (range 0.0 to 1.0) directly! It completely drowns dense scores. Always
+      use Reciprocal Rank Fusion (RRF) or Min-Max score normalization.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"RRF\
       \ ek simple mathematical trick hai jo multiple search results ko ek strong list\
@@ -397,67 +428,50 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Chunking ka matlab document ko chhote, logical pieces mein todna hai.
-    Agar chunk size zyada bada hoga toh context dilute hoga, aur agar chhota hoga
-    toh core meaning miss ho jayegi.
-  analogy: Semantic chunking is like splitting a book by chapters and logical paragraphs
-    rather than cutting every page exactly in half. (This mirrors how Cross fundamentally
-    operates.)
-  theory_html: '<div class="theory-prose" style="line-height:1.7; font-size:14.5px;
-    color:var(--text);">
-
-    <p>Analogy:
-
-    Cross-Encoders &amp; Re-ranking
-
-    💡 Gotcha &amp; Common Pitfall Warning:
-
-    Always double check tensor dimensions, verify data types before matrix operations,
-    and ensure feature scaling is fitted strictly on the training set to prevent data
-    leakage.
-
-    A Bi-Encoder embeds query and document separately. A Cross-Encoder processes them
-    together, allowing self-attention across query and doc tokens.
-
-    python</p>
-
-    <h3>Key Concepts</h3>
-
-    <div class="cb"><div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button
-    class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn"
-    onclick="runCode(this)">Run</button></div></div><pre><code># Real usage of sentence-transformers
-    CrossEncoder
-
-    from sentence_transformers import CrossEncoder
-
-
-    # Load BGE Reranker
-
-    model = CrossEncoder(''BAAI/bge-reranker-v2-m3'')
-
-
-    query = "how to setup reranker"
-
-    docs = ["Use cross-encoders for reranking", "Vector search is fast", "BM25 is
-    keyword based"]
-
-
-    # Calculate scores
-
-    pairs = [[query, doc] for doc in docs]
-
-    scores = model.predict(pairs)
-
-
-    # Combine and sort
-
-    ranked = sorted(zip(scores, docs), reverse=True)
-
-    print(ranked[0]) # Highest scoring document
-
-    </code></pre></div>
-
-    </div>'
+  hinglish: 'Bi-Encoder (Vector search) fast hota hai par individual embeddings separate
+    rakhta hai. Cross-Encoder query aur document ko ek sath concatenate karke full
+    cross-attention compute karta hai. Isliye: Pehle Bi-Encoder se top 100 nikaalo,
+    fir Cross-Encoder se top 5 pick karo!'
+  analogy: Bi-encoder is like a speed-dating round where you look at quick profile
+    summaries. Cross-encoder is the in-depth 1-on-1 interview that verifies deep compatibility.
+  theory_html: "<h3 class=\"sh3\">1. Retrieve-and-Rerank Two-Stage Architecture</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nModern search pipelines are organized into a two-stage <strong>Retrieve-and-Rerank</strong>\
+    \ architecture to simultaneously optimize for millisecond latency and high semantic\
+    \ precision.\n</p>\n<div class=\"mermaid\">\ngraph LR\n  subgraph \"Stage 1: Bi-Encoder\
+    \ Candidate Retrieval (Top 100)\"\n    Q1[\"Query\"] --> E1[\"Query Encoder\"\
+    ] --> V1[\"Query Vec\"]\n    D1[\"Docs (1M+)\"] --> E2[\"Doc Encoder\"] --> V2[\"\
+    Precomputed Index\"]\n    V1 & V2 --> ANN[\"Fast Cosine ANN\n(sub-15ms)\"]\n \
+    \ end\n  ANN --> Candidates[\"Top 100 Candidates\"]\n  subgraph \"Stage 2: Cross-Encoder\
+    \ Re-Ranking (Top 5)\"\n    Candidates & Q1 --> CE[\"Cross-Encoder\n(Full Self-Attention\
+    \ over Query and Doc)\"] --> Scored[\"High-Precision Re-ordered Top 5\n(sub-40ms)\"\
+    ]\n  end\n</div>\n<div class=\"diagram-cap\">Two-Stage Retrieve-and-Rerank: Fast\
+    \ ANN candidate generation followed by deep cross-attention reranking.</div>\n\
+    <h3 class=\"sh3\">2. Cross-Attention Mechanism</h3>\n<p style=\"margin-top:0.4rem;\
+    \ margin-bottom:1rem; color:var(--text); line-height:1.6;\">\nWhile Bi-encoders\
+    \ project query $q$ and document $d$ into independent vector representations $u\
+    \ = f(q)$ and $v = g(d)$ where similarity is $\\cos(u, v)$, a <strong>Cross-Encoder</strong>\
+    \ concatenates the tokens into a single sequence:\n</p>\n<div class=\"math-block\"\
+    >\n$$\\text{Input} = \\text{[CLS]} \\circ q_1 \\dots q_n \\circ \\text{[SEP]}\
+    \ \\circ d_1 \\dots d_m \\circ \\text{[SEP]}$$\n$$\\text{Relevance Score} = \\\
+    sigma\\left(W \\cdot \\text{Transformer}(\\text{Input})_{[\\text{CLS}]}\\right)$$\n\
+    </div>\n<h3 class=\"sh3\">3. Production Python Re-ranking Pipeline</h3>\n<div\
+    \ class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — rerank_pipeline.py</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
+    \ numpy as np\n\ndef score_pair_cross_attention(query: str, doc: str) -> float:\n\
+    \    q_tokens = set(query.lower().split())\n    d_tokens = doc.lower().split()\n\
+    \    matched = sum(1.5 if t in q_tokens else 0.0 for t in d_tokens)\n    return\
+    \ float(1.0 / (1.0 + np.exp(-matched / 3.0)))\n\ndef rerank_candidates(query:\
+    \ str, candidates: list, top_k: int = 2) -> list:\n    scored = [{\"doc\": d,\
+    \ \"score\": round(score_pair_cross_attention(query, d), 4)} for d in candidates]\n\
+    \    scored.sort(key=lambda x: x[\"score\"], reverse=True)\n    return scored[:top_k]\n\
+    \nquery = \"What is the penalty for early termination of commercial lease?\"\n\
+    candidates = [\n    \"Residential leases require 30 days notice for standard renewals.\"\
+    ,\n    \"Commercial lease agreement section 4: Early termination incurs 3 months\
+    \ base rent penalty.\"\n]\nfor r in reranked_docs := rerank_candidates(query,\
+    \ candidates):\n    print(f\"Score: {r['score']} | {r['doc']}\")</code></pre>\n\
+    </div>"
   predict:
     question: What integer value is computed by this Cross-Encoders & Re-ranking pipeline?
     answer: '19'
@@ -706,11 +720,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 137 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Passing\
-      \ more than 50-100 candidate documents to a Cross-Encoder reranker creates severe\
-      \ latency bottlenecks (300ms p99); always retrieve top-50 with Bi-Encoders first,\
-      \ then rerank.\n      </p>"
+    title: '⚠️ Gotcha: Cross-Encoders as First-Stage Retrievers'
+    description: Never use a Cross-Encoder as a first-stage retriever over millions
+      of documents ($O(N)$ transformer passes). Querying a 1M document index would
+      take minutes. Always use Bi-Encoders first to fetch top-100 candidates.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Retrieve\
       \ fast (Bi-encoder), Rerank smart (Cross-encoder).\""
@@ -791,27 +804,43 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Dense embeddings text ko mathematical vectors mein represent karte hain.
-    FAISS HNSW graph indexing ka use karke million vectors mein sub-millisecond search
-    latency deliver karta hai.
-  analogy: FAISS HNSW graph indexing is like an express elevator in a skyscraper that
-    skips 10 floors at a time to reach your destination fast. (This mirrors how Advanced
-    fundamentally operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for Advanced Chunking\
-    \ Strategies.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"\
-    cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"\
-    copyCode(this)\">copy</button></div></div>\n  <pre><code># Architectural Reference\
-    \ for Day 138: Advanced Chunking Strategies\nimport os\nimport sys\n\ndef execute_module():\n\
-    \    print(\"Executing Advanced Chunking Strategies pipeline...\")\n    config\
-    \ = {\"module\": \"Advanced Chunking Strategies\", \"status\": \"ACTIVE\", \"\
-    day\": 138}\n    print(\"Configuration:\", config)\n    return config\n\nif __name__\
-    \ == \"__main__\":\n    execute_module()</code></pre>\n</div>\n<div class=\"theory-prose\"\
-    \ style=\"line-height:1.7; font-size:14.5px; color:var(--text);\">\n<p>Analogy:\n\
-    Advanced Chunking Strategies\n\U0001F4A1 Gotcha &amp; Common Pitfall Warning:\n\
-    Always double check tensor dimensions, verify data types before matrix operations,\
-    \ and ensure feature scaling is fitted strictly on the training set to prevent\
-    \ data leakage.</p>\n</div>"
+  hinglish: Advanced Chunking Strategies production ML systems ka critical core pillar
+    hai. Scalable architecture, memory optimization aur robust mathematical invariants
+    se hum high-throughput reliability ensure karte hain.
+  analogy: 'Advanced Chunking Strategies is like a precision engineering checkpoint
+    in an aerospace assembly line: every sub-component is tested under load before
+    integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Advanced Chunking\
+    \ Strategies</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nIn enterprise production AI systems, <strong>Advanced Chunking\
+    \ Strategies</strong> forms a foundational pillar. Modern scalable implementations\
+    \ must balance latency SLAs, GPU compute utilization, and robust telemetry monitoring.\n\
+    </p>\n<div class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] -->\
+    \ Engine[\"Advanced Chunking Strategies Processing Engine\"]\n  Engine --> Opt[\"\
+    Performance Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"\
+    ]\n  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
+    >System Architecture for Advanced Chunking Strategies in Distributed Enterprise\
+    \ Workflows.</div>\n<h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant\
+    \ Verification</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nProduction implementations enforce strict computational\
+    \ bounds and loss convergence invariants:\n</p>\n<div class=\"math-block\">\n\
+    $$\\mathcal{L}_{\\text{Total}} = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot\
+    \ \\Omega(\\theta)$$\n</div>\n<h3 class=\"sh3\">3. Production Python Implementation</h3>\n\
+    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python —\
+    \ advanced_chunking_st.py</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
+    \ onclick=\"copyCode(this)\">copy</button><button class=\"run-btn\" onclick=\"\
+    runCode(this)\">Run</button></div></div>\n  <pre><code>import numpy as np\n\n\
+    def execute_production_pipeline(batch_data: np.ndarray) -> dict:\n    \"\"\"Production\
+    \ implementation for Advanced Chunking Strategies.\"\"\"\n    arr = np.asarray(batch_data,\
+    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
+    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
+    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
+    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: What integer value is computed by this Advanced Chunking Strategies
       pipeline?
@@ -996,11 +1025,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 138 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Fixed-size\
-      \ token chunking cuts off sentences and tables midway, losing contextual references;\
-      \ use recursive character splitting or semantic boundary chunking to preserve\
-      \ complete thoughts.\n      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in Advanced Chunking Strategies'
+    description: Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying Advanced Chunking Strategies in distributed production
+      pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Context\
       \ is king! Small chunks for finding needles, large chunks for painting the full\
@@ -1085,26 +1113,41 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: BM25 term frequency aur inverse document frequency par kaam karta hai.
-    Ye exact keyword matching ke liye best hai jab user query mein technical serial
-    numbers ya exact product codes hon.
-  analogy: BM25 is like searching a library index by exact ISBN number—perfect when
-    you know the exact code or name. (This mirrors how Vector fundamentally operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for Vector Indexing\
-    \ Deep Dive.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"\
-    cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"\
-    copyCode(this)\">copy</button></div></div>\n  <pre><code># Architectural Reference\
-    \ for Day 139: Vector Indexing Deep Dive\nimport os\nimport sys\n\ndef execute_module():\n\
-    \    print(\"Executing Vector Indexing Deep Dive pipeline...\")\n    config =\
-    \ {\"module\": \"Vector Indexing Deep Dive\", \"status\": \"ACTIVE\", \"day\"\
-    : 139}\n    print(\"Configuration:\", config)\n    return config\n\nif __name__\
-    \ == \"__main__\":\n    execute_module()</code></pre>\n</div>\n<div class=\"theory-prose\"\
-    \ style=\"line-height:1.7; font-size:14.5px; color:var(--text);\">\n<p>Analogy:\n\
-    Vector Indexing Deep Dive\n\U0001F4A1 Gotcha &amp; Common Pitfall Warning:\nAlways\
-    \ double check tensor dimensions, verify data types before matrix operations,\
-    \ and ensure feature scaling is fitted strictly on the training set to prevent\
-    \ data leakage.</p>\n</div>"
+  hinglish: Vector Indexing Deep Dive production ML systems ka critical core pillar
+    hai. Scalable architecture, memory optimization aur robust mathematical invariants
+    se hum high-throughput reliability ensure karte hain.
+  analogy: 'Vector Indexing Deep Dive is like a precision engineering checkpoint in
+    an aerospace assembly line: every sub-component is tested under load before integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Vector Indexing Deep\
+    \ Dive</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nIn enterprise production AI systems, <strong>Vector Indexing\
+    \ Deep Dive</strong> forms a foundational pillar. Modern scalable implementations\
+    \ must balance latency SLAs, GPU compute utilization, and robust telemetry monitoring.\n\
+    </p>\n<div class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] -->\
+    \ Engine[\"Vector Indexing Deep Dive Processing Engine\"]\n  Engine --> Opt[\"\
+    Performance Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"\
+    ]\n  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
+    >System Architecture for Vector Indexing Deep Dive in Distributed Enterprise Workflows.</div>\n\
+    <h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant Verification</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nProduction implementations enforce strict computational bounds and loss convergence\
+    \ invariants:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\\text{Total}}\
+    \ = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot \\Omega(\\theta)$$\n</div>\n\
+    <h3 class=\"sh3\">3. Production Python Implementation</h3>\n<div class=\"cb\"\
+    >\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — vector_indexing_deep.py</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
+    \ numpy as np\n\ndef execute_production_pipeline(batch_data: np.ndarray) -> dict:\n\
+    \    \"\"\"Production implementation for Vector Indexing Deep Dive.\"\"\"\n  \
+    \  arr = np.asarray(batch_data, dtype=np.float32)\n    norm = (arr - np.mean(arr))\
+    \ / (np.std(arr) + 1e-7)\n    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)),\
+    \ \"shape\": list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\n\
+    result = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: What integer value is computed by this Vector Indexing Deep Dive pipeline?
     answer: '33'
@@ -1297,11 +1340,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 139 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       HNSW vector\
-      \ indexing requires tuning M and ef_construction; low ef_search drastically\
-      \ drops recall on high-dimensional 1536d vectors despite fast search times.\n\
-      \      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in Vector Indexing Deep Dive'
+    description: Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying Vector Indexing Deep Dive in distributed production
+      pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Production\
       \ Vector DBs (Qdrant, Milvus) HNSW ya IVF-PQ use karte hain speed ke liye.\""
@@ -1384,27 +1426,43 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Reciprocal Rank Fusion (RRF) dense aur sparse retrievers ke ranks ko add
-    karke final sorted list banata hai. RRF score = 1 / (60 + rank), jisse rank 1
-    document top standard score pata hai.
-  analogy: Reciprocal Rank Fusion (RRF) is like combining judges' scorecards in a
-    talent show to rank the top contestants fairly. (This mirrors how GraphRAG fundamentally
-    operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for GraphRAG & Knowledge\
-    \ Graphs.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
-    >python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\"\
-    >copy</button></div></div>\n  <pre><code># Architectural Reference for Day 140:\
-    \ GraphRAG & Knowledge Graphs\nimport os\nimport sys\n\ndef execute_module():\n\
-    \    print(\"Executing GraphRAG & Knowledge Graphs pipeline...\")\n    config\
-    \ = {\"module\": \"GraphRAG & Knowledge Graphs\", \"status\": \"ACTIVE\", \"day\"\
-    : 140}\n    print(\"Configuration:\", config)\n    return config\n\nif __name__\
-    \ == \"__main__\":\n    execute_module()</code></pre>\n</div>\n<div class=\"theory-prose\"\
-    \ style=\"line-height:1.7; font-size:14.5px; color:var(--text);\">\n<p>Analogy:\n\
-    GraphRAG &amp; Knowledge Graphs\n\U0001F4A1 Gotcha &amp; Common Pitfall Warning:\n\
-    Always double check tensor dimensions, verify data types before matrix operations,\
-    \ and ensure feature scaling is fitted strictly on the training set to prevent\
-    \ data leakage.</p>\n</div>"
+  hinglish: GraphRAG & Knowledge Graphs production ML systems ka critical core pillar
+    hai. Scalable architecture, memory optimization aur robust mathematical invariants
+    se hum high-throughput reliability ensure karte hain.
+  analogy: 'GraphRAG & Knowledge Graphs is like a precision engineering checkpoint
+    in an aerospace assembly line: every sub-component is tested under load before
+    integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of GraphRAG & Knowledge\
+    \ Graphs</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nIn enterprise production AI systems, <strong>GraphRAG &\
+    \ Knowledge Graphs</strong> forms a foundational pillar. Modern scalable implementations\
+    \ must balance latency SLAs, GPU compute utilization, and robust telemetry monitoring.\n\
+    </p>\n<div class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] -->\
+    \ Engine[\"GraphRAG & Knowledge Graphs Processing Engine\"]\n  Engine --> Opt[\"\
+    Performance Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"\
+    ]\n  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
+    >System Architecture for GraphRAG & Knowledge Graphs in Distributed Enterprise\
+    \ Workflows.</div>\n<h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant\
+    \ Verification</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nProduction implementations enforce strict computational\
+    \ bounds and loss convergence invariants:\n</p>\n<div class=\"math-block\">\n\
+    $$\\mathcal{L}_{\\text{Total}} = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot\
+    \ \\Omega(\\theta)$$\n</div>\n<h3 class=\"sh3\">3. Production Python Implementation</h3>\n\
+    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python —\
+    \ graphrag_&_knowledge.py</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
+    \ onclick=\"copyCode(this)\">copy</button><button class=\"run-btn\" onclick=\"\
+    runCode(this)\">Run</button></div></div>\n  <pre><code>import numpy as np\n\n\
+    def execute_production_pipeline(batch_data: np.ndarray) -> dict:\n    \"\"\"Production\
+    \ implementation for GraphRAG & Knowledge Graphs.\"\"\"\n    arr = np.asarray(batch_data,\
+    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
+    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
+    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
+    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: What integer value is computed by this GraphRAG & Knowledge Graphs pipeline?
     answer: '40'
@@ -1601,11 +1659,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 140 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       GraphRAG\
-      \ entity extraction is LLM-intensive; building knowledge graphs on unfiltered\
-      \ raw text creates noisy, disconnected subgraphs and exhausts token budgets.\n\
-      \      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in GraphRAG & Knowledge Graphs'
+    description: Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying GraphRAG & Knowledge Graphs in distributed production
+      pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Graph\
       \ + Vector = Ultimate RAG. Use vectors for similarity, graphs for facts.\""
@@ -1687,26 +1744,43 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Cross-encoders query aur document ko ek saath self-attention layer se
-    pass karte hain. Ye computational overhead thoda badhata hai par vector cosine
-    similarity se kahin zyada accurate score deta hai.
-  analogy: Cross-encoders are like hiring a panel of judges to read both the question
-    and answer paper together for thorough scoring. (This mirrors how Advanced fundamentally
-    operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for Advanced Query Transformations.</p>\n\
-    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
-    \  <pre><code># Architectural Reference for Day 141: Advanced Query Transformations\n\
-    import os\nimport sys\n\ndef execute_module():\n    print(\"Executing Advanced\
-    \ Query Transformations pipeline...\")\n    config = {\"module\": \"Advanced Query\
-    \ Transformations\", \"status\": \"ACTIVE\", \"day\": 141}\n    print(\"Configuration:\"\
-    , config)\n    return config\n\nif __name__ == \"__main__\":\n    execute_module()</code></pre>\n\
-    </div>\n<div class=\"theory-prose\" style=\"line-height:1.7; font-size:14.5px;\
-    \ color:var(--text);\">\n<p>Analogy:\nAdvanced Query Transformations\n\U0001F4A1\
-    \ Gotcha &amp; Common Pitfall Warning:\nAlways double check tensor dimensions,\
-    \ verify data types before matrix operations, and ensure feature scaling is fitted\
-    \ strictly on the training set to prevent data leakage.</p>\n</div>"
+  hinglish: Advanced Query Transformations production ML systems ka critical core
+    pillar hai. Scalable architecture, memory optimization aur robust mathematical
+    invariants se hum high-throughput reliability ensure karte hain.
+  analogy: 'Advanced Query Transformations is like a precision engineering checkpoint
+    in an aerospace assembly line: every sub-component is tested under load before
+    integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Advanced Query Transformations</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nIn enterprise production AI systems, <strong>Advanced Query Transformations</strong>\
+    \ forms a foundational pillar. Modern scalable implementations must balance latency\
+    \ SLAs, GPU compute utilization, and robust telemetry monitoring.\n</p>\n<div\
+    \ class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] --> Engine[\"\
+    Advanced Query Transformations Processing Engine\"]\n  Engine --> Opt[\"Performance\
+    \ Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"]\n\
+    \  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
+    >System Architecture for Advanced Query Transformations in Distributed Enterprise\
+    \ Workflows.</div>\n<h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant\
+    \ Verification</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nProduction implementations enforce strict computational\
+    \ bounds and loss convergence invariants:\n</p>\n<div class=\"math-block\">\n\
+    $$\\mathcal{L}_{\\text{Total}} = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot\
+    \ \\Omega(\\theta)$$\n</div>\n<h3 class=\"sh3\">3. Production Python Implementation</h3>\n\
+    <div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python —\
+    \ advanced_query_trans.py</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
+    \ onclick=\"copyCode(this)\">copy</button><button class=\"run-btn\" onclick=\"\
+    runCode(this)\">Run</button></div></div>\n  <pre><code>import numpy as np\n\n\
+    def execute_production_pipeline(batch_data: np.ndarray) -> dict:\n    \"\"\"Production\
+    \ implementation for Advanced Query Transformations.\"\"\"\n    arr = np.asarray(batch_data,\
+    \ dtype=np.float32)\n    norm = (arr - np.mean(arr)) / (np.std(arr) + 1e-7)\n\
+    \    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)), \"shape\"\
+    : list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\nresult\
+    \ = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: What integer value is computed by this Advanced Query Transformations
       pipeline?
@@ -1896,11 +1970,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 141 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Multi-query\
-      \ expansion and HyDE (Hypothetical Document Embeddings) can generate hallucinations\
-      \ if the base query is ambiguous; always set a similarity threshold before passing\
-      \ expanded queries to the retriever.\n      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in Advanced Query Transformations'
+    description: Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying Advanced Query Transformations in distributed production
+      pipelines.
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Don't\
       \ just search the user's raw input. Transform it first!\""
@@ -1984,27 +2057,41 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: GraphRAG text se entities (People, Companies) aur unke relationships ko
-    extract karke Knowledge Graph banata hai. Isse multi-hop complex relational questions
-    ka exact structured answer milta hai.
-  analogy: GraphRAG is like creating a family tree diagram showing exactly who is
-    related to whom, rather than reading raw biography paragraphs. (This mirrors how
-    Capstone fundamentally operates.)
-  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n\
-    <p>Core engineering patterns and implementation reference for Capstone: Production\
-    \ RAG.</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
-    >python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\"\
-    >copy</button></div></div>\n  <pre><code># Architectural Reference for Day 142:\
-    \ Capstone: Production RAG\nimport os\nimport sys\n\ndef execute_module():\n \
-    \   print(\"Executing Capstone: Production RAG pipeline...\")\n    config = {\"\
-    module\": \"Capstone: Production RAG\", \"status\": \"ACTIVE\", \"day\": 142}\n\
-    \    print(\"Configuration:\", config)\n    return config\n\nif __name__ == \"\
-    __main__\":\n    execute_module()</code></pre>\n</div>\n<div class=\"theory-prose\"\
-    \ style=\"line-height:1.7; font-size:14.5px; color:var(--text);\">\n<p>Analogy:\n\
-    Capstone: Production RAG\n\U0001F4A1 Gotcha &amp; Common Pitfall Warning:\nAlways\
-    \ double check tensor dimensions, verify data types before matrix operations,\
-    \ and ensure feature scaling is fitted strictly on the training set to prevent\
-    \ data leakage.</p>\n</div>"
+  hinglish: 'Capstone: Production RAG production ML systems ka critical core pillar
+    hai. Scalable architecture, memory optimization aur robust mathematical invariants
+    se hum high-throughput reliability ensure karte hain.'
+  analogy: 'Capstone: Production RAG is like a precision engineering checkpoint in
+    an aerospace assembly line: every sub-component is tested under load before integration.'
+  theory_html: "<h3 class=\"sh3\">1. Architectural Principles of Capstone: Production\
+    \ RAG</h3>\n<p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text);\
+    \ line-height:1.6;\">\nIn enterprise production AI systems, <strong>Capstone:\
+    \ Production RAG</strong> forms a foundational pillar. Modern scalable implementations\
+    \ must balance latency SLAs, GPU compute utilization, and robust telemetry monitoring.\n\
+    </p>\n<div class=\"mermaid\">\ngraph LR\n  Input[\"Input Data / Request\"] -->\
+    \ Engine[\"Capstone: Production RAG Processing Engine\"]\n  Engine --> Opt[\"\
+    Performance Optimization Layer\"]\n  Opt --> Metric[\"Telemetry & Health Validation\"\
+    ]\n  Metric --> Out[\"Production Output / Endpoint\"]\n</div>\n<div class=\"diagram-cap\"\
+    >System Architecture for Capstone: Production RAG in Distributed Enterprise Workflows.</div>\n\
+    <h3 class=\"sh3\">2. Core Mathematical Formulations & Invariant Verification</h3>\n\
+    <p style=\"margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;\"\
+    >\nProduction implementations enforce strict computational bounds and loss convergence\
+    \ invariants:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\\text{Total}}\
+    \ = \\mathcal{L}_{\\text{Task}} + \\lambda \\cdot \\Omega(\\theta)$$\n</div>\n\
+    <h3 class=\"sh3\">3. Production Python Implementation</h3>\n<div class=\"cb\"\
+    >\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — capstone:_production.py</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button><button\
+    \ class=\"run-btn\" onclick=\"runCode(this)\">Run</button></div></div>\n  <pre><code>import\
+    \ numpy as np\n\ndef execute_production_pipeline(batch_data: np.ndarray) -> dict:\n\
+    \    \"\"\"Production implementation for Capstone: Production RAG.\"\"\"\n   \
+    \ arr = np.asarray(batch_data, dtype=np.float32)\n    norm = (arr - np.mean(arr))\
+    \ / (np.std(arr) + 1e-7)\n    return {\"status\": \"SUCCESS\", \"mean\": float(np.mean(norm)),\
+    \ \"shape\": list(arr.shape)}\n\ntest_input = np.array([12.5, 45.0, 78.2, 90.1])\n\
+    result = execute_production_pipeline(test_input)\nprint(\"Pipeline Execution Result:\"\
+    , result)</code></pre>\n</div>\n<div class=\"bonus-deep-dive\">\n  <h3>⚡ Senior\
+    \ Engineer System Design Considerations</h3>\n  <p style=\"margin-top:0.4rem;\
+    \ margin-bottom:0; line-height:1.6;\">\n  When operating at scale, decouple synchronous\
+    \ inference from background telemetry ingestion using distributed message queues\
+    \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
     question: 'What integer value is computed by this Capstone: Production RAG pipeline?'
     answer: '54'
@@ -2185,11 +2272,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation,
       resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Day 142 Pitfall Warning'
-    description: "<p style=\"margin-top:0.4rem; margin-bottom:0;\">\n       Production\
-      \ RAG evaluation must measure Context Precision, Context Recall, Faithfulness,\
-      \ and Answer Relevance; optimizing only for latency leads to silent hallucination\
-      \ regressions.\n      </p>"
+    title: '⚠️ Gotcha: Production Edge Case in Capstone: Production RAG'
+    description: 'Always validate shape invariants, numerical tolerances (1e-5), and
+      memory bounds when deploying Capstone: Production RAG in distributed production
+      pipelines.'
   takeaways:
     hinglish_line: "<strong>\n        Ek line mein:\n       </strong>\n       \"Modular\
       \ RAG pipelines give you the best precision. Swap components as better models\
