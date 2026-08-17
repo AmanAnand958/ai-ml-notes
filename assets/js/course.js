@@ -89,6 +89,7 @@ function syncLegacyStateProxy() {
 function saveState() {
   syncLegacyStateProxy();
   courseState.lastUpdated = Date.now();
+  courseState.done = Object.keys(courseState.completedDays);
   const key = getStorageKey();
   try {
     localStorage.setItem(key, JSON.stringify(courseState));
