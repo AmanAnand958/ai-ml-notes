@@ -1129,13 +1129,41 @@ print("✅ MLflow Model Registry assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-173-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Data Version Control (DVC) & Dataset Lineage</h3>
+          <h3 class="sh3">1. Why Git Fails on Large ML Datasets</h3>
 <p>
-Standard Git repositories cannot store multi-gigabyte datasets without bloating repository history and degrading performance.
+Git is an immutable Content-Addressable Storage (CAS) engine designed for textual source code. Storing 50GB binary datasets or multi-gigabyte PyTorch weights (<code>model.safetensors</code>) inside Git repositories causes severe performance collapse: cloning times stretch to hours, local <code>.git</code> repository folders swell into hundreds of gigabytes, and delta compression fails on binary blobs.
 </p>
 <p>
-<strong>Data Version Control (DVC)</strong> solves this by creating lightweight <code>.dvc</code> metadata pointer files (containing unique content-addressed SHA256 hashes) tracked directly in Git, while syncing actual large datasets to remote object storage (AWS S3 / GCP GCS).
+<strong>Data Version Control (DVC)</strong> decouples the <strong>metadata pointer</strong> from the <strong>raw binary payload</strong>:
 </p>
+<div style="margin: 1.5rem 0; text-align: center;">
+<svg aria-label="DVC Architecture Diagram" height="240" viewBox="0 0 680 240" width="680" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);">
+  <rect x="10" y="10" width="660" height="220" rx="10" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+  <text x="25" y="35" fill="#f59e0b" font-size="13" font-weight="bold">DVC (Data Version Control) Two-Tier Storage Architecture</text>
+
+  <!-- Left: Git Repository -->
+  <rect x="30" y="55" width="280" height="155" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="45" y="80" fill="#60a5fa" font-size="12" font-weight="bold">Git Repository (Local & GitHub)</text>
+  <text x="45" y="105" fill="#f8fafc" font-size="10.5">📄 train.py (Source Code)</text>
+  <text x="45" y="130" fill="#facc15" font-size="10.5">📄 data.dvc (Small Pointer File)</text>
+  <text x="55" y="150" fill="#94a3b8" font-size="9">md5: 8f4e2b10a9c3...</text>
+  <text x="55" y="165" fill="#94a3b8" font-size="9">size: 52428800000 (50GB)</text>
+  <text x="45" y="190" fill="#ef4444" font-size="9.5">🚫 raw_data/ added to .gitignore</text>
+
+  <!-- Bidirectional Arrow -->
+  <path d="M 310 130 L 370 130" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4"/>
+  <text x="315" y="120" fill="#fbbf24" font-size="10">dvc push/pull</text>
+
+  <!-- Right: DVC Remote Storage -->
+  <rect x="370" y="55" width="280" height="155" rx="8" fill="#1e293b" stroke="#10b981" stroke-width="1.5"/>
+  <text x="385" y="80" fill="#34d399" font-size="12" font-weight="bold">DVC Remote (AWS S3 / GCS)</text>
+  <text x="385" y="105" fill="#f8fafc" font-size="10.5">📦 s3://bucket/dvcstore/8f/4e2b10...</text>
+  <text x="385" y="135" fill="#cbd5e1" font-size="9.5">Content-Addressable Storage (CAS)</text>
+  <text x="385" y="155" fill="#94a3b8" font-size="9">Deduplicated across experiments</text>
+  <text x="385" y="175" fill="#94a3b8" font-size="9">Fast chunked parallel multi-part upload</text>
+</svg>
+<div class="diagram-cap">Figure 173.1: DVC Architecture separating Git metadata pointers from S3 Content-Addressable Storage.</div>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->

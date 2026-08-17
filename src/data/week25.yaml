@@ -685,18 +685,36 @@ days:
     hota hai.
   analogy: Custom Metric HPA with Prometheus is like an intelligent highway toll plaza that opens 5 additional express lanes
     the moment camera sensors detect a 10-car backup in the queue, rather than waiting for drivers to start honking in frustration.
-  theory_html: |-
-    <h3 class="sh3">1. Horizontal Pod Autoscaling with Prometheus Custom Metrics</h3>
-    <p>
-    Standard CPU/Memory metrics are useless for autoscaling LLM serving clusters because GPUs report near-100% compute even when requests are queuing in KV cache memory.
-    </p>
-    <p>
-    <strong>Prometheus Custom Metric HPA:</strong> Scales pods based on real-time vLLM engine metrics:
-    </p>
-    <ul>
-      <li><code>vllm:num_requests_waiting</code>: Number of queued requests waiting for available KV cache blocks.</li>
-      <li><code>vllm:gpu_cache_usage_factor</code>: GPU VRAM KV cache saturation ratio (trigger scale-up when $> 0.85$).</li>
-    </ul>
+  theory_html: "<h3 class=\"sh3\">1. Why Standard CPU Metrics Fail for LLM Autoscaling</h3>\n<p>\nStandard Kubernetes Horizontal\
+    \ Pod Autoscalers (HPA) scale pods based on CPU or Memory percentage utilization (e.g. scale out when $\text{CPU} > 80\\\
+    %$). In LLM serving clusters, this strategy fails completely:\n</p>\n<ul>\n  <li><strong>Constant High GPU Compute:</strong>\
+    \ Modern serving engines (vLLM, TensorRT-LLM) utilize 100% of GPU compute cores during token generation even when processing\
+    \ a single light request. CPU/GPU compute percentage never reflects queue congestion.</li>\n  <li><strong>Latency Spikes\
+    \ on Queue Saturation:</strong> As concurrent requests arrive faster than generation throughput, requests pile up inside\
+    \ the vLLM waiting queue. Time-To-First-Token (TTFT) degrades exponentially before standard HPA triggers.</li>\n</ul>\n\
+    \n<h3 class=\"sh3\">2. Prometheus Custom Metric Autoscaling Architecture</h3>\n<div style=\"margin: 1.5rem 0; text-align:\
+    \ center;\">\n<svg aria-label=\"Prometheus Custom Metric HPA Architecture\" height=\"240\" viewBox=\"0 0 680 240\" width=\"\
+    680\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width: 100%; height: auto; font-family: var(--font-mono, monospace);\"\
+    >\n  <rect x=\"10\" y=\"10\" width=\"660\" height=\"220\" rx=\"10\" fill=\"#0f172a\" stroke=\"#334155\" stroke-width=\"\
+    2\"/>\n  <text x=\"25\" y=\"35\" fill=\"#38bdf8\" font-size=\"13\" font-weight=\"bold\">Prometheus Custom Metric HPA Pipeline\
+    \ for vLLM</text>\n\n  <!-- vLLM Pod Metrics -->\n  <rect x=\"30\" y=\"55\" width=\"160\" height=\"75\" rx=\"6\" fill=\"\
+    #1e293b\" stroke=\"#10b981\"/>\n  <text x=\"45\" y=\"80\" fill=\"#34d399\" font-size=\"11\" font-weight=\"bold\">vLLM\
+    \ Pod (:8000)</text>\n  <text x=\"40\" y=\"100\" fill=\"#cbd5e1\" font-size=\"9.5\">/metrics endpoint</text>\n  <text\
+    \ x=\"40\" y=\"118\" fill=\"#facc15\" font-size=\"9\">num_requests_waiting</text>\n\n  <!-- Arrow -->\n  <path d=\"M 190\
+    \ 92 L 235 92\" stroke=\"#94a3b8\" stroke-width=\"2\"/>\n\n  <!-- Prometheus Scraper -->\n  <rect x=\"235\" y=\"55\" width=\"\
+    160\" height=\"75\" rx=\"6\" fill=\"#1e293b\" stroke=\"#e11d48\"/>\n  <text x=\"250\" y=\"80\" fill=\"#fb7185\" font-size=\"\
+    11\" font-weight=\"bold\">Prometheus Server</text>\n  <text x=\"245\" y=\"100\" fill=\"#cbd5e1\" font-size=\"9.5\">10s\
+    \ Scrape Interval</text>\n  <text x=\"245\" y=\"118\" fill=\"#94a3b8\" font-size=\"9\">PromQL Aggregation</text>\n\n \
+    \ <!-- Arrow -->\n  <path d=\"M 395 92 L 440 92\" stroke=\"#94a3b8\" stroke-width=\"2\"/>\n\n  <!-- Prometheus Adapter\
+    \ -->\n  <rect x=\"440\" y=\"55\" width=\"200\" height=\"75\" rx=\"6\" fill=\"#1e293b\" stroke=\"#38bdf8\"/>\n  <text\
+    \ x=\"455\" y=\"80\" fill=\"#60a5fa\" font-size=\"11\" font-weight=\"bold\">Prometheus Adapter</text>\n  <text x=\"450\"\
+    \ y=\"100\" fill=\"#cbd5e1\" font-size=\"9.5\">custom.metrics.k8s.io</text>\n  <text x=\"450\" y=\"118\" fill=\"#94a3b8\"\
+    \ font-size=\"9\">Exposes waiting queue metric</text>\n\n  <!-- HPA Controller -->\n  <rect x=\"30\" y=\"150\" width=\"\
+    610\" height=\"65\" rx=\"6\" fill=\"#1e293b\" stroke=\"#f59e0b\" stroke-width=\"1.5\"/>\n  <text x=\"45\" y=\"175\" fill=\"\
+    #facc15\" font-size=\"11\" font-weight=\"bold\">Kubernetes Horizontal Pod Autoscaler (HPA)</text>\n  <text x=\"45\" y=\"\
+    195\" fill=\"#cbd5e1\" font-size=\"9.5\">Rule: Scale out (min: 2, max: 10) when average `vllm:num_requests_waiting` &gt;\
+    \ 5.0</text>\n</svg>\n<div class=\"diagram-cap\">Figure 180.1: Prometheus Custom Metric Horizontal Pod Autoscaler (HPA)\
+    \ Architecture.</div>\n</div>"
   predict:
     question: "Why is\n       \n        stabilizationWindowSeconds\n       \n       for scaleDown useful for LLM services?"
     answer: |-

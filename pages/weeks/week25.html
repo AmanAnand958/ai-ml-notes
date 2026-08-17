@@ -1199,17 +1199,52 @@ print("✅ vLLM K8s deployment spec assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-180-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Horizontal Pod Autoscaling with Prometheus Custom Metrics</h3>
+          <h3 class="sh3">1. Why Standard CPU Metrics Fail for LLM Autoscaling</h3>
 <p>
-Standard CPU/Memory metrics are useless for autoscaling LLM serving clusters because GPUs report near-100% compute even when requests are queuing in KV cache memory.
-</p>
-<p>
-<strong>Prometheus Custom Metric HPA:</strong> Scales pods based on real-time vLLM engine metrics:
+Standard Kubernetes Horizontal Pod Autoscalers (HPA) scale pods based on CPU or Memory percentage utilization (e.g. scale out when $	ext{CPU} > 80\%$). In LLM serving clusters, this strategy fails completely:
 </p>
 <ul>
-  <li><code>vllm:num_requests_waiting</code>: Number of queued requests waiting for available KV cache blocks.</li>
-  <li><code>vllm:gpu_cache_usage_factor</code>: GPU VRAM KV cache saturation ratio (trigger scale-up when $> 0.85$).</li>
+  <li><strong>Constant High GPU Compute:</strong> Modern serving engines (vLLM, TensorRT-LLM) utilize 100% of GPU compute cores during token generation even when processing a single light request. CPU/GPU compute percentage never reflects queue congestion.</li>
+  <li><strong>Latency Spikes on Queue Saturation:</strong> As concurrent requests arrive faster than generation throughput, requests pile up inside the vLLM waiting queue. Time-To-First-Token (TTFT) degrades exponentially before standard HPA triggers.</li>
 </ul>
+
+<h3 class="sh3">2. Prometheus Custom Metric Autoscaling Architecture</h3>
+<div style="margin: 1.5rem 0; text-align: center;">
+<svg aria-label="Prometheus Custom Metric HPA Architecture" height="240" viewBox="0 0 680 240" width="680" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);">
+  <rect x="10" y="10" width="660" height="220" rx="10" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+  <text x="25" y="35" fill="#38bdf8" font-size="13" font-weight="bold">Prometheus Custom Metric HPA Pipeline for vLLM</text>
+
+  <!-- vLLM Pod Metrics -->
+  <rect x="30" y="55" width="160" height="75" rx="6" fill="#1e293b" stroke="#10b981"/>
+  <text x="45" y="80" fill="#34d399" font-size="11" font-weight="bold">vLLM Pod (:8000)</text>
+  <text x="40" y="100" fill="#cbd5e1" font-size="9.5">/metrics endpoint</text>
+  <text x="40" y="118" fill="#facc15" font-size="9">num_requests_waiting</text>
+
+  <!-- Arrow -->
+  <path d="M 190 92 L 235 92" stroke="#94a3b8" stroke-width="2"/>
+
+  <!-- Prometheus Scraper -->
+  <rect x="235" y="55" width="160" height="75" rx="6" fill="#1e293b" stroke="#e11d48"/>
+  <text x="250" y="80" fill="#fb7185" font-size="11" font-weight="bold">Prometheus Server</text>
+  <text x="245" y="100" fill="#cbd5e1" font-size="9.5">10s Scrape Interval</text>
+  <text x="245" y="118" fill="#94a3b8" font-size="9">PromQL Aggregation</text>
+
+  <!-- Arrow -->
+  <path d="M 395 92 L 440 92" stroke="#94a3b8" stroke-width="2"/>
+
+  <!-- Prometheus Adapter -->
+  <rect x="440" y="55" width="200" height="75" rx="6" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="455" y="80" fill="#60a5fa" font-size="11" font-weight="bold">Prometheus Adapter</text>
+  <text x="450" y="100" fill="#cbd5e1" font-size="9.5">custom.metrics.k8s.io</text>
+  <text x="450" y="118" fill="#94a3b8" font-size="9">Exposes waiting queue metric</text>
+
+  <!-- HPA Controller -->
+  <rect x="30" y="150" width="610" height="65" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="45" y="175" fill="#facc15" font-size="11" font-weight="bold">Kubernetes Horizontal Pod Autoscaler (HPA)</text>
+  <text x="45" y="195" fill="#cbd5e1" font-size="9.5">Rule: Scale out (min: 2, max: 10) when average `vllm:num_requests_waiting` &gt; 5.0</text>
+</svg>
+<div class="diagram-cap">Figure 180.1: Prometheus Custom Metric Horizontal Pod Autoscaler (HPA) Architecture.</div>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->

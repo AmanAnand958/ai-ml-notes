@@ -39,40 +39,50 @@ days:
   analogy: 'The RAGAS evaluation quadrant is like a medical board examination: Faithfulness tests if the diagnosis matches
     the lab results, Answer Relevance tests if the doctor answered the patient''s complaint, and Context Recall tests if all
     necessary medical history was gathered.'
-  theory_html: "<h3 class=\"sh3\">1. The Need for Quantitative RAG & LLM Evaluation</h3>\n<p>\nDeploying Large Language Model\
-    \ systems without quantitative evaluation pipelines leads to silent degradations in production. Traditional natural language\
-    \ processing metrics like <strong>BLEU</strong> and <strong>ROUGE</strong> rely on exact n-gram overlap with reference\
-    \ texts. They fail on generative LLM tasks where multiple syntactically distinct responses are semantically valid.\n</p>\n\
-    <p>\nThe <strong>RAGAS (Retrieval Augmented Generation Assessment)</strong> framework evaluates RAG pipelines across four\
-    \ decoupled, deterministic dimensions:\n</p>\n<div class=\"mermaid\">\ngraph TD\n    Question[\"User Query\"] --> Pipeline{\"\
-    RAG Evaluation Matrix\"}\n    Pipeline --> Faithfulness[\"1. Faithfulness (Groundedness)\\nMeasures factual consistency\
-    \ of generated answer against retrieved context\"]\n    Pipeline --> AnswerRelevance[\"2. Answer Relevance\\nMeasures\
-    \ semantic alignment of response to the query intent\"]\n    Pipeline --> ContextPrecision[\"3. Context Precision\\nMeasures\
-    \ if ground-truth relevant chunks are ranked at the top\"]\n    Pipeline --> ContextRecall[\"4. Context Recall\\nMeasures\
-    \ if all ground-truth facts are present in retrieved chunks\"]\n</div>\n<div class=\"diagram-cap\">Figure 157.1: The RAGAS\
-    \ 4-Quadrant Evaluation Architecture.</div>\n\n<h3 class=\"sh3\">2. Mathematical Formulations of RAG Metrics</h3>\n<p>\n\
-    <strong>1. Faithfulness (Groundedness Score):</strong> Evaluated by decomposing the generated answer $A$ into atomic propositional\
-    \ statements $S(A) = \\{s_1, s_2, \\dots, s_n\\}$ and verifying each statement against the retrieved context $C$:\n</p>\n\
-    <div class=\"math-block\">\n$$\\text{Faithfulness}(A, C) = \\frac{\\sum_{i=1}^{|S(A)|} \\mathbb{I}(s_i \\text{ is entailed\
-    \ by } C)}{|S(A)|}$$\n</div>\n<p>\n<strong>2. Context Precision@K:</strong> Evaluates whether the rank order of retrieved\
-    \ chunks prioritizes relevant information:\n</p>\n<div class=\"math-block\">\n$$\\text{Context Precision@K} = \\frac{\\\
-    sum_{k=1}^K (\\text{Precision@}k \\times v_k)}{\\text{Total Relevant Chunks in Top } K}$$\n</div>\n<p>\nWhere $v_k \\\
-    in \\{0, 1\\}$ indicates if the chunk at rank $k$ is relevant.\n</p>\n\n<h3 class=\"sh3\">3. Production Python Implementation:\
-    \ RAGAS Evaluation Pipeline</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code><span\
-    \ class=\"kw\">from</span> typing <span class=\"kw\">import</span> List, Dict\n<span class=\"kw\">import</span> numpy\
-    \ <span class=\"kw\">as</span> np\n\n<span class=\"kw\">def</span> <span class=\"fn\">compute_rag_faithfulness</span>(extracted_claims:\
-    \ List[str], context_text: str) -> float:\n    <span class=\"str\">\\\"\\\"\\\"\n    Computes grounded faithfulness: ratio\
-    \ of claims entailed by retrieved context.\n    \\\"\\\"\\\"</span>\n    <span class=\"kw\">if</span> <span class=\"kw\"\
-    >not</span> extracted_claims:\n        <span class=\"kw\">return</span> <span class=\"num\">1.0</span>\n    \n    entailed_count\
-    \ = <span class=\"num\">0</span>\n    context_lower = context_text.lower()\n    <span class=\"kw\">for</span> claim <span\
-    \ class=\"kw\">in</span> extracted_claims:\n        words = [w.lower() <span class=\"kw\">for</span> w <span class=\"\
-    kw\">in</span> claim.split() <span class=\"kw\">if</span> len(w) > <span class=\"num\">3</span>]\n        match_ratio\
-    \ = sum(<span class=\"num\">1</span> <span class=\"kw\">if</span> w <span class=\"kw\">in</span> context_lower <span class=\"\
-    kw\">else</span> <span class=\"num\">0</span> <span class=\"kw\">for</span> w <span class=\"kw\">in</span> words) / (len(words)\
-    \ + <span class=\"num\">1e-6</span>)\n        <span class=\"kw\">if</span> match_ratio >= <span class=\"num\">0.60</span>:\n\
-    \            entailed_count += <span class=\"num\">1</span>\n            \n    <span class=\"kw\">return</span> round(entailed_count\
-    \ / len(extracted_claims), <span class=\"num\">4</span>)</code></pre>\n</div>"
+  theory_html: "<h3 class=\"sh3\">1. The Evaluation Trilemma in Compound AI Systems</h3>\n<p>\nEvaluating Large Language Model\
+    \ applications differs fundamentally from classical machine learning evaluation. In classical ML, ground-truth labels\
+    \ are fixed scalar targets (e.g. classification classes or regression values), allowing exact computation of $F_1$, Precision,\
+    \ Recall, and ROC-AUC.\n</p>\n<p>\nIn Compound AI / RAG systems, model outputs are unstructured, multi-sentence natural\
+    \ language strings where identical underlying semantic meaning can be expressed in infinitely many surface forms. Evaluating\
+    \ these pipelines requires a multi-dimensional framework:\n</p>\n<div style=\"margin: 1.5rem 0; text-align: center;\"\
+    >\n<svg aria-label=\"RAGAS Evaluation Quadrant\" height=\"260\" viewBox=\"0 0 680 260\" width=\"680\" xmlns=\"http://www.w3.org/2000/svg\"\
+    \ style=\"max-width: 100%; height: auto; font-family: var(--font-mono, monospace);\">\n  <rect x=\"10\" y=\"10\" width=\"\
+    660\" height=\"240\" rx=\"10\" fill=\"#0f172a\" stroke=\"#334155\" stroke-width=\"2\"/>\n  <text x=\"30\" y=\"35\" fill=\"\
+    #38bdf8\" font-size=\"13\" font-weight=\"bold\">RAGAS: The Four-Quadrant RAG Evaluation Matrix</text>\n\n  <!-- Quadrant\
+    \ 1: Faithfulness -->\n  <rect x=\"30\" y=\"55\" width=\"295\" height=\"85\" rx=\"6\" fill=\"#1e293b\" stroke=\"#10b981\"\
+    \ stroke-width=\"1.5\"/>\n  <text x=\"45\" y=\"80\" fill=\"#34d399\" font-size=\"12\" font-weight=\"bold\">1. Faithfulness\
+    \ (Groundedness)</text>\n  <text x=\"45\" y=\"100\" fill=\"#cbd5e1\" font-size=\"9.5\">Measures if answer claims are inferred</text>\n\
+    \  <text x=\"45\" y=\"115\" fill=\"#94a3b8\" font-size=\"9\">strictly from retrieved context (No Hallucination)</text>\n\
+    \n  <!-- Quadrant 2: Answer Relevance -->\n  <rect x=\"345\" y=\"55\" width=\"305\" height=\"85\" rx=\"6\" fill=\"#1e293b\"\
+    \ stroke=\"#38bdf8\" stroke-width=\"1.5\"/>\n  <text x=\"360\" y=\"80\" fill=\"#60a5fa\" font-size=\"12\" font-weight=\"\
+    bold\">2. Answer Relevance</text>\n  <text x=\"360\" y=\"100\" fill=\"#cbd5e1\" font-size=\"9.5\">Measures if the generated\
+    \ answer directly</text>\n  <text x=\"360\" y=\"115\" fill=\"#94a3b8\" font-size=\"9\">addresses the user query (No Evasion/Verbosity)</text>\n\
+    \n  <!-- Quadrant 3: Context Precision -->\n  <rect x=\"30\" y=\"150\" width=\"295\" height=\"85\" rx=\"6\" fill=\"#1e293b\"\
+    \ stroke=\"#f59e0b\" stroke-width=\"1.5\"/>\n  <text x=\"45\" y=\"175\" fill=\"#fbbf24\" font-size=\"12\" font-weight=\"\
+    bold\">3. Context Precision @ K</text>\n  <text x=\"45\" y=\"195\" fill=\"#cbd5e1\" font-size=\"9.5\">Evaluates if relevant\
+    \ signal chunks are ranked</text>\n  <text x=\"45\" y=\"210\" fill=\"#94a3b8\" font-size=\"9\">at top positions above\
+    \ noise chunks</text>\n\n  <!-- Quadrant 4: Context Recall -->\n  <rect x=\"345\" y=\"150\" width=\"305\" height=\"85\"\
+    \ rx=\"6\" fill=\"#1e293b\" stroke=\"#ec4899\" stroke-width=\"1.5\"/>\n  <text x=\"360\" y=\"175\" fill=\"#f472b6\" font-size=\"\
+    12\" font-weight=\"bold\">4. Context Recall</text>\n  <text x=\"360\" y=\"195\" fill=\"#cbd5e1\" font-size=\"9.5\">Measures\
+    \ if all necessary ground-truth facts</text>\n  <text x=\"360\" y=\"210\" fill=\"#94a3b8\" font-size=\"9\">were successfully\
+    \ retrieved from the knowledge base</text>\n</svg>\n<div class=\"diagram-cap\">Figure 157.1: The RAGAS Evaluation Quadrant\
+    \ decoupling Generation Quality from Retrieval Quality.</div>\n</div>\n\n<h3 class=\"sh3\">2. Mathematical Formulation\
+    \ of RAGAS Metrics</h3>\n<p>\n<strong>Faithfulness Calculation:</strong>\n</p>\n<div class=\"math-block\">\n$$\text{Faithfulness}\
+    \ = \frac{|\text{Number of Claims in Answer Supported by Context}|}{|\text{Total Number of Atomic Claims in Answer}|}$$\n\
+    </div>\n<p>\nThe evaluation model first extracts all atomic factual propositions $\\{c_1, c_2, \\dots, c_m\\}$ from the\
+    \ generated response $A$, then performs natural language inference (NLI) to determine if context $C \\models c_i$. If\
+    \ an answer makes 5 factual claims and 1 cannot be found in the retrieved context, $\text{Faithfulness} = \frac{4}{5}\
+    \ = 0.80$.\n</p>\n<p>\n<strong>Context Precision @ K:</strong>\n</p>\n<div class=\"math-block\">\n$$\text{Context Precision@K}\
+    \ = \frac{\\sum_{k=1}^K (\text{Precision@}k \times v_k)}{\text{Total Relevant Chunks in Top } K}$$\n</div>\n<p>\nWhere\
+    \ $v_k \\in \\{0, 1\\}$ denotes binary relevance of chunk $k$.\n</p>\n\n<h3 class=\"sh3\">3. Mitigating LLM-as-a-Judge\
+    \ Biases</h3>\n<p>\nUsing strong frontier models (GPT-4o, Claude-3.5-Sonnet) to evaluate other models introduces systematic\
+    \ cognitive biases:\n</p>\n<ul>\n  <li><strong>Position Bias:</strong> LLM judges systematically favor Option A over Option\
+    \ B in pairwise evaluations. <em>Mitigation:</em> Evaluate every pair twice with positions swapped ($A \\leftrightarrow\
+    \ B$) and assign wins only when consistent.</li>\n  <li><strong>Verbosity Bias:</strong> Models favor longer, eloquently\
+    \ phrased responses even when factual content is identical. <em>Mitigation:</em> Strip conversational pleasantries and\
+    \ enforce concise rubric criteria.</li>\n  <li><strong>Self-Enhancement Bias:</strong> Models systematically assign higher\
+    \ scores to responses generated by their own family of models. <em>Mitigation:</em> Use multi-model judge panels (e.g.\
+    \ GPT-4o + Claude-3.5-Sonnet ensemble).</li>\n</ul>"
   predict:
     question: What is the calculated RAGAS harmonic mean score for Faithfulness=0.90 and Answer Relevance=0.90?
     answer: '0.9'
@@ -336,32 +346,57 @@ days:
     package: you see exact timestamps when the parcel cleared customs, boarded the cargo plane, and arrived at the sorting
     hub.'
   theory_html: |-
-    <h3 class="sh3">1. Distributed Tracing for Compound AI Systems</h3>
+    <h3 class="sh3">1. Distributed Tracing in Compound AI Architectures</h3>
     <p>
-    Unlike monolithic REST APIs where request execution is linear, compound AI systems (multi-agent swarms, recursive RAG pipelines) execute branched, asynchronous, multi-hop calls across LLM providers, vector databases, cache layers, and code execution sandboxes.
+    Modern Generative AI pipelines are complex distributed microservices: a single user request traverses an API Gateway, queries a Semantic Cache (Redis), generates dense embeddings, executes hybrid retrieval across vector and keyword databases, calls a cross-encoder reranker, scrubs PII via guardrails, and opens a streaming token connection to a multi-GPU vLLM cluster.
     </p>
-    <p>
-    <strong>OpenTelemetry (OTel)</strong> establishes vendor-agnostic instrumentation capturing full execution graphs as distributed <strong>Traces</strong> composed of hierarchical <strong>Spans</strong>:
-    </p>
-    <div class="mermaid">
-    graph TD
-        RootSpan["Trace: POST /api/v1/chat (Duration: 850ms | Cost: $0.0142)"] --> CacheSpan["Span 1: Redis Semantic Cache Lookup (4ms - Cache Miss)"]
-        RootSpan --> EmbedSpan["Span 2: Text Embedding Generation (28ms - text-embedding-3-large)"]
-        RootSpan --> VectorSpan["Span 3: Qdrant Vector ANN Search (16ms - Retrieved 50 chunks)"]
-        RootSpan --> RerankSpan["Span 4: BGE-Reranker Cross-Attention (35ms - Filtered to 5 chunks)"]
-        RootSpan --> LLMSpan["Span 5: vLLM Chat Completion (760ms - TTFT: 45ms, 480 output tokens)"]
-    </div>
-    <div class="diagram-cap">Figure 158.1: OpenTelemetry Distributed Trace Graph for a RAG Request.</div>
+    <div style="margin: 1.5rem 0; text-align: center;">
+    <svg aria-label="OpenTelemetry Distributed Tracing Graph" height="240" viewBox="0 0 700 240" width="700" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);">
+      <rect x="10" y="10" width="680" height="220" rx="10" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+      <text x="25" y="35" fill="#38bdf8" font-size="13" font-weight="bold">OpenTelemetry Hierarchical Trace Graph (GenAI Span Conventions)</text>
 
-    <h3 class="sh3">2. Core LLM Telemetry Attributes</h3>
+      <!-- Root Span -->
+      <rect x="30" y="50" width="640" height="28" rx="4" fill="#3b82f6"/>
+      <text x="40" y="69" fill="#ffffff" font-size="11" font-weight="bold">Root Span: POST /api/v1/chat/completions (Total Latency: 420ms | Cost: $0.0042)</text>
+
+      <!-- Child Span 1: Redis Semantic Cache -->
+      <rect x="60" y="85" width="90" height="24" rx="4" fill="#64748b"/>
+      <text x="68" y="101" fill="#ffffff" font-size="9.5">cache_check (4ms)</text>
+
+      <!-- Child Span 2: Query Embedding -->
+      <rect x="155" y="85" width="110" height="24" rx="4" fill="#0284c7"/>
+      <text x="162" y="101" fill="#ffffff" font-size="9.5">embed_query (18ms)</text>
+
+      <!-- Child Span 3: Hybrid Search -->
+      <rect x="270" y="85" width="130" height="24" rx="4" fill="#0284c7"/>
+      <text x="278" y="101" fill="#ffffff" font-size="9.5">qdrant_hybrid (22ms)</text>
+
+      <!-- Child Span 4: Reranker -->
+      <rect x="405" y="85" width="100" height="24" rx="4" fill="#f59e0b"/>
+      <text x="412" y="101" fill="#ffffff" font-size="9.5">reranker (35ms)</text>
+
+      <!-- Child Span 5: LLM Inference Streaming -->
+      <rect x="60" y="118" width="610" height="40" rx="4" fill="#10b981"/>
+      <text x="70" y="138" fill="#ffffff" font-size="11" font-weight="bold">vllm_generate: TTFT: 48ms | Generation: 290ms | 340 Tokens (42 Tok/s)</text>
+      <text x="70" y="152" fill="#d1fae5" font-size="9">Attributes: gen_ai.model="llama-3-70b" | gen_ai.prompt_tokens=840 | gen_ai.completion_tokens=340</text>
+
+      <!-- Trace Metadata Footer -->
+      <rect x="30" y="170" width="640" height="45" rx="6" fill="#1e293b" stroke="#475569"/>
+      <text x="45" y="190" fill="#94a3b8" font-size="10">Trace ID: 4bf92f3577b34da6a3ce929d0e0e4736 | User: tenant_corp_881 | Status: OK (200)</text>
+      <text x="45" y="205" fill="#38bdf8" font-size="9.5">Exported via OTLP gRPC to OpenTelemetry Collector → Prometheus & Jaeger</text>
+    </svg>
+    <div class="diagram-cap">Figure 158.1: OpenTelemetry Hierarchical Distributed Trace with OpenLLMetry Semantic Conventions.</div>
+    </div>
+
+    <h3 class="sh3">2. OpenInference Semantic Conventions for GenAI</h3>
     <p>
-    Standardized GenAI OTel semantic conventions record:
+    Standard web traces record only HTTP method, path, and status code. Distributed AI tracing instruments standardized GenAI span attributes:
     </p>
     <ul>
-      <li><code>gen_ai.system</code>: Model provider (e.g. <code>vllm</code>, <code>openai</code>, <code>anthropic</code>).</li>
-      <li><code>gen_ai.request.model</code>: Base model identifier (e.g. <code>llama-3-70b-instruct</code>).</li>
-      <li><code>gen_ai.usage.prompt_tokens</code> & <code>gen_ai.usage.completion_tokens</code>: Token consumption metrics for precise financial cost attribution.</li>
-      <li><code>gen_ai.response.time_to_first_token</code> (TTFT): Critical user-perceived streaming latency.</li>
+      <li><code>gen_ai.system</code>: The provider or backend engine (e.g. <code>vllm</code>, <code>openai</code>, <code>bedrock</code>).</li>
+      <li><code>gen_ai.request.model</code>: Target model identifier (e.g. <code>meta-llama/Llama-3-70b-instruct</code>).</li>
+      <li><code>gen_ai.usage.prompt_tokens</code> & <code>gen_ai.usage.completion_tokens</code>: Precise token ledger metrics.</li>
+      <li><code>gen_ai.response.finish_reasons</code>: Termination state (<code>stop</code>, <code>length</code>, <code>content_filter</code>).</li>
     </ul>
   predict:
     question: What integer millisecond p95 latency is computed from this production request telemetry log?
