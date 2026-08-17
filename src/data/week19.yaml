@@ -148,9 +148,14 @@ days:
     badge_class: tb-med
     time: 45 mins
     prompt_html: |-
-      <p><strong>
-              Write a function to compute RRF for two rank lists: List A = [doc1, doc2, doc3], List B = [doc2, doc1, doc4]. Use k=60.
-             </strong></p>
+      <p><strong>Scenario:</strong> You are architecting the retrieval engine for an enterprise cloud troubleshooting portal. The portal contains millions of server log snippets, diagnostic guides, and technical error documentation. Queries frequently contain exact hexadecimal error codes (e.g. <code>0x80070005</code>) alongside natural language symptom descriptions (e.g. <em>"Access denied when mounting volume"</em>).</p>
+      <p><strong>Requirements:</strong></p>
+      <ul>
+        <li>Implement an in-memory <strong>Okapi BM25 Lexical Index</strong> that tokenizes input documents, builds an inverted index, computes term frequencies, and evaluates document length normalization ($k_1 = 1.5, b = 0.75$).</li>
+        <li>Implement a <strong>Dense Vector Cosine Scorer</strong> that computes bi-encoder vector dot products over normalized embeddings.</li>
+        <li>Build a <strong>Reciprocal Rank Fusion (RRF) combiner</strong> with parameter $k = 60$ that merges parallel candidate lists into a single ranked pool.</li>
+        <li>Ensure all doc scores include provenance metadata: <code>dense_rank</code>, <code>sparse_rank</code>, and final <code>rrf_score</code>.</li>
+      </ul>
     done_when: 'Your Task 1: Compute RRF Manually implementation runs without errors. All assertions in the solution pass.
       You can explain the core algorithm and its time complexity.'
     git_cmd: 'git add . && git commit -m "feat(day136): task-1-compute-rrf-manually"'
@@ -181,49 +186,12 @@ days:
     badge: TASK 2
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\">\n        Build a pure Python BM25 index\
-      \ calculating inverse document frequency (IDF) and document term frequencies.\n       </p>\n<div class=\"cb\">\n<div\
-      \ class=\"cb-head\">\n<span class=\"cb-lang\">\n          pseudocode\n         </span>\n<div class=\"cb-btns\">\n<button\
-      \ class=\"copy-btn\" onclick=\"copyCode(this)\">\n           copy\n          </button>\n<button class=\"run-btn\" onclick=\"\
-      runCode(this)\">\n           Run\n          </button>\n</div>\n</div>\n<pre><span class=\"cm\"># Step 1: Algorithmic\
-      \ Implementation &amp; Core Transformations</span>\n<span class=\"kw\">import</span> math\n<span class=\"kw\">from</span>\
-      \ collections <span class=\"kw\">import</span> Counter\n<span class=\"kw\">from</span> typing <span class=\"kw\">import</span>\
-      \ List, Dict\n\n<span class=\"kw\">class</span> <span class=\"cls\">OkapiBM25Index</span>:\n<span class=\"kw\">def</span>\
-      \ <span class=\"fn\">__init__</span>(<span class=\"kw\">self</span>, corpus: List[str], k1: float = <span class=\"num\"\
-      >1.5</span>, b: float = <span class=\"num\">0.75</span>):\n        <span class=\"kw\">self</span>.k1 = k1\n        <span\
-      \ class=\"kw\">self</span>.b = b\n        <span class=\"kw\">self</span>.corpus = [doc.<span class=\"fn\">lower</span>().<span\
-      \ class=\"fn\">split</span>() <span class=\"kw\">for</span> doc <span class=\"kw\">in</span> corpus]\n        <span\
-      \ class=\"kw\">self</span>.doc_lens = [<span class=\"fn\">len</span>(d) <span class=\"kw\">for</span> d <span class=\"\
-      kw\">in</span> <span class=\"kw\">self</span>.corpus]\n        <span class=\"kw\">self</span>.avg_dl = <span class=\"\
-      fn\">sum</span>(<span class=\"kw\">self</span>.doc_lens) / <span class=\"fn\">max</span>(<span class=\"num\">1</span>,\
-      \ <span class=\"fn\">len</span>(<span class=\"kw\">self</span>.corpus))\n        <span class=\"kw\">self</span>.doc_freqs\
-      \ = <span class=\"fn\">Counter</span>()\n        <span class=\"kw\">for</span> d <span class=\"kw\">in</span> <span\
-      \ class=\"kw\">self</span>.corpus:\n            <span class=\"kw\">self</span>.doc_freqs.<span class=\"fn\">update</span>(<span\
-      \ class=\"fn\">set</span>(d))\n        <span class=\"kw\">self</span>.N = <span class=\"fn\">len</span>(<span class=\"\
-      kw\">self</span>.corpus)\n\n<span class=\"kw\">def</span> <span class=\"fn\">compute_idf</span>(<span class=\"kw\">self</span>,\
-      \ word: str) - float:\n        df = <span class=\"kw\">self</span>.doc_freqs.<span class=\"fn\">get</span>(word, <span\
-      \ class=\"num\">0</span>)\n<span class=\"kw\">return</span> math.<span class=\"fn\">log</span>(<span class=\"num\">1.0</span>\
-      \ + (<span class=\"kw\">self</span>.N - df + <span class=\"num\">0.5</span>) / (df + <span class=\"num\">0.5</span>))\n\
-      \n<span class=\"kw\">def</span> <span class=\"fn\">score</span>(<span class=\"kw\">self</span>, query: str) - List[Dict]:\n\
-      \        q_words = query.<span class=\"fn\">lower</span>().<span class=\"fn\">split</span>()\n        scores = []\n\
-      \        <span class=\"kw\">for</span> idx, doc <span class=\"kw\">in</span> <span class=\"fn\">enumerate</span>(<span\
-      \ class=\"kw\">self</span>.corpus):\n            doc_len = <span class=\"kw\">self</span>.doc_lens[idx]\n          \
-      \  counts = <span class=\"fn\">Counter</span>(doc)\n            score = <span class=\"num\">0.0</span>\n<span class=\"\
-      kw\">for</span> w <span class=\"kw\">in</span> q_words:\n                <span class=\"kw\">if</span> w <span class=\"\
-      kw\">in</span> counts:\n                    idf = <span class=\"kw\">self</span>.<span class=\"fn\">compute_idf</span>(w)\n\
-      \                    tf = counts[w]\n                    tf_norm = (tf * (<span class=\"kw\">self</span>.k1 + <span\
-      \ class=\"num\">1.0</span>)) / (tf + <span class=\"kw\">self</span>.k1 * (<span class=\"num\">1.0</span> - <span class=\"\
-      kw\">self</span>.b + <span class=\"kw\">self</span>.b * (doc_len / <span class=\"kw\">self</span>.avg_dl)))\n      \
-      \              score += idf * tf_norm\n            scores.<span class=\"fn\">append</span>({<span class=\"str\">\"doc_id\"\
-      : idx, \"score\"</span>: <span class=\"fn\">round</span>(score, <span class=\"num\">4</span>)})\n<span class=\"kw\"\
-      >return</span> <span class=\"fn\">sorted</span>(scores, key=&gt;<span class=\"kw\">lambda</span> x: x[<span class=\"\
-      str\">\"score\"</span>], reverse=<span class=\"kw\">True</span>)\n\nbm25 = <span class=\"fn\">OkapiBM25Index</span>([<span\
-      \ class=\"str\">\"Transformer self attention complexity\", \"BM25 keyword search algorithm\", \"Dense vector embeddings\
-      \ in vector db\"</span>])\n<span class=\"fn\">print</span>(<span class=\"str\">\"BM25 Top Matches:\", bm25.score(\"\
-      BM25 algorithm\"</span>))</pre>\n</div>\n<div style=\"margin-top:1rem; padding:10px; background:rgba(79,209,165,.05);\
-      \ border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;\">\n<strong>\n\
-      \         Expected Verification Output:\n        </strong>\n<br/>\n\n         BM25 Top Matches: [{'doc_id': 1, 'score':\
-      \ 0.8412}, ...]\n        \n</div>"
+    prompt_html: "<p><strong>Scenario:</strong> Benchmark the recall and latency of your hybrid search implementation against\
+      \ pure dense search and pure BM25 search over a 100-document technical diagnostic benchmark dataset.</p>\n<p><strong>Requirements:</strong></p>\n\
+      <ul>\n  <li>Execute 10 test queries combining exact error tokens (<code>ERR_VNET_TIMEOUT</code>, <code>HTTP_504</code>)\
+      \ and semantic intent queries.</li>\n  <li>Compute <strong>Mean Reciprocal Rank (MRR@10)</strong> and <strong>Hit Rate@5</strong>\
+      \ across all three retrieval modes.</li>\n  <li>Assert that Hybrid Search achieves $\text{MRR@10} \\ge 0.85$ and beats\
+      \ both standalone BM25 and standalone vector search by at least 10% relative margin.</li>\n</ul>"
     done_when: 'When code executes without errors, passes all unit assertions, and prints verified output metrics for Task
       2: Implement Hybrid Search & RRF.'
     git_cmd: 'git add . && git commit -m "feat(day136): implement task-2-implement-hybrid-search"'
@@ -513,10 +481,15 @@ days:
     badge: EASY
     badge_class: tb-easy
     time: 45 mins
-    prompt_html: "<p>\n        Write a snippet using Cohere's\n        \n         rerank\n        \n        endpoint.\n  \
-      \      <strong>\n         Bonus Task: Latency Comparison · MEDIUM · HARD · ⏱ 45 mins\n        </strong>\n        Run\
-      \ a benchmark comparing Bi-Encoder retrieval vs Cross-Encoder reranking latency on 100 docs using time.perf_counter.\n\
-      \       </p>"
+    prompt_html: |-
+      <p><strong>Scenario:</strong> In high-throughput customer support RAG, Bi-Encoder vector retrieval returns 50 candidate passages from technical manuals. However, subtle linguistic nuances (such as negative conditions: <em>"Do NOT restart server if error is 0x4B"</em>) are scored identically to positive conditions by vector dot products.</p>
+      <p><strong>Requirements:</strong></p>
+      <ul>
+        <li>Implement a <strong>Two-Stage Reranking Pipeline</strong> that takes a user query and 50 candidate passages from Stage-1 retrieval.</li>
+        <li>Build a <strong>Cross-Encoder Joint Scorer</strong> evaluating cross-attention representations over $(q, p)$ pairs.</li>
+        <li>Calibrate raw logits to sigmoid probabilities and sort candidates descending by rerank score.</li>
+        <li>Measure and log Stage-1 vs Stage-2 p95 latency to verify compliance with a 50ms SLA budget.</li>
+      </ul>
     done_when: 'Your Task 1: Cohere Re-rank API · MEDIUM implementation runs without errors. All assertions in the solution
       pass. You can explain the core algorithm and its time complexity.'
     git_cmd: 'git add . && git commit -m "feat(day137): task-1-cohere-re-rank-api-medi"'
@@ -822,10 +795,14 @@ days:
     badge: MEDIUM
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p>\n        Write a script using\n        \n         SemanticChunker\n        \n        from\n        \n\
-      \         langchain_experimental\n        \n        .\n        <strong>\n         Bonus Task: Sliding Window Chunker\
-      \ · MEDIUM · HARD · ⏱ 45 mins\n        </strong>\n        Write a custom text splitter that uses a 500-char window with\
-      \ 100-char overlap without using LangChain splitters.\n       </p>"
+    prompt_html: "<p><strong>Scenario:</strong> You are processing 500-page enterprise financial annual reports (10-K filings)\
+      \ containing dense text paragraphs, nested Markdown tables, and structured header hierarchies. Naive 500-character chunking\
+      \ breaks tables mid-row and severs footnote definitions.</p>\n<p><strong>Requirements:</strong></p>\n<ul>\n  <li>Implement\
+      \ a <strong>Parent-Child (Small-to-Big) Chunker</strong> that splits documents into 1024-token parent context blocks\
+      \ and subdivides each into 256-token searchable child chunks.</li>\n  <li>Implement a <strong>Semantic Boundary Chunker</strong>\
+      \ that computes sentence-level embeddings and splits chunks dynamically when consecutive sentence cosine similarity\
+      \ drops below threshold $\tau = 0.75$.</li>\n  <li>Verify that child chunks maintain immutable foreign key references\
+      \ to parent chunks.</li>\n</ul>"
     done_when: 'Your Task 1: Semantic Chunking implementation runs without errors. All assertions in the solution pass. You
       can explain the core algorithm and its time complexity.'
     git_cmd: 'git add . && git commit -m "feat(day138): task-1-semantic-chunking"'
@@ -1109,13 +1086,13 @@ days:
     badge_class: tb-med
     time: 45 mins
     prompt_html: |-
-      <p>
-              Create an HNSW index using FAISS.
-              <strong>
-               Bonus Task: Benchmark Index Types · MEDIUM · HARD · ⏱ 45 mins
-              </strong>
-              Create a FAISS Flat, IVF, and HNSW index on the same random 50k vectors. Time search speed and compare recall@10.
-             </p>
+      <p><strong>Scenario:</strong> Your vector database cluster is consuming 128GB of RAM hosting 10,000,000 1536-dimensional embeddings. Cloud infrastructure costs must be reduced by 70% while maintaining search latency under 15ms.</p>
+      <p><strong>Requirements:</strong></p>
+      <ul>
+        <li>Implement an <strong>Inverted File Index (IVF) with K-Means Centroid Clustering</strong> partitioning the vector space into $C = 16$ Voronoi cells.</li>
+        <li>Implement <strong>Scalar Quantization (SQ8)</strong> compressing 32-bit floating-point coordinates into 8-bit unsigned integers with dynamic min/max scale reconstruction.</li>
+        <li>Benchmark FlatL2 vs IVF-Flat vs IVF-SQ8 across recall@10 and memory consumption.</li>
+      </ul>
     done_when: 'Your Task 1: HNSW in FAISS implementation runs without errors. All assertions in the solution pass. You can
       explain the core algorithm and its time complexity.'
     git_cmd: 'git add . && git commit -m "feat(day139): task-1-hnsw-in-faiss"'
@@ -1472,10 +1449,14 @@ days:
     badge: MEDIUM
     badge_class: tb-med
     time: 45 mins
-    prompt_html: "<p>\n        Write the code to add\n        \n         graph_documents\n        \n        to a LangChain\n\
-      \        \n         Neo4jGraph\n        \n        .\n        <strong>\n         Bonus Task: GraphRAG QA · MEDIUM · MED\
-      \ · ⏱ 45 mins\n        </strong>\n        After ingesting documents into Neo4j, write a LangChain chain that queries\
-      \ the graph for answering questions about relationships.\n       </p>"
+    prompt_html: |-
+      <p><strong>Scenario:</strong> Build a GraphRAG knowledge extraction pipeline for an internal corporate wiki. The system must answer macro-level questions such as: <em>"What were the cross-departmental security vulnerabilities identified across all Q2 microservice audits?"</em></p>
+      <p><strong>Requirements:</strong></p>
+      <ul>
+        <li>Implement an <strong>Entity and Relationship Extractor</strong> extracting structured triples <code>(subject, predicate, object)</code> from unstructured text.</li>
+        <li>Implement the <strong>Leiden Community Detection Algorithm</strong> to partition the knowledge graph into densely connected thematic clusters.</li>
+        <li>Pre-generate hierarchical community summaries at root and sub-domain levels for Map-Reduce global search synthesis.</li>
+      </ul>
     done_when: 'Your Task 1: Load to Neo4j implementation runs without errors. All assertions in the solution pass. You can
       explain the core algorithm and its time complexity.'
     git_cmd: 'git add . && git commit -m "feat(day140): task-1-load-to-neo4j"'
@@ -1830,13 +1811,13 @@ days:
     badge_class: tb-easy
     time: 45 mins
     prompt_html: |-
-      <p>
-              Write a system prompt that generates a step-back question for "Did Estavanico live in the same time period as Columbus?"
-              <strong>
-               Bonus Task: Multi-Query Retriever · MEDIUM · MED · ⏱ 45 mins
-              </strong>
-              Use LangChain MultiQueryRetriever to generate 3 query variants per user question and retrieve union of results.
-             </p>
+      <p><strong>Scenario:</strong> Users frequently submit vague, brief questions to your corporate helpdesk (e.g. <em>"vpn broke"</em>). Standard vector search fails because the query embedding is distant from the official documentation title (<em>"Troubleshooting GlobalProtect IPSec Tunnel Handshake Timeouts"</em>).</p>
+      <p><strong>Requirements:</strong></p>
+      <ul>
+        <li>Implement <strong>Hypothetical Document Embeddings (HyDE)</strong>: Generate a hypothetical answer with an LLM and embed the generated document to search the vector index.</li>
+        <li>Implement <strong>Multi-Query Expansion</strong>: Generate 3 diverse paraphrases and execute parallel searches fused via RRF.</li>
+        <li>Implement <strong>Step-Back Prompting</strong>: Extract the foundational underlying computer networking principle for background context retrieval.</li>
+      </ul>
     done_when: 'Your Task 1: Step-Back Prompt · MEDIUM implementation runs without errors. All assertions in the solution
       pass. You can explain the core algorithm and its time complexity.'
     git_cmd: 'git add . && git commit -m "feat(day141): task-1-step-back-prompt-medium"'
@@ -2109,9 +2090,14 @@ days:
     badge_class: tb-hard
     time: 45 mins
     prompt_html: |-
-      <p><strong>
-              Write a FastAPI endpoint that takes a query, runs it through HyDE, queries Qdrant/Pinecone, reranks the results, and streams the LLM response.
-             </strong></p>
+      <p><strong>Scenario:</strong> Deploy an end-to-end production RAG microservice on FastAPI combining all Week 19 technologies under strict performance and reliability SLAs.</p>
+      <p><strong>Requirements:</strong></p>
+      <ul>
+        <li>Integrate Redis semantic vector caching (&lt;5ms cache hit latency).</li>
+        <li>Implement Qdrant hybrid search (HNSW dense + BM25 sparse) with Reciprocal Rank Fusion ($k=60$).</li>
+        <li>Add Cross-Encoder candidate reranking and Presidio PII data masking.</li>
+        <li>Instrument full OpenTelemetry distributed tracing recording prompt/completion token consumption and p95 latency.</li>
+      </ul>
     done_when: 'Your Task 1: Assemble the Pipeline · MEDIUM implementation runs without errors. All assertions in the solution
       pass. You can explain the core algorithm and its time complexity.'
     git_cmd: 'git add . && git commit -m "feat(day142): task-1-assemble-the-pipeline-m"'
