@@ -73,16 +73,28 @@ days:
     \ precision_bytes=2, kv_cache_gb=16.0)\nprint(f\"Total GPU VRAM Required for 70B\
     \ FP16 Model: {vram_70b} GB (e.g. 2x A100 80GB)\")</code></pre>\n</div>"
   predict:
-    question: What integer value is computed by this VLLM & PagedAttention Serving
-      Architecture pipeline?
-    answer: '10'
-    explanation: The deterministic pipeline evaluates feature weight transformations
-      for VLLM & PagedAttention Serving Architecture.
-    code: 'base_val = 0
+    question: What integer gigabytes of VRAM are required for the KV cache of a batch
+      size 16 request on LLaMA-3-8B (32 layers, 32 heads, dim 128, seq_len 4096, FP16)?
+    answer: '8'
+    explanation: 2 * 2 bytes * 32 layers * 32 heads * 128 head_dim * 16 batch * 4096
+      tokens = 8,589,934,592 bytes = 8.0 GB VRAM.
+    code: 'dtype = 2 # FP16 bytes
 
-      result = base_val + 10
+      layers = 32
 
-      print(result)'
+      heads = 32
+
+      head_dim = 128
+
+      batch = 16
+
+      seq_len = 4096
+
+      vram_bytes = 2 * dtype * layers * heads * head_dim * batch * seq_len
+
+      vram_gb = vram_bytes / (1024 ** 3)
+
+      print(int(vram_gb))'
   tasks:
   - title: 'Task 1: Offline Batch Inference'
     badge: MEDIUM
@@ -117,9 +129,9 @@ days:
     solution_lang: python
     time_minutes: 30
   - title: 'Task 2: Implement vLLM & PagedAttention'
-    badge: ''
+    badge: TASK 2
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Simulate virtual memory block table allocation and reference counting\
       \ for shared prompt prefixes.\n       </p>\n<div class=\"cb\">\n<div class=\"\
@@ -183,9 +195,9 @@ days:
     solution_lang: python
     time_minutes: 45
   - title: 'Task 3: Implement vLLM & PagedAttention'
-    badge: ''
+    badge: TASK 3
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Calculate exact memory requirements across precision types (FP16,\
       \ INT8, INT4) and batch sizes.\n       </p>\n<div class=\"cb\">\n<div class=\"\
@@ -489,16 +501,16 @@ days:
     \ inference from background telemetry ingestion using distributed message queues\
     \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
-    question: What integer value is computed by this FlashAttention & Speculative
-      Decoding pipeline?
-    answer: '17'
-    explanation: The deterministic pipeline evaluates feature weight transformations
-      for FlashAttention & Speculative Decoding.
-    code: 'base_val = 7
+    question: What speedup factor is achieved when speculative decoding accepts 3
+      draft tokens per single target model forward pass?
+    answer: '3'
+    explanation: Verifying 3 accepted tokens in parallel in a single forward pass
+      yields a 3x generation speedup.
+    code: 'draft_tokens = [''the'', ''quick'', ''brown'']
 
-      result = base_val + 10
+      accepted = len(draft_tokens)
 
-      print(result)'
+      print(accepted)'
   tasks:
   - title: 'Task 1: vLLM Speculative Setup · MEDIUM'
     badge: EASY
@@ -533,9 +545,9 @@ days:
     solution_lang: python
     time_minutes: 30
   - title: 'Task 2: Implement FlashAttention & Speculative Decoding'
-    badge: ''
+    badge: TASK 2
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Simulate token validation comparing draft model probabilities against\
       \ target model logits with rejection sampling.\n       </p>\n<div class=\"cb\"\
@@ -598,9 +610,9 @@ days:
     solution_lang: python
     time_minutes: 45
   - title: 'Task 3: Implement FlashAttention & Speculative Decoding'
-    badge: ''
+    badge: TASK 3
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Compute theoretical wall-clock speedup based on acceptance rate and\
       \ model size ratio.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\"\
@@ -878,9 +890,9 @@ days:
     solution_lang: python
     time_minutes: 30
   - title: 'Task 2: Implement Quantization'
-    badge: ''
+    badge: TASK 2
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Identify the top 1% salient weight channels based on activation magnitudes\
       \ for INT4 preservation.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\"\
@@ -1179,15 +1191,18 @@ days:
     \ LoRALinear(512, 512, r=8)\nx = np.random.randn(4, 512)\nprint(\"Forward output\
     \ shape:\", layer.forward(x).shape)</code></pre>\n</div>"
   predict:
-    question: What integer value is computed by this QLoRA & PEFT pipeline?
-    answer: '31'
-    explanation: The deterministic pipeline evaluates feature weight transformations
-      for QLoRA & PEFT.
-    code: 'base_val = 21
+    question: What percentage of total model parameters are trainable in this LoRA
+      adapter configuration with r=8 on a 100M parameter model?
+    answer: '0.1'
+    explanation: LoRA with rank 8 updates only ~100,000 parameters out of 100,000,000
+      (0.1%).
+    code: 'total_params = 100_000_000
 
-      result = base_val + 10
+      lora_params = 100_000
 
-      print(result)'
+      pct = (lora_params / total_params) * 100
+
+      print(f"{pct:.1f}")'
   tasks:
   - title: 'Task 1: Merging LoRA Weights'
     badge: MEDIUM
@@ -1216,9 +1231,9 @@ days:
     solution_lang: python
     time_minutes: 30
   - title: 'Task 2: Implement QLoRA & PEFT'
-    badge: ''
+    badge: TASK 2
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Demonstrate FlashAttention's online softmax normalization over tiled\
       \ matrix blocks without intermediate HBM writes.\n       </p>\n<div class=\"\
@@ -1455,15 +1470,14 @@ days:
     \ inference from background telemetry ingestion using distributed message queues\
     \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
-    question: What integer value is computed by this DPO, ORPO & GRPO pipeline?
-    answer: '38'
-    explanation: The deterministic pipeline evaluates feature weight transformations
-      for DPO, ORPO & GRPO.
-    code: 'base_val = 28
+    question: In Direct Preference Optimization (DPO), which response (chosen y_w
+      or rejected y_l) has its relative log-likelihood maximized?
+    answer: y_w
+    explanation: DPO maximizes the log probability of the chosen response y_w relative
+      to the reference policy while minimizing y_l.
+    code: 'pref = "y_w"
 
-      result = base_val + 10
-
-      print(result)'
+      print(pref)'
   tasks:
   - title: 'Task 1: DPO Formatting · MEDIUM'
     badge: EASY
@@ -1492,9 +1506,9 @@ days:
     solution_lang: python
     time_minutes: 30
   - title: 'Task 2: Implement DPO, ORPO & GRPO'
-    badge: ''
+    badge: TASK 2
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Implement a Radix Tree matching common system prompt prefixes across\
       \ concurrent chat queries.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\"\
@@ -1862,9 +1876,9 @@ days:
     solution_lang: python
     time_minutes: 30
   - title: 'Task 2: Implement Synthetic Data & Deduplication'
-    badge: ''
+    badge: TASK 2
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Simulate RowParallelLinear and ColumnParallelLinear splits across\
       \ 2 virtual GPUs.\n       </p>\n<div class=\"cb\">\n<div class=\"cb-head\">\n\
@@ -2120,16 +2134,14 @@ days:
     \ inference from background telemetry ingestion using distributed message queues\
     \ (Kafka / RabbitMQ) to maintain strict p99 latency SLAs.\n  </p>\n</div>"
   predict:
-    question: 'What integer value is computed by this Capstone: Deploying a Custom
-      Fine-Tuned Model pipeline?'
-    answer: '52'
-    explanation: 'The deterministic pipeline evaluates feature weight transformations
-      for Capstone: Deploying a Custom Fine-Tuned Model.'
-    code: 'base_val = 42
+    question: What string is output after successfully merging and saving a trained
+      LoRA adapter into base model weights?
+    answer: MERGE_COMPLETE
+    explanation: The merge_and_unload() operation consolidates weights for zero-overhead
+      inference serving.
+    code: 'status = "MERGE_COMPLETE"
 
-      result = base_val + 10
-
-      print(result)'
+      print(status)'
   tasks:
   - title: 'Task 1: Full Implementation Pipeline · MEDIUM'
     badge: CAPSTONE
@@ -2181,9 +2193,9 @@ days:
     solution_lang: python
     time_minutes: 30
   - title: 'Task 2: Implement Capstone: Deploying a Custom Fine-Tuned Model'
-    badge: ''
+    badge: TASK 2
     badge_class: tb-med
-    time: ''
+    time: 45 mins
     prompt_html: "<p style=\"margin-top:0; color:var(--muted); font-size:13.5px;\"\
       >\n        Calculate Time-To-First-Token (TTFT) and Time-Per-Output-Token (TPOT)\
       \ distributions from streaming request traces.\n       </p>\n<div class=\"cb\"\
@@ -2437,3 +2449,26 @@ days:
   - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting
     float32 epsilon stabilization in denominators triggers silent NaN gradients and
     GPU Out-Of-Memory (OOM) crashes in production.'
+toolkit:
+  title: 'Week 21 Master Toolkit: High-Throughput Serving & LoRA Tuning Guide'
+  subtitle: Mathematical Formulations, VRAM Calculators, and vLLM Deployment Reference
+  xp: 500
+  content_html: "<div class=\"toolkit-grid\" style=\"display:grid; grid-template-columns:repeat(auto-fit,\
+    \ minmax(300px, 1fr)); gap:1.5rem; margin:1.5rem 0;\">\n  <div class=\"toolkit-card\"\
+    \ style=\"background:var(--bg2); border:1px solid var(--border); padding:1.25rem;\
+    \ border-radius:8px;\">\n    <h3 style=\"color:var(--accent); margin-top:0;\"\
+    >⚡ vLLM CLI Quick Reference</h3>\n    <pre style=\"background:var(--bg3); padding:0.75rem;\
+    \ border-radius:6px; font-family:var(--font-mono); font-size:12px; overflow-x:auto;\"\
+    ><code>python3 -m vllm.entrypoints.openai.api_server \\\n  --model meta-llama/Meta-Llama-3-8B-Instruct\
+    \ \\\n  --tensor-parallel-size 1 \\\n  --gpu-memory-utilization 0.90 \\\n  --max-model-len\
+    \ 8192 \\\n  --quantization awq \\\n  --port 8000</code></pre>\n  </div>\n  <div\
+    \ class=\"toolkit-card\" style=\"background:var(--bg2); border:1px solid var(--border);\
+    \ padding:1.25rem; border-radius:8px;\">\n    <h3 style=\"color:var(--accent);\
+    \ margin-top:0;\">\U0001F4D0 Parameter & VRAM Sizing Rules</h3>\n    <ul style=\"\
+    line-height:1.7; padding-left:1.2rem; color:var(--text);\">\n      <li><strong>Model\
+    \ Weights:</strong> $Parameters \\times PrecisionBytes$ (70B in FP16 = 140GB).</li>\n\
+    \      <li><strong>KV Cache Sizing:</strong> $2 \\times P \\times L \\times H\
+    \ \\times d \\times B \\times S$.</li>\n      <li><strong>LoRA Trainable Params:</strong>\
+    \ $2 \\times L \\times d_{model} \\times r \\ll TotalParams$ (&lt; 0.5% weights).</li>\n\
+    \      <li><strong>Speculative Decoding:</strong> 1.5x-2.5x speedup with draft\
+    \ model validation in 1 forward pass.</li>\n    </ul>\n  </div>\n</div>"
