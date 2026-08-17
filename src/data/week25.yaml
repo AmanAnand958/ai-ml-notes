@@ -35,10 +35,11 @@ days:
   - GitHub Actions CI/CD for ML
   - Model Performance Regression Tests
   - 'Capstone: Production K8s LLM Deployment'
-  hinglish: Kubernetes Core Concepts Kubernetes cluster par high-availability AI serving enable karta hai. GPU resource requests,
-    shared memory mounts (`/dev/shm`), aur custom Prometheus HPA scaling rules se enterprise workloads scale hote hain.
-  analogy: 'Kubernetes Core Concepts is like an automated container terminal at a mega-seaport: robotic cranes load, unload,
-    and stack shipping containers (Pods) on demand based on shipping schedules.'
+  hinglish: Kubernetes high-availability AI serving enable karta hai. Deployment declarative state maintain karti hai, Service
+    internal load balancing karti hai, aur NVIDIA GPU device plugin pods ko physical GPU cards allocate karta hai.
+  analogy: 'Kubernetes is like an automated mega-seaport terminal: robotic gantry cranes (kube-scheduler) allocate standardized
+    shipping containers (Pods) to dedicated cargo ships (Worker Nodes) based on exact weight and refrigeration requirements
+    (GPU/CPU limits).'
   theory_html: |-
     <h3 class="sh3">1. Kubernetes Control Plane for Distributed AI</h3>
     <p>
@@ -271,8 +272,8 @@ days:
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: PyTorch DataLoader Crash without /dev/shm'
-    description: 'By default, Docker and Kubernetes assign only 64MB to `/dev/shm`. Multi-worker PyTorch DataLoaders will
-      crash with SIGBUS errors. Always mount an `emptyDir` with `medium: Memory` to `/dev/shm`.'
+    description: 'By default, Docker and Kubernetes assign only 64MB to /dev/shm. Multi-worker PyTorch DataLoaders will crash
+      with SIGBUS errors. Always mount an emptyDir with medium: Memory to /dev/shm.'
   takeaways:
     hinglish_line: |-
       <strong>
@@ -323,11 +324,11 @@ days:
   - GitHub Actions CI/CD for ML
   - Model Performance Regression Tests
   - 'Capstone: Production K8s LLM Deployment'
-  hinglish: Deploying vLLM on Kubernetes Kubernetes cluster par high-availability AI serving enable karta hai. GPU resource
-    requests, shared memory mounts (`/dev/shm`), aur custom Prometheus HPA scaling rules se enterprise workloads scale hote
-    hain.
-  analogy: 'Deploying vLLM on Kubernetes is like an automated container terminal at a mega-seaport: robotic cranes load, unload,
-    and stack shipping containers (Pods) on demand based on shipping schedules.'
+  hinglish: vLLM ko Kubernetes par deploy karte waqt resource requests aur limits ko exact match karna chahiye taaki pod Guaranteed
+    QoS tier mein jaye aur OOM killer se terminate na ho. /dev/shm memory volume mount karna mandatory hai.
+  analogy: A vLLM StatefulSet on Kubernetes is like deploying a fleet of high-speed passenger ferries with dedicated docking
+    berths and reserved fuel pipelines, ensuring each ferry has guaranteed deep-water access without colliding with other
+    boats.
   theory_html: |-
     <h3 class="sh3">1. Deploying vLLM on Kubernetes</h3>
     <p>
@@ -622,9 +623,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: PyTorch DataLoader Crash without /dev/shm'
-    description: 'By default, Docker and Kubernetes assign only 64MB to `/dev/shm`. Multi-worker PyTorch DataLoaders will
-      crash with SIGBUS errors. Always mount an `emptyDir` with `medium: Memory` to `/dev/shm`.'
+    title: '⚠️ Gotcha: Pod Eviction from Burstable QoS Sizing'
+    description: Setting GPU resource limits higher than requests creates a Burstable QoS class, allowing Kubernetes to evict
+      your serving pod during node memory pressure. Always set requests equal to limits for GPU pods.
   takeaways:
     hinglish_line: Deploying vLLM on Kubernetes ko master karne ke liye theoretical math aur practical code dono align hona
       chahiye.
@@ -672,10 +673,11 @@ days:
   - GitHub Actions CI/CD for ML
   - Model Performance Regression Tests
   - 'Capstone: Production K8s LLM Deployment'
-  hinglish: Horizontal Pod Autoscaling production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'Horizontal Pod Autoscaling is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Standard CPU/Memory metrics LLM autoscaling ke liye useless hote hain kyunki GPU 100% compute par rehta hai even
+    jab requests queue ho rahi hoti hain. Prometheus adapter se `vllm:num_requests_waiting` metric par HPA scale-up trigger
+    hota hai.
+  analogy: Custom Metric HPA with Prometheus is like an intelligent highway toll plaza that opens 5 additional express lanes
+    the moment camera sensors detect a 10-car backup in the queue, rather than waiting for drivers to start honking in frustration.
   theory_html: |-
     <h3 class="sh3">1. Horizontal Pod Autoscaling with Prometheus Custom Metrics</h3>
     <p>
@@ -960,9 +962,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Horizontal Pod Autoscaling'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Horizontal
-      Pod Autoscaling in distributed production pipelines.
+    title: '⚠️ Gotcha: Metric Scraping Lag Causing Delayed Scale-Up'
+    description: If Prometheus scrape intervals are set to 60 seconds, sudden traffic spikes will overwhelm vLLM queue buffers
+      before the HPA detects the metric threshold. Set scrape intervals to 5–10 seconds for serving metrics.
   takeaways:
     hinglish_line: Horizontal Pod Autoscaling ko master karne ke liye theoretical math aur practical code dono align hona
       chahiye.
@@ -1010,10 +1012,11 @@ days:
   - GitHub Actions CI/CD for ML
   - Model Performance Regression Tests
   - 'Capstone: Production K8s LLM Deployment'
-  hinglish: Helm Charts for ML Stacks production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'Helm Charts for ML Stacks is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Helm Kubernetes ka package manager hai. Ye Deployments, Services, ConfigMaps aur Ingress rules ko template karta
+    hai taaki staging aur production environments ko simple `values.yaml` overrides se manage kiya ja sake.
+  analogy: 'Helm charts are like modular architectural blueprints for building identical houses in different neighborhoods:
+    the core structural framework is unchanged, but you pass a simple configuration sheet (values.yaml) to customize paint
+    color, solar panels, and garage size.'
   theory_html: |-
     <h3 class="sh3">1. Parameterized Infrastructure with Helm Charts</h3>
     <p>
@@ -1261,9 +1264,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Helm Charts for ML Stacks'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Helm Charts
-      for ML Stacks in distributed production pipelines.
+    title: '⚠️ Gotcha: Hardcoding Environment Values in Chart Templates'
+    description: Hardcoding container images or replica counts directly inside Helm templates breaks reusability across dev,
+      staging, and production. Always parameterize environment-specific settings in values.yaml.
   takeaways:
     hinglish_line: Helm Charts for ML Stacks ko master karne ke liye theoretical math aur practical code dono align hona chahiye.
     bullets:
@@ -1310,10 +1313,11 @@ days:
   - GitHub Actions CI/CD for ML
   - Model Performance Regression Tests
   - 'Capstone: Production K8s LLM Deployment'
-  hinglish: GitHub Actions CI/CD for ML production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'GitHub Actions CI/CD for ML is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: 'GitHub Actions pull request aate hi automated quality gates run karta hai: flake8/black linting, pytest unit
+    testing, golden test slice validation, aur multi-stage Docker image build karke container registry par push karta hai.'
+  analogy: 'GitOps CI/CD with GitHub Actions is like an automated vehicle crash-test facility: every new prototype car (pull
+    request) must pass rigorous structural collision tests (linting, unit tests, model regression gates) before entering commercial
+    production.'
   theory_html: |-
     <h3 class="sh3">1. GitOps CI/CD Pipelines with GitHub Actions</h3>
     <p>
@@ -1522,9 +1526,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in GitHub Actions CI/CD for ML'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying GitHub
-      Actions CI/CD for ML in distributed production pipelines.
+    title: '⚠️ Gotcha: Non-Deterministic Dependencies in CI Runners'
+    description: Using unpinned package requirements (e.g. `pip install torch transformers`) in GitHub Actions workflows causes
+      silent build failures when upstream libraries release breaking changes. Always use strict `requirements.lock` or Poetry
+      lockfiles.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1576,10 +1581,11 @@ days:
   - GitHub Actions CI/CD for ML
   - Model Performance Regression Tests
   - 'Capstone: Production K8s LLM Deployment'
-  hinglish: Model Performance Regression Tests production ML systems ka vital component hai. Isme theoretical foundations,
-    computational bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'Model Performance Regression Tests is like a structural pillar in an industrial suspension bridge: engineered
-    to withstand peak load stress while maintaining flexibility.'
+  hinglish: 'Model promote karne se pehle critical behavioral slices par regression check lagaya jata hai: Safety benchmarks
+    (zero jailbreaks), format benchmarks (100% valid JSON), aur domain accuracy benchmarks.'
+  analogy: 'Golden slice regression testing is like a flight simulator certification test for commercial pilots: you test
+    their reaction across 50 extreme simulated crisis scenarios (engine failure, severe crosswinds, icing) where zero mistakes
+    are tolerated.'
   theory_html: |-
     <h3 class="sh3">1. Model Regression Testing on Golden Slices</h3>
     <p>
@@ -1796,9 +1802,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Model Performance Regression Tests'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Model Performance
-      Regression Tests in distributed production pipelines.
+    title: '⚠️ Gotcha: Golden Test Dataset Contamination'
+    description: If golden regression test sets leak into synthetic data generation pipelines, candidate models will achieve
+      artificially high 100% scores due to memorization. Keep regression datasets physically isolated and strictly read-only.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1850,11 +1856,10 @@ days:
   - GitHub Actions CI/CD for ML
   - Model Performance Regression Tests
   - 'Capstone: Production K8s LLM Deployment'
-  hinglish: 'Capstone: Production K8s LLM Deployment Kubernetes cluster par high-availability AI serving enable karta hai.
-    GPU resource requests, shared memory mounts (`/dev/shm`), aur custom Prometheus HPA scaling rules se enterprise workloads
-    scale hote hain.'
-  analogy: 'Capstone: Production K8s LLM Deployment is like an automated container terminal at a mega-seaport: robotic cranes
-    load, unload, and stack shipping containers (Pods) on demand based on shipping schedules.'
+  hinglish: Is capstone mein hum ek complete production-grade LLM serving cluster Kubernetes par deploy karte hain with Helm
+    charts, Prometheus custom metric autoscaling, shared memory optimizations, aur automated GitHub Actions CI/CD.
+  analogy: 'The Kubernetes AI Capstone is like launching a commercial satellite constellation into orbit: telemetry monitoring
+    is active, automated thrusters correct orbital drift, and payload data streams continuously to ground stations.'
   theory_html: |-
     <h3 class="sh3">1. Capstone: Production Kubernetes AI Deployment</h3>
     <p>
@@ -2158,9 +2163,10 @@ days:
     back: Scales inference pod replicas based on real-time metrics (vLLM pending request queue length and GPU duty cycle)
       rather than raw CPU usage.
   gotcha:
-    title: '⚠️ Gotcha: PyTorch DataLoader Crash without /dev/shm'
-    description: 'By default, Docker and Kubernetes assign only 64MB to `/dev/shm`. Multi-worker PyTorch DataLoaders will
-      crash with SIGBUS errors. Always mount an `emptyDir` with `medium: Memory` to `/dev/shm`.'
+    title: '⚠️ Gotcha: Ingress Gateway Timeout on Long Autoregressive Streams'
+    description: 'Standard NGINX Ingress controllers default to a 60-second proxy-read-timeout. Long generative responses
+      that take >60 seconds will get abruptly severed with HTTP 504. Set `nginx.ingress.kubernetes.io/proxy-read-timeout:
+      ''600''`.'
   takeaways:
     hinglish_line: |-
       <strong>

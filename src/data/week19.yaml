@@ -35,10 +35,12 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Hybrid Search & RRF Principal ML System Design interview topic hai. 100M users aur 50k QPS scale par hum Candidate
-    Generation (Two-Tower), Heavy Ranking (DeepFM/DLRM), aur Business Re-ranking stages implement karte hain.
-  analogy: 'Hybrid Search & RRF is like managing an international parcel sorting hub: regional centers sort millions of packages
-    into thousands of flights, and local couriers deliver the top 10 parcels to exact addresses.'
+  hinglish: Dense vector search semantic meaning samajhta hai par exact error codes ya product SKUs miss kar deta hai. BM25
+    exact keywords dhundhta hai par synonyms nahi samajhta. Hybrid search dono ko parallel run karke Reciprocal Rank Fusion
+    (RRF) se rank merge karta hai.
+  analogy: 'Hybrid Search is like hiring two specialized detectives: one is an archivist who matches exact serial numbers
+    and license plates (BM25), while the other is an investigator who understands human motives and context (Dense Embeddings).
+    RRF is the chief inspector who synthesizes their top leads.'
   theory_html: |-
     <h3 class="sh3">1. Dense vs Sparse Search: Complementary Strengths</h3>
     <p>
@@ -365,9 +367,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Stale Embedding Cold-Start Problem'
-    description: New items or newly registered users have zero interaction history in Two-Tower models. Always implement a
-      real-time feature fallback path utilizing content-based metadata and exploration bandits (Thompson Sampling).
+    title: '⚠️ Gotcha: Incompatible Raw Score Distributions in Hybrid Search'
+    description: Never add raw BM25 scores (unbounded [0, ∞)) directly to cosine similarity scores (bounded [-1, 1]). Score
+      normalization is highly sensitive to query variations. Always use rank-based Reciprocal Rank Fusion (RRF) with k=60
+      to merge candidate lists safely.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -419,10 +422,12 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Cross-Encoders & Re-ranking production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'Cross-Encoders & Re-ranking is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Bi-encoders query aur document ko alag-alag embed karte hain (fast for millions of docs), par token-level interaction
+    miss ho jati hai. Cross-encoder query aur chunk ko ek saath transformer mein feed karke full self-attention run karta
+    hai, jo ranking precision 10x badha deta hai.
+  analogy: Bi-encoders are like a bouncer checking IDs at a door (fast, low computation, filters thousands of people in seconds).
+    Cross-encoders are like an FBI interrogator sitting down with the top 5 finalists (deep, exhaustive cross-examination
+    of every word).
   theory_html: |-
     <h3 class="sh3">1. The Two-Stage Information Retrieval Architecture</h3>
     <p>
@@ -668,9 +673,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Cross-Encoders & Re-ranking'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Cross-Encoders
-      & Re-ranking in distributed production pipelines.
+    title: '⚠️ Gotcha: Cross-Encoder Latency Blowup on Large Candidate Pools'
+    description: Passing more than 100 candidate chunks into a heavy cross-encoder (e.g. bge-reranker-large) will blow past
+      your 150ms p99 latency budget. Cap your Stage-1 candidate pool to top 30–50 chunks before reranking.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -723,10 +728,11 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Advanced Chunking Strategies production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'Advanced Chunking Strategies is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Agar chunk bohot chota ho (100 tokens), toh vector match accurate hota hai par LLM context miss kar deta hai.
+    Agar chunk bada ho (1000 tokens), toh embedding dilute ho jati hai. Parent-Child indexing mein chote child chunks search
+    hote hain aur bada parent context LLM ko bheja jata hai.
+  analogy: Parent-Child chunking is like indexing a library book by its chapter sub-headings for quick lookup, but delivering
+    the entire 3-page section to the reader so they understand the complete narrative.
   theory_html: "<h3 class=\"sh3\">1. The Granularity Dilemma in Document Chunking</h3>\n<p>\nDocument chunking directly dictates\
     \ retrieval precision and generation quality. If chunks are too small (e.g. 100 tokens), they lack surrounding context\
     \ for complex synthesis. If chunks are too large (e.g. 1500 tokens), embeddings average too many unrelated concepts together,\
@@ -954,9 +960,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Advanced Chunking Strategies'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Advanced
-      Chunking Strategies in distributed production pipelines.
+    title: '⚠️ Gotcha: Mid-Sentence Header Splits in Markdown Chunking'
+    description: 'Naive recursive character splitting cuts through Markdown code blocks and table rows, breaking AST parsers.
+      Always use structure-aware splitters that respect Markdown heading hierarchies (#, ##, ###) and code fences.'
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1010,10 +1016,11 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Vector Indexing Deep Dive production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'Vector Indexing Deep Dive is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Exhaustive Flat search 1M+ vectors par slow ho jata hai. HNSW multi-layer proximity graphs bana kar O(log N) search
+    speed deta hai, jabki Scalar Quantization (SQ8) vectors ko INT8 mein compress karke RAM footprint 70% bacha leti hai.
+  analogy: Exact Flat vector search is like reading every book in a library page-by-page. IVF is like dividing books into
+    genre sections. HNSW is like a multi-level highway network with express lanes that zoom close to the target neighborhood
+    before taking local streets.
   theory_html: |-
     <h3 class="sh3">1. Exact vs Approximate Nearest Neighbors (ANN)</h3>
     <p>
@@ -1335,9 +1342,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Vector Indexing Deep Dive'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Vector
-      Indexing Deep Dive in distributed production pipelines.
+    title: '⚠️ Gotcha: Memory Explosion during HNSW Index Construction'
+    description: Building HNSW indexes with high M (e.g. M=64) and ef_construction (e.g. 512) requires 2x–3x more RAM during
+      construction than the final index size. Always size node memory for peak indexing overhead.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1391,10 +1398,11 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: GraphRAG & Knowledge Graphs production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'GraphRAG & Knowledge Graphs is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Vector search local questions ke liye best hai ('Loan ka interest rate kya hai?'). Lekin holistic questions ('2024
+    mein company ke top supply chain risks kya the?') ke liye GraphRAG knowledge graph aur Leiden community summaries use
+    karta hai.
+  analogy: Vector RAG is like looking up a specific phone number in the yellow pages. GraphRAG is like having a town historian
+    who understands the entire lineage and relationships of every family in the village.
   theory_html: |-
     <h3 class="sh3">1. The Point-Lookup Failure of Standard Vector RAG</h3>
     <p>
@@ -1709,9 +1717,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in GraphRAG & Knowledge Graphs'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying GraphRAG
-      & Knowledge Graphs in distributed production pipelines.
+    title: '⚠️ Gotcha: Massive Token Ingestion Cost in GraphRAG'
+    description: Extracting entities, relationships, and generating hierarchical community summaries requires thousands of
+      LLM API calls during ingestion. Use asynchronous batching with lightweight extraction models (GPT-4o-mini or Claude-3.5-Haiku)
+      to manage costs.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1764,10 +1773,11 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: Advanced Query Transformations production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'Advanced Query Transformations is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Agar user ki query bohot short ya confusing ho, toh HyDE LLM se pehle ek hypothetical answer generate karwata
+    hai aur us hallucinated answer ko embed karke vector search karta hai. Isse document manifold mein cosine similarity boost
+    hoti hai.
+  analogy: HyDE is like an artist painting a rough portrait of a suspect based on a vague witness description, then using
+    that portrait to search the facial recognition database.
   theory_html: |-
     <h3 class="sh3">1. Query Reformulation Strategies in Enterprise RAG</h3>
     <p>
@@ -1983,9 +1993,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Advanced Query Transformations'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Advanced
-      Query Transformations in distributed production pipelines.
+    title: '⚠️ Gotcha: HyDE Hallucination Drift on Niche Technical IDs'
+    description: When queries contain specific numeric IDs, part numbers, or exact API method names, HyDE may hallucinate
+      incorrect context that skews vector retrieval away from the real document. Use HyDE for conceptual queries, not exact
+      lookups.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -2038,10 +2049,11 @@ days:
   - GraphRAG & Knowledge Graphs
   - Advanced Query Transformations
   - 'Capstone: Production RAG'
-  hinglish: 'Capstone: Production RAG production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.'
-  analogy: 'Capstone: Production RAG is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Production RAG mein hybrid search, reranker, semantic cache, input/output guardrails aur telemetry ek unified
+    pipeline mein connect hote hain. Har stage ka latency budget fixed hota hai taaki total response sub-500ms rahe.
+  analogy: 'A production RAG pipeline is like an automated surgical triage system: patient symptoms are validated at intake,
+    cross-referenced with medical databases, verified by specialists, and checked against drug interaction safety protocols
+    before treatment.'
   theory_html: |-
     <h3 class="sh3">1. Production RAG Architecture: End-to-End Blueprint</h3>
     <p>
@@ -2254,9 +2266,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Capstone: Production RAG'
-    description: 'Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Capstone:
-      Production RAG in distributed production pipelines.'
+    title: '⚠️ Gotcha: Silent Failures in Unchecked RAG Pipelines'
+    description: A RAG system can return high-confidence text that is 100% hallucinated if retrieved chunks are empty or irrelevant.
+      Always implement a hard fallback when the cross-encoder top score falls below the relevance threshold (e.g. score <
+      0.25).
   takeaways:
     hinglish_line: |-
       <strong>

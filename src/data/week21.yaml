@@ -34,10 +34,12 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: VLLM & PagedAttention Serving Architecture production ML systems ka vital component hai. Isme theoretical foundations,
-    computational bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'VLLM & PagedAttention Serving Architecture is like a structural pillar in an industrial suspension bridge: engineered
-    to withstand peak load stress while maintaining flexibility.'
+  hinglish: Standard serving mein KV cache ke liye maximum context (e.g. 4096) memory pehle se reserve karni padti thi, jisse
+    70% VRAM waste hoti thi. PagedAttention KV cache ko chote 16-token physical blocks mein tod kar virtual page table se
+    map karta hai, jisse memory waste <4% ho jati hai.
+  analogy: 'PagedAttention is like operating system virtual memory paging: instead of requiring a massive contiguous parking
+    lot for a 50-car freight train, it breaks the train into separate cars and parks them in whatever open parking spots are
+    available across the city.'
   theory_html: |-
     <h3 class="sh3">1. GPU VRAM Memory Bottlenecks in LLM Serving</h3>
     <p>
@@ -399,9 +401,10 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in VLLM & PagedAttention Serving Architecture'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying VLLM &
-      PagedAttention Serving Architecture in distributed production pipelines.
+    title: '⚠️ Gotcha: KV Cache Eviction Panics on GPU Saturation'
+    description: When GPU memory utilization is set too close to 1.0 (e.g. gpu_memory_utilization=0.98), activation memory
+      spikes during long prompt prefills will cause CUDA Out-of-Memory crashes. Keep utilization bounded between 0.85 and
+      0.90.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -454,11 +457,12 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Standard Attention GPU ke High Bandwidth Memory (HBM) aur fast SRAM ke beech data transfer karne mein slow ho
-    jati hai ($O(N^2)$ IO bottleneck). FlashAttention tiling use karke pura attention kernel SRAM ke andar calculate karta
-    hai!
-  analogy: Standard attention is like walking to the distant library warehouse every time you read one sentence. FlashAttention
-    loads an entire chapter into your personal desk (SRAM), reads it all at once, and writes back the final summary.
+  hinglish: Standard attention intermediate N x N matrix ko GPU HBM memory mein baar-baar write aur read karta hai, jo memory
+    bandwidth bottleneck ban jata hai. FlashAttention on-chip fast SRAM mein tiling aur online softmax scaling use karke 2x-4x
+    speedup deta hai.
+  analogy: FlashAttention is like a master chef who keeps all ingredients on their small wooden cutting board (on-chip SRAM)
+    and finishes chopping everything in one fluid motion, instead of running back and forth to the basement cold-storage pantry
+    (GPU HBM) for every single slice.
   theory_html: |-
     <h3 class="sh3">1. The Memory Bandwidth Bottleneck: Standard Attention</h3>
     <p>
@@ -763,9 +767,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Head Dimension Misalignment in FlashAttention-2'
-    description: FlashAttention-2 requires head dimensions to be exact multiples of 64 or 128 (e.g. d_head=128). Non-standard
-      head dimensions fallback to slow unfused PyTorch kernels.
+    title: '⚠️ Gotcha: Kernel Incompatibility on Older GPU Architectures'
+    description: FlashAttention-2 requires NVIDIA Ampere (A100), Ada Lovelace (RTX 4090), or Hopper (H100) GPUs with FP16/BF16
+      Tensor Cores. Attempting to run on older Turing (T4) or Volta GPUs without Triton fallbacks will fail.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -818,12 +822,11 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Quantization mein hum 16-bit floating point weights (FP16) ko 4-bit ya 8-bit integers (INT4/INT8) mein convert
-    karte hain. AWQ (Activation-aware Weight Quantization) 1% critical salient weights ko protect karta hai taaki accuracy
-    drop 0.1% se kam rahe!
-  analogy: 'Quantization is like high-efficiency image compression: instead of saving 16 million colors per pixel, you use
-    a 256-color palette (quantization scale factor) that looks virtually identical to the human eye while cutting file size
-    by 75%.'
+  hinglish: Quantization model ke 16-bit float weights ko 4-bit integers mein convert karti hai taaki VRAM 70% bache. AWQ
+    discover karta hai ki sirf 1% salient weight channels model accuracy ke liye critical hote hain, unhe protect karke INT4
+    quantization achieve karta hai.
+  analogy: 'AWQ Quantization is like packing for a flight with weight limits: you replace all heavy clothing with lightweight
+    fabric, but protect your fragile, high-value laptop in a padded case so nothing important breaks.'
   theory_html: |-
     <h3 class="sh3">1. Post-Training Quantization (PTQ): AWQ vs GPTQ vs GGUF</h3>
     <p>
@@ -1090,10 +1093,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Uniform Quantization Outlier Clipping'
-    description: LLM activation tensors contain extreme outlier channels (over 100x average magnitude). Uniform naive quantization
-      clips these outliers, completely destroying perplexity. Always use AWQ or SmoothQuant to scale outlier channels before
-      integer casting.
+    title: '⚠️ Gotcha: Zero-Point Misalignment in Symmetric vs Asymmetric Quantization'
+    description: Asymmetric quantization introduces a zero-point offset Z that requires additional integer subtraction during
+      matrix multiplication, reducing Tensor Core efficiency. Use symmetric quantization for faster inference kernels.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1146,10 +1148,11 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: QLoRA & PEFT production ML systems ka vital component hai. Isme theoretical foundations, computational bounds
-    aur robust deployment architecture detailed cover hote hain.
-  analogy: 'QLoRA & PEFT is like a structural pillar in an industrial suspension bridge: engineered to withstand peak load
-    stress while maintaining flexibility.'
+  hinglish: Full fine-tuning mein 70B parameters ke gradients aur optimizer states store karne ke liye 800GB VRAM chahiye
+    hoti hai. LoRA base weights ko freeze karke chote low-rank matrices (A aur B) inject karta hai, jisse trainable parameters
+    99.9% kam ho jate hain.
+  analogy: LoRA is like modifying a 1,000-page legal dictionary by attaching a 2-page addendum booklet inside the back cover,
+    instead of reprinting and binding the entire 1,000-page book from scratch.
   theory_html: |-
     <h3 class="sh3">1. Parameter-Efficient Fine-Tuning (PEFT) & Low-Rank Adaptation (LoRA)</h3>
     <p>
@@ -1377,9 +1380,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in QLoRA & PEFT'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying QLoRA &
-      PEFT in distributed production pipelines.
+    title: '⚠️ Gotcha: Target Module Omission in LoRA Fine-Tuning'
+    description: Applying LoRA only to query/value projections (q_proj, v_proj) yields significantly worse fine-tuning convergence
+      than applying LoRA across all linear layers (q, k, v, o, gate, up, down_proj). Target all linear layers for best results.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1433,11 +1436,12 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: PPO (RLHF) bohot unstable hota hai kyunki alag se Reward Model aur Value Network train karna padta hai. DPO (Direct
-    Preference Optimization) mathematical substitution se reward model ko direct policy loss mein convert kar deta hai, jisse
-    training simple cross-entropy ban jati hai!
-  analogy: RLHF with PPO is like hiring a judge (Reward Model), a coach (Critic), and an athlete (Policy) all practicing simultaneously.
-    DPO is giving the athlete a direct video comparison of good vs bad performances to learn from directly.
+  hinglish: RLHF mein alag se Reward Model train karna aur PPO tune karna bohot unstable hota hai. DPO mathematically prove
+    karta hai ki hum pairwise preference data (preferred vs rejected) par direct policy gradient update chala sakte hain bina
+    kisi reward model ke.
+  analogy: 'DPO is like coaching a tennis player by simply pointing out: ''That forehand inside the baseline was great, that
+    out-of-bounds smash was bad — adjust your swing directly'', rather than building a separate robotic scoring judge to score
+    every millimeter of ball bounce.'
   theory_html: |-
     <h3 class="sh3">1. RLHF vs Direct Preference Optimization (DPO)</h3>
     <p>
@@ -1674,9 +1678,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Overfitting on Narrow DPO Preference Datasets'
-    description: High beta parameters (beta > 0.5) in DPO loss cause rapid policy collapse where the model generates repetitive
-      degenerate completions. Keep beta in [0.05, 0.1] and evaluate with KL divergence penalty.
+    title: '⚠️ Gotcha: Policy Collapse from Uncalibrated Beta in DPO'
+    description: Setting beta too low (e.g. beta < 0.01) in DPO loss allows the policy to drift uncontrollably away from the
+      reference model, causing repetitive text degeneration. Keep beta strictly between 0.1 and 0.5.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1729,10 +1733,11 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: Synthetic Data & Deduplication production ML systems ka vital component hai. Isme theoretical foundations, computational
-    bounds aur robust deployment architecture detailed cover hote hain.
-  analogy: 'Synthetic Data & Deduplication is like a structural pillar in an industrial suspension bridge: engineered to withstand
-    peak load stress while maintaining flexibility.'
+  hinglish: Synthetic data generate karte waqt repetitive examples model ko overfit kar dete hain. MinHash Locality-Sensitive
+    Hashing (LSH) millions of text pairs ke Jaccard similarity ko sub-second time mein approximate karke duplicates delete
+    karta hai.
+  analogy: 'MinHash LSH deduplication is like generating a unique 10-note musical signature for every song in a catalog of
+    100 million tracks: if two songs share the same 10-note signature, they are virtually identical covers.'
   theory_html: |-
     <h3 class="sh3">1. Synthetic Data Generation: Self-Instruct & Evol-Instruct</h3>
     <p>
@@ -1948,9 +1953,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Synthetic Data & Deduplication'
-    description: Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Synthetic
-      Data & Deduplication in distributed production pipelines.
+    title: '⚠️ Gotcha: Shingle Size Selection in MinHash LSH'
+    description: Using character 3-grams for MinHash creates too many false-positive collisions across different technical
+      terms. Use word-level 5-grams (5-shingles) for robust document-level deduplication.
   takeaways:
     hinglish_line: |-
       <strong>
@@ -2004,10 +2009,11 @@ days:
   - DPO, ORPO & GRPO
   - Synthetic Data & Deduplication
   - 'Capstone: Deploying a Custom Fine-Tuned Model'
-  hinglish: 'Capstone: Deploying a Custom Fine-Tuned Model production ML systems ka vital component hai. Isme theoretical
-    foundations, computational bounds aur robust deployment architecture detailed cover hote hain.'
-  analogy: 'Capstone: Deploying a Custom Fine-Tuned Model is like a structural pillar in an industrial suspension bridge:
-    engineered to withstand peak load stress while maintaining flexibility.'
+  hinglish: Fine-tuning ke baad LoRA adapter ko base model ke sath merge karna padta hai taaki runtime forward pass mein zero
+    latency overhead rahe. Fir AWQ 4-bit quantize karke vLLM container mein deploy kiya jata hai.
+  analogy: 'Deploying a custom model is like tuning a race car: after fine-tuning the engine on the dyno, you permanently
+    weld the custom turbocharger into the engine block (weight merge), calibrate the fuel injection (quantization), and put
+    it on the race track (vLLM).'
   theory_html: |-
     <h3 class="sh3">1. Custom Model Deployment Pipeline</h3>
     <p>
@@ -2224,9 +2230,9 @@ days:
     back: Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
-    title: '⚠️ Gotcha: Invariant Breach in Capstone: Deploying a Custom Fine-Tuned Model'
-    description: 'Always validate data shapes, numerical precision thresholds, and memory boundaries when deploying Capstone:
-      Deploying a Custom Fine-Tuned Model in distributed production pipelines.'
+    title: '⚠️ Gotcha: Merging Adapter Weights in Wrong Precision'
+    description: Merging a FP16 LoRA adapter directly into a 4-bit quantized base model destroys weight precision. Always
+      merge LoRA weights into unquantized 16-bit base weights first, then quantize the merged model.
   takeaways:
     hinglish_line: |-
       <strong>
