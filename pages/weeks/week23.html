@@ -703,14 +703,38 @@ print("✓ SageMaker endpoint verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-165-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. GCP Vertex AI & Kubeflow Pipelines (KFP)</h3>
+          <h3 class="sh3">1. Google Cloud Vertex AI & Managed Kubeflow Pipelines</h3>
 <p>
-Google Cloud Vertex AI provides a managed Kubeflow execution engine that compiles Python pipeline code into containerized, serverless Directed Acyclic Graphs (DAGs):
+Vertex AI unifies ML lifecycle management on Google Cloud infrastructure. Using the <strong>Kubeflow Pipelines (KFP) SDK</strong>, engineers author reusable Python pipeline components that compile into containerized Directed Acyclic Graphs (DAGs) executed on serverless Google Cloud compute.
 </p>
-<ul>
-  <li><strong>Artifact Lineage:</strong> Automatically logs input/output datasets and model weights in Vertex ML Metadata.</li>
-  <li><strong>Custom Container Training:</strong> Spawns ephemeral GPU worker pools that shut down automatically upon job completion.</li>
-</ul>
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from kfp.v2 import dsl
+from kfp.v2.dsl import component, Output, Dataset, Model
+
+@component(base_image="python:3.10-slim", packages_to_install=["pandas", "scikit-learn"])
+def train_tabular_model(
+    input_data: dsl.Input[Dataset],
+    model_output: dsl.Output[Model]
+):
+    import pandas as pd
+    from sklearn.ensemble import RandomForestClassifier
+    import joblib
+    
+    df = pd.read_csv(input_data.path)
+    X, y = df.drop("target", axis=1), df["target"]
+    
+    clf = RandomForestClassifier(n_estimators=100)
+    clf.fit(X, y)
+    
+    joblib.dump(clf, model_output.path + "/model.joblib")
+
+@dsl.pipeline(name="enterprise-vertex-ml-pipeline", pipeline_root="gs://my-bucket/pipeline_root")
+def ml_pipeline():
+    # Pipeline DAG declaration
+    pass</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1165,13 +1189,37 @@ print("✓ Vertex AI job verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-166-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Serverless ML Inference with AWS Lambda + ONNX</h3>
+          <h3 class="sh3">1. Serverless ML with AWS Lambda & ONNX Runtime</h3>
 <p>
-For intermittent or bursty ML workloads, provisioning dedicated EC2 GPU instances 24/7 is financially wasteful.
+Provisioning dedicated GPU instances 24/7 for low-frequency or bursty ML workloads results in massive idle compute costs. By compiling Scikit-Learn or PyTorch models to the <strong>ONNX (Open Neural Network Exchange) format</strong> with 8-bit integer quantization, models run inside lightweight serverless AWS Lambda containers with &lt;80ms cold starts.
 </p>
-<p>
-By converting models to <strong>ONNX Runtime format with INT8 quantization</strong>, models run inside containerized AWS Lambda functions (up to 10GB RAM) with <strong>&lt;100ms cold starts</strong> and zero idle costs.
-</p>
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>import json
+import onnxruntime as ort
+import numpy as np
+
+# Global warm session initialized outside handler
+session = ort.InferenceSession("model_quantized.onnx")
+input_name = session.get_inputs()[0].name
+
+def lambda_handler(event, context):
+    try:
+        body = json.loads(event.get("body", "{}"))
+        features = np.array(body["features"], dtype=np.float32)
+        
+        # ONNX vectorized forward pass
+        preds = session.run(None, {input_name: features})[0]
+        
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"prediction": preds.tolist()})
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1623,14 +1671,17 @@ print("✅ Lambda handler assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-167-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Enterprise Azure OpenAI Service Architecture</h3>
+          <h3 class="sh3">1. Azure OpenAI Service & Enterprise Private Endpoints</h3>
 <p>
-Deploying generative AI solutions in regulated industries (healthcare, banking, government) requires strict security and networking compliance:
+In regulated industries (Banking, Healthcare, Government), enterprise data cannot traverse the public internet to public AI API endpoints.
+</p>
+<p>
+<strong>Azure OpenAI Service</strong> provisions dedicated OpenAI foundation model deployments inside your organization's private Azure Virtual Network (VNet) via <strong>Azure Private Link</strong>:
 </p>
 <ul>
-  <li><strong>VNet Peering & Private Endpoints:</strong> Disables public internet ingress, ensuring all traffic between enterprise applications and Azure OpenAI travels over private Azure backbone networks.</li>
-  <li><strong>Managed Identities (RBAC):</strong> Eliminates static API keys by authenticating workloads via Azure Active Directory / Entra ID.</li>
-  <li><strong>Provisioned Throughput Units (PTU):</strong> Reserves dedicated GPU capacity to guarantee predictable inference throughput and strict sub-second latency SLAs.</li>
+  <li><strong>Zero Public Internet Exposure:</strong> Model inference requests traverse private fiber backbone links.</li>
+  <li><strong>Data Boundary Isolation:</strong> Enterprise customer prompts are cryptographically isolated and never used for model retraining.</li>
+  <li><strong>Role-Based Access Control (RBAC):</strong> Managed identities and Azure Active Directory (Microsoft Entra ID) authenticate API callers.</li>
 </ul>
         </div>
 
@@ -2078,17 +2129,34 @@ print("✓ Azure OpenAI wrapper verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-168-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. FinOps Model Cascading Architecture</h3>
+          <h3 class="sh3">1. Cloud FinOps: LLM Cost Optimization & Model Cascading</h3>
 <p>
-Enterprise LLM deployments process queries with wildly differing complexity:
+In production generative AI architectures, user queries exhibit extreme variance in required reasoning depth. Routing 100% of user traffic to frontier reasoning models (e.g. GPT-4o @ $5.00/1M tokens) is financially unsustainable.
 </p>
-<ul>
-  <li><strong>80% Simple Lookups:</strong> Routed to fast Small Language Models ($0.15/1M tokens).</li>
-  <li><strong>20% Complex Reasoning:</strong> Routed to frontier models ($5.00/1M tokens).</li>
-</ul>
 <p>
-This cascading strategy cuts monthly LLM API bills by <strong>75%</strong> while maintaining benchmark accuracy equivalence.
+<strong>Model Cascading</strong> routes 80% of routine traffic to fast, cost-effective Small Language Models (e.g. GPT-4o-mini @ $0.15/1M tokens) and cascades to frontier models only when uncertainty metrics exceed confidence thresholds:
 </p>
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>class ModelCascader:
+    def __init__(self, slm_client, frontier_client, confidence_threshold: float = 0.85):
+        self.slm = slm_client
+        self.frontier = frontier_client
+        self.threshold = confidence_threshold
+
+    def execute_query(self, prompt: str) -> dict:
+        # 1. Attempt fast SLM execution
+        slm_resp = self.slm.generate(prompt)
+        confidence = slm_resp.get("confidence_score", 0.0)
+        
+        # 2. Cascade if confidence is insufficient
+        if confidence >= self.threshold:
+            return {"source": "SLM (Cost: $0.0001)", "response": slm_resp["text"]}
+        
+        frontier_resp = self.frontier.generate(prompt)
+        return {"source": "Frontier (Cost: $0.005)", "response": frontier_resp["text"]}</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2552,13 +2620,30 @@ print("✓ Model cascading cost optimizer verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-169-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Secrets Governance & Zero Hardcoded Credentials</h3>
+          <h3 class="sh3">1. Enterprise Secrets Management: Vault, AWS SSM & KMS</h3>
 <p>
-Baking API keys, database credentials, or private certificates into Docker containers or Git repositories is a critical security vulnerability.
+Hardcoding API keys or database connection strings into Docker images or git repositories is a critical security vulnerability.
 </p>
 <p>
-Production AI platforms dynamically inject credentials at runtime using <strong>AWS Secrets Manager</strong> or <strong>HashiCorp Vault</strong> with automated secret rotation policies and IAM role-based authentication.
+Production AI systems retrieve credentials dynamically at runtime using <strong>AWS Secrets Manager</strong> with automated rotation and KMS envelope encryption:
 </p>
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>import boto3, json
+from botocore.exceptions import ClientError
+
+def get_secret(secret_name: str, region_name: str = "us-east-1") -> dict:
+    session = boto3.session.Session()
+    client = session.client(service_name='secretsmanager', region_name=region_name)
+    try:
+        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+    except ClientError as e:
+        raise e
+    
+    secret = get_secret_value_response['SecretString']
+    return json.loads(secret)</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3014,16 +3099,16 @@ print("✅ All assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-170-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Capstone: Production Cloud RAG Architecture</h3>
+          <h3 class="sh3">1. Capstone: Deploying a Multi-Tier RAG Architecture to AWS</h3>
 <p>
-The Week 23 Capstone deploys an end-to-end production RAG microservice on AWS combining:
+This capstone integrates all Week 23 cloud architecture components into a resilient, production-grade cloud deployment:
 </p>
-<ul>
-  <li><strong>Amazon ECS Fargate:</strong> Containerized FastAPI application running in private VPC subnets.</li>
-  <li><strong>Managed Qdrant Vector DB:</strong> Scalable vector search cluster.</li>
-  <li><strong>Amazon Bedrock:</strong> Claude-3.5-Sonnet foundation model integration.</li>
-  <li><strong>AWS Secrets Manager:</strong> Encrypted runtime configuration injection.</li>
-</ul>
+<ol>
+  <li><strong>Storage Layer:</strong> S3 Bucket holding document corpus with KMS encryption at rest.</li>
+  <li><strong>Vector Database:</strong> Serverless OpenSearch or pgvector on AWS RDS PostgreSQL.</li>
+  <li><strong>Compute Layer:</strong> FastAPI inference container running on AWS ECS Fargate with Application Load Balancer (ALB).</li>
+  <li><strong>Security & FinOps:</strong> Secrets Manager for OpenAI API keys and CloudWatch alarms for token cost budgeting.</li>
+</ol>
         </div>
 
         <!-- PREDICT THE OUTPUT -->

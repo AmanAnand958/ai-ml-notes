@@ -41,14 +41,30 @@ days:
     shipping containers (Pods) to dedicated cargo ships (Worker Nodes) based on exact weight and refrigeration requirements
     (GPU/CPU limits).'
   theory_html: |-
-    <h3 class="sh3">1. Kubernetes Architecture for AI Infrastructure</h3>
+    <h3 class="sh3">1. Kubernetes Primitives for AI/ML Workloads</h3>
     <p>
-    Managing distributed GPU clusters requires configuring specialized Kubernetes control plane primitives:
+    Managing distributed AI workloads on Kubernetes requires mastery of foundational primitives:
     </p>
     <ul>
-      <li><strong>NVIDIA GPU Device Plugin:</strong> Exposes physical GPU hardware to the Kubernetes kubelet as schedulable capacity (<code>nvidia.com/gpu</code>).</li>
-      <li><strong>Guaranteed Quality of Service (QoS):</strong> Set resource requests equal to resource limits so that ML inference pods are never evicted during node memory pressure.</li>
+      <li><strong>Pods & ReplicaSets:</strong> Ephemeral compute units co-locating the ML container with GPU device drivers.</li>
+      <li><strong>Deployments:</strong> Declarative rolling updates ensuring zero-downtime model deployments.</li>
+      <li><strong>Services & Ingress:</strong> Load balancing internal RPC and external HTTPS traffic across healthy inference pods.</li>
     </ul>
+
+    <div class="cb">
+      <div class="cb-head"><span class="cb-lang">yaml — fastapi-k8s-service.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+      <pre><code>apiVersion: v1
+    kind: Service
+    metadata:
+      name: ml-prediction-service
+    spec:
+      type: ClusterIP
+      selector:
+        app: ml-fastapi
+      ports:
+      - port: 80
+        targetPort: 8000</code></pre>
+    </div>
   predict:
     question: What is the standard Kubernetes resource key used to request 1 NVIDIA GPU in a Pod manifest?
     answer: nvidia.com/gpu
@@ -670,36 +686,14 @@ days:
     hota hai.
   analogy: Custom Metric HPA with Prometheus is like an intelligent highway toll plaza that opens 5 additional express lanes
     the moment camera sensors detect a 10-car backup in the queue, rather than waiting for drivers to start honking in frustration.
-  theory_html: "<h3 class=\"sh3\">1. Why Standard CPU Metrics Fail for LLM Autoscaling</h3>\n<p>\nStandard Kubernetes Horizontal\
-    \ Pod Autoscalers (HPA) scale pods based on CPU or Memory percentage utilization (e.g. scale out when $\text{CPU} > 80\\\
-    %$). In LLM serving clusters, this strategy fails completely:\n</p>\n<ul>\n  <li><strong>Constant High GPU Compute:</strong>\
-    \ Modern serving engines (vLLM, TensorRT-LLM) utilize 100% of GPU compute cores during token generation even when processing\
-    \ a single light request. CPU/GPU compute percentage never reflects queue congestion.</li>\n  <li><strong>Latency Spikes\
-    \ on Queue Saturation:</strong> As concurrent requests arrive faster than generation throughput, requests pile up inside\
-    \ the vLLM waiting queue. Time-To-First-Token (TTFT) degrades exponentially before standard HPA triggers.</li>\n</ul>\n\
-    \n<h3 class=\"sh3\">2. Prometheus Custom Metric Autoscaling Architecture</h3>\n<div style=\"margin: 1.5rem 0; text-align:\
-    \ center;\">\n<svg aria-label=\"Prometheus Custom Metric HPA Architecture\" height=\"240\" viewBox=\"0 0 680 240\" width=\"\
-    680\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width: 100%; height: auto; font-family: var(--font-mono, monospace);\"\
-    >\n  <rect x=\"10\" y=\"10\" width=\"660\" height=\"220\" rx=\"10\" fill=\"#0f172a\" stroke=\"#334155\" stroke-width=\"\
-    2\"/>\n  <text x=\"25\" y=\"35\" fill=\"#38bdf8\" font-size=\"13\" font-weight=\"bold\">Prometheus Custom Metric HPA Pipeline\
-    \ for vLLM</text>\n\n  <!-- vLLM Pod Metrics -->\n  <rect x=\"30\" y=\"55\" width=\"160\" height=\"75\" rx=\"6\" fill=\"\
-    #1e293b\" stroke=\"#10b981\"/>\n  <text x=\"45\" y=\"80\" fill=\"#34d399\" font-size=\"11\" font-weight=\"bold\">vLLM\
-    \ Pod (:8000)</text>\n  <text x=\"40\" y=\"100\" fill=\"#cbd5e1\" font-size=\"9.5\">/metrics endpoint</text>\n  <text\
-    \ x=\"40\" y=\"118\" fill=\"#facc15\" font-size=\"9\">num_requests_waiting</text>\n\n  <!-- Arrow -->\n  <path d=\"M 190\
-    \ 92 L 235 92\" stroke=\"#94a3b8\" stroke-width=\"2\"/>\n\n  <!-- Prometheus Scraper -->\n  <rect x=\"235\" y=\"55\" width=\"\
-    160\" height=\"75\" rx=\"6\" fill=\"#1e293b\" stroke=\"#e11d48\"/>\n  <text x=\"250\" y=\"80\" fill=\"#fb7185\" font-size=\"\
-    11\" font-weight=\"bold\">Prometheus Server</text>\n  <text x=\"245\" y=\"100\" fill=\"#cbd5e1\" font-size=\"9.5\">10s\
-    \ Scrape Interval</text>\n  <text x=\"245\" y=\"118\" fill=\"#94a3b8\" font-size=\"9\">PromQL Aggregation</text>\n\n \
-    \ <!-- Arrow -->\n  <path d=\"M 395 92 L 440 92\" stroke=\"#94a3b8\" stroke-width=\"2\"/>\n\n  <!-- Prometheus Adapter\
-    \ -->\n  <rect x=\"440\" y=\"55\" width=\"200\" height=\"75\" rx=\"6\" fill=\"#1e293b\" stroke=\"#38bdf8\"/>\n  <text\
-    \ x=\"455\" y=\"80\" fill=\"#60a5fa\" font-size=\"11\" font-weight=\"bold\">Prometheus Adapter</text>\n  <text x=\"450\"\
-    \ y=\"100\" fill=\"#cbd5e1\" font-size=\"9.5\">custom.metrics.k8s.io</text>\n  <text x=\"450\" y=\"118\" fill=\"#94a3b8\"\
-    \ font-size=\"9\">Exposes waiting queue metric</text>\n\n  <!-- HPA Controller -->\n  <rect x=\"30\" y=\"150\" width=\"\
-    610\" height=\"65\" rx=\"6\" fill=\"#1e293b\" stroke=\"#f59e0b\" stroke-width=\"1.5\"/>\n  <text x=\"45\" y=\"175\" fill=\"\
-    #facc15\" font-size=\"11\" font-weight=\"bold\">Kubernetes Horizontal Pod Autoscaler (HPA)</text>\n  <text x=\"45\" y=\"\
-    195\" fill=\"#cbd5e1\" font-size=\"9.5\">Rule: Scale out (min: 2, max: 10) when average `vllm:num_requests_waiting` &gt;\
-    \ 5.0</text>\n</svg>\n<div class=\"diagram-cap\">Figure 180.1: Prometheus Custom Metric Horizontal Pod Autoscaler (HPA)\
-    \ Architecture.</div>\n</div>"
+  theory_html: |-
+    <h3 class="sh3">1. Horizontal Pod Autoscaling (HPA) on Custom Prometheus GPU Metrics</h3>
+    <p>
+    Standard Kubernetes HPA scales on CPU and RAM utilization. In high-throughput LLM serving, CPU usage is a poor signal because GPU VRAM is pre-allocated and Tensor Cores process requests in bursts.
+    </p>
+    <p>
+    Production HPA scales based on <strong>vLLM Queue Depth (<code>avg_prompt_throughput_tok_per_s</code>)</strong> and <strong>NVIDIA DCGM GPU Duty Cycles</strong> via the Prometheus Custom Metrics Adapter.
+    </p>
   predict:
     question: "Why is\n       \n        stabilizationWindowSeconds\n       \n       for scaleDown useful for LLM services?"
     answer: |-
@@ -1344,16 +1338,32 @@ days:
     request) must pass rigorous structural collision tests (linting, unit tests, model regression gates) before entering commercial
     production.'
   theory_html: |-
-    <h3 class="sh3">1. GitOps CI/CD Pipelines with GitHub Actions</h3>
+    <h3 class="sh3">1. GitHub Actions CI/CD for Machine Learning</h3>
     <p>
-    Automated ML CI/CD workflows enforce continuous quality gates:
+    Continuous Integration for ML must validate code quality, unit tests, and model regression benchmarks automatically on every git pull request.
     </p>
-    <ol>
-      <li><strong>Code Quality Gate:</strong> Linting with <code>black</code> and <code>flake8</code>.</li>
-      <li><strong>Unit & Integration Testing:</strong> Running <code>pytest</code> test suites with mock API fixtures.</li>
-      <li><strong>Model Evaluation Gate:</strong> Asserting latency and accuracy SLAs against golden regression datasets.</li>
-      <li><strong>Container Build & Push:</strong> Building multi-stage Docker images pushed to Amazon ECR or GitHub Container Registry.</li>
-    </ol>
+
+    <div class="cb">
+      <div class="cb-head"><span class="cb-lang">yaml — .github/workflows/ml-ci.yml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+      <pre><code>name: ML Model CI Pipeline
+    on: [push, pull_request]
+
+    jobs:
+      test-and-benchmark:
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v4
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.11'
+        - name: Install dependencies
+          run: |
+            pip install -r requirements.txt
+            pip install pytest pytest-cov
+        - name: Run Unit Tests & Assertion Checks
+          run: pytest tests/ --cov=app/ --cov-fail-under=85</code></pre>
+    </div>
   predict:
     question: What GitHub Actions event triggers the automated CI/CD model testing pipeline?
     answer: push

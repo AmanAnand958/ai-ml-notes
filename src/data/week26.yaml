@@ -40,16 +40,20 @@ days:
   analogy: 'Vision-Language Models are like a bilingual human interpreter: the visual cortex (Vision Transformer) translates
     raw pixels into symbolic visual tokens, the multimodal projection layer translates visual tokens into linguistic grammar,
     and the reasoning cortex (LLM) synthesizes coherent thoughts.'
-  theory_html: |-
-    <h3 class="sh3">1. Vision-Language Models (VLMs) Architecture</h3>
-    <p>
-    Modern VLMs (LLaVA, GPT-4o, Claude-3.5-Sonnet) unify Computer Vision and Natural Language Processing into a single shared transformer:
-    </p>
-    <ol>
-      <li><strong>Vision Encoder (ViT):</strong> Splits a 336x336 image into $14 \times 14$ pixel patches, generating 576 visual token embeddings.</li>
-      <li><strong>Multimodal Projector:</strong> A 2-layer MLP or Q-Former maps visual token embeddings into the text LLM's input embedding space.</li>
-      <li><strong>Autoregressive LLM:</strong> Concatenates visual tokens with prompt text tokens, generating multimodal reasoning in a single forward pass.</li>
-    </ol>
+  theory_html: "<h3 class=\"sh3\">1. Vision-Language Models (VLMs) Architecture</h3>\n<p>\nModern VLMs (LLaVA, GPT-4o, Claude-3.5)\
+    \ unify Computer Vision and Natural Language Processing into a single shared transformer:\n</p>\n<ol>\n  <li><strong>Vision\
+    \ Transformer (ViT):</strong> Divides a $336 \times 336$ image into non-overlapping $14 \times 14$ pixel patches, generating\
+    \ $N = 576$ visual token embeddings.</li>\n  <li><strong>Multimodal Projection Layer:</strong> A 2-layer MLP projection\
+    \ maps visual token vectors into the text LLM embedding space ($\\mathbb{R}^{d_{\text{vision}}} \to \\mathbb{R}^{d_{\t\
+    ext{text}}}$).</li>\n  <li><strong>Autoregressive LLM:</strong> Prefix visual tokens are concatenated with user text prompt\
+    \ tokens, generating interleaved visual-textual reasoning.</li>\n</ol>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"\
+    ><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
+    \  <pre><code>import torch\nimport torch.nn as nn\n\nclass VisionProjector(nn.Module):\n    \"\"\"\n    Maps Vision Transformer\
+    \ (ViT) patch tokens to Language Model embedding dimension.\n    \"\"\"\n    def __init__(self, vision_dim: int = 1024,\
+    \ llm_dim: int = 4096):\n        super().__init__()\n        self.mlp = nn.Sequential(\n            nn.Linear(vision_dim,\
+    \ llm_dim),\n            nn.GELU(),\n            nn.Linear(llm_dim, llm_dim)\n        )\n\n    def forward(self, vision_patches:\
+    \ torch.Tensor) -> torch.Tensor:\n        # Input: (Batch, NumPatches, VisionDim) -> Output: (Batch, NumPatches, LLMDim)\n\
+    \        return self.mlp(vision_patches)</code></pre>\n</div>"
   predict:
     question: "What is the cost difference between\n       \n        detail: \"low\"\n       \n       and\n       \n     \
       \   detail: \"high\"\n       \n       in the OpenAI API?"
@@ -317,15 +321,27 @@ days:
     charts, diagrams, and font layouts directly — instead of having a blind assistant read garbled OCR text over a noisy phone
     line.
   theory_html: |-
-    <h3 class="sh3">1. ColPali: Late-Interaction Multimodal Document Retrieval</h3>
+    <h3 class="sh3">1. Multimodal RAG & ColPali Late Interaction</h3>
     <p>
-    Enterprise PDFs contain intricate visual layouts, charts, and tables that optical character recognition (OCR) garbles.
+    Standard document parsing pipelines use Optical Character Recognition (OCR) to convert PDFs into flat text, destroying rich formatting, tables, figures, and architectural schematics.
     </p>
     <p>
-    <strong>ColPali</strong> embeds entire document page screenshots directly using Vision Transformers, computing <strong>MaxSim late-interaction relevance</strong>:
+    <strong>ColPali (Faysse et al., 2024)</strong> embeds entire page screenshots directly using Vision Transformers and evaluates relevance using <strong>MaxSim late-interaction</strong>:
     </p>
-    <div class="math-block">
-    $$\text{Score}(Q, D) = \sum_{i=1}^{|Q|} \max_{j=1}^{|D|} (\mathbf{q}_i \cdot \mathbf{d}_j)$$
+
+    <div class="cb">
+      <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+      <pre><code>import torch
+
+    def colpali_maxsim_score(query_embeddings: torch.Tensor, document_patch_embeddings: torch.Tensor) -> float:
+        """
+        Computes MaxSim late-interaction score between query tokens and document visual patches:
+        Score = sum_{i} max_{j} (q_i · d_j)
+        """
+        # query_embeddings: (Q_tokens, Dim), document_patch_embeddings: (Patches, Dim)
+        similarity_matrix = torch.matmul(query_embeddings, document_patch_embeddings.T)
+        max_similarities, _ = torch.max(similarity_matrix, dim=-1)
+        return float(torch.sum(max_similarities))</code></pre>
     </div>
   predict:
     question: Why is Architecture 2 (Image Summarization) often preferred over Architecture 1 (CLIP embeddings) for document
@@ -574,15 +590,18 @@ days:
   analogy: 'Whisper audio processing is like a master courtroom stenographer: converting raw sound vibrations into 80-channel
     visual spectrograms, filtering out background coughs and microphone hiss, and transcribing speech with exact millisecond
     timestamps.'
-  theory_html: |-
-    <h3 class="sh3">1. Speech-to-Text with OpenAI Whisper</h3>
-    <p>
-    Whisper processes raw 16kHz audio through a robust encoder-decoder Transformer:
-    </p>
-    <ol>
-      <li>Converts audio into 80-channel log-Mel spectrograms via Short-Time Fourier Transform (STFT).</li>
-      <li>Processes 30-second audio windows with cross-attention decoders for multilingual translation and timestamp prediction.</li>
-    </ol>
+  theory_html: "<h3 class=\"sh3\">1. Audio Processing & Speech-to-Text with Whisper</h3>\n<p>\nOpenAI Whisper is an encoder-decoder\
+    \ Transformer trained on 680,000 hours of multilingual audio:\n</p>\n<ol>\n  <li>Audio is sampled at 16kHz and transformed\
+    \ into 80-channel log-Mel spectrograms over 25ms windows with a 10ms hop size.</li>\n  <li>The audio encoder processes\
+    \ spectrogram frames into continuous latent representations.</li>\n  <li>The autoregressive text decoder predicts transcribed\
+    \ tokens alongside word-level timestamps.</li>\n</ol>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
+    >python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
+    \  <pre><code>import torch\nimport torchaudio\n\ndef extract_log_mel_spectrogram(audio_path: str, n_mels: int = 80) ->\
+    \ torch.Tensor:\n    waveform, sample_rate = torchaudio.load(audio_path)\n    if sample_rate != 16000:\n        waveform\
+    \ = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)(waveform)\n    \n    mel_transform = torchaudio.transforms.MelSpectrogram(\n\
+    \        sample_rate=16000,\n        n_fft=400,\n        hop_length=160,\n        n_mels=n_mels\n    )\n    mel_spec =\
+    \ mel_transform(waveform)\n    log_mel = torch.log(torch.clamp(mel_spec, min=1e-5))\n    return log_mel</code></pre>\n\
+    </div>"
   predict:
     question: "What is the main limitation of running the Whisper\n       \n        large-v3\n       \n       model locally\
       \ compared to the\n       \n        base\n       \n       model?"
@@ -1130,14 +1149,35 @@ days:
     instructions for your specific CPU architecture, rather than hand-writing raw assembly instructions with trial-and-error
     guesswork.
   theory_html: |-
-    <h3 class="sh3">1. DSPy: Compiling Prompts Algorithmic</h3>
+    <h3 class="sh3">1. DSPy: Compiling Prompts into Programmatic Pipelines</h3>
     <p>
-    DSPy replaces brittle, trial-and-error manual prompt engineering with programmatic prompt compilation:
+    Manual prompt engineering is brittle and breaks when switching between different underlying foundation models.
     </p>
-    <ul>
-      <li><strong>Signatures:</strong> Declarative input/output specifications.</li>
-      <li><strong>Teleprompters (BootstrapFewShot):</strong> Optimizes prompt instructions and select high-performing few-shot demonstrations against validation metrics automatically.</li>
-    </ul>
+    <p>
+    <strong>DSPy (Stanford NLP)</strong> treats prompt optimization as an algorithmic compilation problem:
+    </p>
+
+    <div class="cb">
+      <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+      <pre><code>import dspy
+
+    class RAGSignature(dspy.Signature):
+        """Answers user queries using retrieved reference context."""
+        context = dspy.InputField(desc="Retrieved reference documents")
+        question = dspy.InputField(desc="User query")
+        answer = dspy.OutputField(desc="Grounded answer with citations")
+
+    class RAGPipeline(dspy.Module):
+        def __init__(self):
+            super().__init__()
+            self.retrieve = dspy.Retrieve(k=3)
+            self.generate_answer = dspy.ChainOfThought(RAGSignature)
+
+        def forward(self, question: str):
+            context = self.retrieve(question).passages
+            prediction = self.generate_answer(context=context, question=question)
+            return dspy.Prediction(context=context, answer=prediction.answer)</code></pre>
+    </div>
   predict:
     question: If you switch from GPT-4 to Llama-3, do you need to manually rewrite all your prompts in DSPy?
     answer: 'DSPy Pipeline: Auto-compiled few-shot prompt optimized for llama-3-8b instruction format'
@@ -1417,16 +1457,12 @@ days:
   analogy: 'Billion-scale semantic search is like the global international postal system: letters are routed by continent
     (cluster sharding), sorted by regional distribution centers (HNSW index), and delivered to exact street addresses (cross-encoder
     reranking).'
-  theory_html: |-
-    <h3 class="sh3">1. Billion-Scale Distributed Semantic Search System Design</h3>
-    <p>
-    Architecting a semantic search engine over 1,000,000,000 documents under a 50ms latency SLA requires:
-    </p>
-    <ul>
-      <li><strong>Distributed Sharding:</strong> Partitioning vector space across 64 cluster nodes using consistent hashing.</li>
-      <li><strong>Scalar Quantization (SQ8):</strong> Compressing 1536-dim FP32 vectors to INT8, slashing cluster RAM from 6TB to 1.5TB.</li>
-      <li><strong>Two-Stage Funnel:</strong> Distributed HNSW ANN candidate lookup $\to$ GPU Cross-Encoder reranking.</li>
-    </ul>
+  theory_html: "<h3 class=\"sh3\">1. Billion-Scale Distributed Semantic Search Architecture</h3>\n<p>\nDesigning a semantic\
+    \ search engine over 1,000,000,000 documents with &lt;50ms p99 latency requires a two-stage funnel:\n</p>\n<ol>\n  <li><strong>Distributed\
+    \ Sharding:</strong> Vector corpus partitioned across 64 cluster nodes using consistent hashing.</li>\n  <li><strong>Scalar\
+    \ Quantization (SQ8):</strong> Compresses 1536-dim FP32 vectors to INT8, cutting cluster RAM from 6TB to 1.5TB.</li>\n\
+    \  <li><strong>Candidate Retrieval & Reranking:</strong> Top-100 candidates retrieved via HNSW $\to$ Cross-Encoder GPU\
+    \ reranker computes final top-10.</li>\n</ol>"
   predict:
     question: If you use int8 quantization instead of float32, how much RAM does a 1536-d vector take?
     answer: |-
@@ -1684,16 +1720,16 @@ days:
     carrier: every navigation instrument, radar system, propulsion turbine, and flight deck protocol is rigorously inspected
     and stress-tested before deployment.'
   theory_html: |-
-    <h3 class="sh3">1. Course Graduation & Portfolio Blueprint</h3>
+    <h3 class="sh3">1. Course Graduation: The 191-Day AI/ML Mastery Journey</h3>
     <p>
-    Congratulations on completing the 191-Day AI/ML Self-Study Curriculum! You have built full-stack production competency across:
+    Congratulations on completing the comprehensive 191-Day AI/ML Engineering Curriculum. You have mastered:
     </p>
     <ul>
-      <li>Mathematical foundations (Linear Algebra, Calculus, Probability, Optimization).</li>
-      <li>Classical Machine Learning & Statistical Feature Engineering.</li>
-      <li>Deep Learning, Computer Vision, CNNs, Transformers, and GANs.</li>
-      <li>Production MLOps, Containerization, Kubernetes, and Cloud Deployment.</li>
-      <li>Frontier Generative AI, RAG, Multi-Agent Systems, Serving, and Multimodal Architectures.</li>
+      <li>Mathematical Foundations: Linear Algebra, Multivariate Calculus, Probability, Optimization.</li>
+      <li>Classical Machine Learning: Regularization, Tree Ensembles, PCA, SVMs.</li>
+      <li>Deep Learning & Computer Vision: PyTorch backpropagation, CNNs, Vision Transformers.</li>
+      <li>Natural Language Processing: Self-Attention, Tokenization, BERT, GPT-style autoregression.</li>
+      <li>Frontier Generative AI: Advanced RAG, LangGraph Agents, vLLM PagedAttention, QLoRA fine-tuning, and Distributed Kubernetes MLOps.</li>
     </ul>
   predict:
     question: What is the end-to-end latency budget for the multimodal Capstone pipeline?

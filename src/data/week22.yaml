@@ -348,33 +348,38 @@ days:
   analogy: 'Distributed tracing with OpenTelemetry is like having a detailed GPS tracking log for an international courier
     package: you see exact timestamps when the parcel cleared customs, boarded the cargo plane, and arrived at the sorting
     hub.'
-  theory_html: |-
-    <h3 class="sh3">1. Distributed LLM Observability & OpenTelemetry Tracing</h3>
-    <p>
-    Unlike traditional microservices where execution is deterministic, LLM pipelines involve nondeterministic token generations, vector lookups, multi-step tool dispatches, and varying token latency.
-    </p>
-
-    <div class="cb">
-      <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-      <pre><code><span class="kw">import</span> time
-    <span class="kw">from</span> typing <span class="kw">import</span> Dict, Any
-
-    <span class="kw">class</span> <span class="fn">TraceSpan</span>:
-        <span class="kw">def</span> <span class="fn">__init__</span>(self, name: str, parent_id: str = <span class="kw">None</span>):
-            self.name = name
-            self.parent_id = parent_id
-            self.start_time = time.perf_counter()
-            self.end_time = <span class="kw">None</span>
-            self.attributes: Dict[str, Any] = {}
-
-        <span class="kw">def</span> <span class="fn">set_attribute</span>(self, key: str, value: Any):
-            self.attributes[key] = value
-
-        <span class="kw">def</span> <span class="fn">finish</span>(self):
-            self.end_time = time.perf_counter()
-            self.duration_ms = (self.end_time - self.start_time) * <span class="num">1000</span>
-            <span class="kw">return</span> self</code></pre>
-    </div>
+  theory_html: "<h3 class=\"sh3\">1. Distributed LLM Observability & OpenTelemetry Tracing</h3>\n<p>\nUnlike traditional CRUD\
+    \ microservices, generative AI applications execute multi-step non-deterministic workflows: intent classification, hybrid\
+    \ vector retrieval, re-ranking, LLM token streaming, and schema validation. A failure or latency bottleneck anywhere along\
+    \ this DAG destroys user experience.\n</p>\n<p>\n<strong>OpenTelemetry (OTel)</strong> establishes vendor-agnostic distributed\
+    \ tracing standards:\n</p>\n<ul>\n  <li><strong>Trace:</strong> The end-to-end user request lifecycle (e.g. <code>TraceID:\
+    \ 4bf92f3577b34da6a3ce929d0e0e4736</code>).</li>\n  <li><strong>Span:</strong> A single timed computational step (e.g.\
+    \ <code>Span: ChromaDB.query (42ms)</code> or <code>Span: OpenAI.chat.completions (850ms)</code>).</li>\n  <li><strong>GenAI\
+    \ Semantic Conventions:</strong> Standardized span attributes including <code>gen_ai.prompt.tokens</code>, <code>gen_ai.completion.tokens</code>,\
+    \ <code>gen_ai.temperature</code>, and <code>gen_ai.finish_reasons</code>.</li>\n</ul>\n\n<div class=\"cb\">\n  <div class=\"\
+    cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\"\
+    >copy</button></div></div>\n  <pre><code>import time, uuid\nfrom typing import Dict, Any, List\n\nclass OpenTelemetrySpan:\n\
+    \    \"\"\"\n    Simulates production OpenTelemetry GenAI Hierarchical Trace Span.\n    \"\"\"\n    def __init__(self,\
+    \ name: str, trace_id: str, parent_span_id: str = None):\n        self.span_id = uuid.uuid4().hex[:16]\n        self.trace_id\
+    \ = trace_id\n        self.parent_span_id = parent_span_id\n        self.name = name\n        self.start_time = time.perf_counter()\n\
+    \        self.end_time = None\n        self.attributes: Dict[str, Any] = {}\n\n    def set_genai_attributes(self, model:\
+    \ str, prompt_tokens: int, completion_tokens: int, cost_usd: float):\n        self.attributes[\"gen_ai.system\"] = \"\
+    openai\"\n        self.attributes[\"gen_ai.request.model\"] = model\n        self.attributes[\"gen_ai.usage.prompt_tokens\"\
+    ] = prompt_tokens\n        self.attributes[\"gen_ai.usage.completion_tokens\"] = completion_tokens\n        self.attributes[\"\
+    gen_ai.usage.cost_usd\"] = cost_usd\n\n    def end(self):\n        self.end_time = time.perf_counter()\n        self.duration_ms\
+    \ = round((self.end_time - self.start_time) * 1000, 2)\n        return self</code></pre>\n</div>\n\n<h3 class=\"sh3\"\
+    >2. Metrics to Track: TTFT vs Inter-Token Latency (ITL)</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem\
+    \ 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\">\n     \
+    \ <th style=\"padding:8px;\">Metric</th>\n      <th style=\"padding:8px;\">Formula / Unit</th>\n      <th style=\"padding:8px;\"\
+    >Production SLA Target</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\"\
+    >\n      <td style=\"padding:8px;\"><strong>Time-to-First-Token (TTFT)</strong></td>\n      <td style=\"padding:8px;\"\
+    >$t_{\text{first\\_token}} - t_{\text{request\\_sent}}$ (ms)</td>\n      <td style=\"padding:8px;\">&lt; 250ms</td>\n\
+    \    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Inter-Token\
+    \ Latency (ITL)</strong></td>\n      <td style=\"padding:8px;\">$\frac{1}{N-1} \\sum_{i=2}^N (t_i - t_{i-1})$ (ms/token)</td>\n\
+    \      <td style=\"padding:8px;\">&lt; 25ms/token (&gt;40 tokens/sec)</td>\n    </tr>\n    <tr style=\"border-bottom:1px\
+    \ solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Token Cost per 1k Requests</strong></td>\n      <td\
+    \ style=\"padding:8px;\">$\\sum (\text{PromptTokens} \times P_{\text{in}} + \text{CompTokens} \times P_{\text{out}})$</td>\n\
+    \      <td style=\"padding:8px;\">Tracked continuously via Prometheus</td>\n    </tr>\n  </tbody>\n</table>"
   predict:
     question: What integer millisecond p95 latency is computed from this production request telemetry log?
     answer: '45'
@@ -929,20 +934,28 @@ days:
   analogy: 'Semantic caching is like an experienced customer service rep who keeps a binder of answers to common questions:
     even if a caller phrases the question slightly differently, the rep recognizes the intent instantly and reads the pre-approved
     answer.'
-  theory_html: |-
-    <h3 class="sh3">1. Exact Match vs Semantic Vector Caching</h3>
-    <p>
-    Traditional key-value caching (e.g. Redis exact string hash) achieves near-zero cache hit rates in conversational AI because users phrase identical questions differently (e.g. <em>"How do I reset my password?"</em> vs <em>"Password reset steps"</em>).
-    </p>
-    <p>
-    <strong>Semantic Caching</strong> embeds the incoming user prompt and executes an approximate nearest neighbor search over historical cached prompt vectors:
-    </p>
-    <div class="math-block">
-    $$\text{Similarity}(\vec{q}, \vec{k}_i) = \frac{\vec{q} \cdot \vec{k}_i}{\|\vec{q}\| \|\vec{k}_i\|}$$
-    </div>
-    <p>
-    If $\text{Similarity} \ge 0.94$, the pre-computed LLM response is returned in <strong>&lt;5ms</strong>, cutting API costs by 70–85%.
-    </p>
+  theory_html: "<h3 class=\"sh3\">1. Architecture of Exact vs Semantic LLM Caching</h3>\n<p>\nTraditional key-value caching\
+    \ (e.g. Redis exact string hashing) fails in generative AI because users naturally formulate identical intents with different\
+    \ syntax:\n</p>\n<ul>\n  <li>User A: <em>\"How do I cancel my subscription on iPhone?\"</em></li>\n  <li>User B: <em>\"\
+    Steps to cancel iOS subscription.\"</em></li>\n</ul>\n<p>\nAn exact Redis cache yields a <strong>0% cache hit rate</strong>.\
+    \ In contrast, <strong>Semantic Caching (GPTCache / Redis Vector Store)</strong> embeds incoming user prompts into high-dimensional\
+    \ space and queries nearest neighbor vectors:\n</p>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
+    >python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
+    \  <pre><code>import numpy as np\nfrom typing import Dict, Optional, Tuple\n\nclass ProductionSemanticCache:\n    \"\"\
+    \"\n    In-memory Semantic Vector Cache with Cosine Similarity Threshold Gating.\n    \"\"\"\n    def __init__(self, similarity_threshold:\
+    \ float = 0.92):\n        self.threshold = similarity_threshold\n        self.cached_prompts: List[str] = []\n       \
+    \ self.cached_vectors: List[np.ndarray] = []\n        self.cached_responses: List[str] = []\n\n    def lookup(self, query_vector:\
+    \ np.ndarray) -> Optional[Tuple[str, float]]:\n        if not self.cached_vectors:\n            return None\n        \n\
+    \        # Vectorized cosine similarity\n        matrix = np.vstack(self.cached_vectors)\n        norm_matrix = matrix\
+    \ / np.linalg.norm(matrix, axis=1, keepdims=True)\n        norm_query = query_vector / np.linalg.norm(query_vector)\n\
+    \        \n        similarities = np.dot(norm_matrix, norm_query)\n        best_idx = int(np.argmax(similarities))\n \
+    \       best_score = float(similarities[best_idx])\n        \n        if best_score >= self.threshold:\n            return\
+    \ self.cached_responses[best_idx], best_score\n        return None\n\n    def store(self, prompt: str, prompt_vector:\
+    \ np.ndarray, response: str):\n        self.cached_prompts.append(prompt)\n        self.cached_vectors.append(prompt_vector)\n\
+    \        self.cached_responses.append(response)</code></pre>\n</div>\n\n<h3 class=\"sh3\">2. Financial & Latency Impact\
+    \ Analysis</h3>\n<p>\nIn high-volume customer support portals ($10,000,000$ queries/month), a 40% semantic cache hit rate\
+    \ reduces monthly LLM API expenditures from <strong>$50,000 to $30,000</strong> while reducing p95 latency for cached\
+    \ queries from <strong>1,200ms to &lt;8ms</strong>.\n</p>"
   predict:
     question: What string is returned on a semantic cache hit?
     answer: CACHE_HIT
@@ -1226,19 +1239,26 @@ days:
     par load balance karta hai.
   analogy: 'An AI Gateway is like an air traffic control tower: it manages aircraft queueing on runways (rate limiting), reroutes
     planes during storms (failover routing), and distributes landings across multiple airports (load balancing).'
-  theory_html: |-
-    <h3 class="sh3">1. Enterprise AI Gateway Architecture</h3>
-    <p>
-    Exposing model serving endpoints directly to application clients causes security vulnerabilities, lack of rate limiting, unmanaged costs, and cascading outages when model providers experience rate limits (HTTP 429).
-    </p>
-    <p>
-    An <strong>AI Gateway (e.g. LiteLLM, Kong AI Gateway)</strong> sits between client applications and backend LLM providers:
-    </p>
-    <ul>
-      <li><strong>Token-Bucket Rate Limiting:</strong> Enforces Requests-Per-Minute (RPM) and Tokens-Per-Minute (TPM) quotas per client API key.</li>
-      <li><strong>Automated Provider Failover:</strong> Seamlessly routes traffic from primary provider (e.g. OpenAI GPT-4o) to fallback provider (Anthropic Claude-3.5-Sonnet / Azure OpenAI) on 429/500 errors.</li>
-      <li><strong>Load Balancing:</strong> Distributes requests across self-hosted vLLM GPU clusters based on active KV cache memory saturation.</li>
-    </ul>
+  theory_html: "<h3 class=\"sh3\">1. Enterprise AI Gateway Architecture: Rate Limiting & Failover</h3>\n<p>\nDirectly exposing\
+    \ upstream frontier LLM APIs (OpenAI, Anthropic) to client applications creates catastrophic failure modes: provider outages\
+    \ cause hard service crashes, single malicious users exhaust enterprise API quotas, and billing explodes without budgeting\
+    \ controls.\n</p>\n<p>\nAn <strong>AI Gateway (LiteLLM / Cloudflare AI Gateway / Kong)</strong> acts as a resilient proxy\
+    \ layer:\n</p>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"\
+    ><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import time\nfrom typing\
+    \ import List, Dict\n\nclass ResilientAIGateway:\n    \"\"\"\n    Multi-Provider AI Gateway with Token Bucket Rate Limiting\
+    \ and Automatic Failover.\n    \"\"\"\n    def __init__(self, providers: List[str]):\n        self.providers = providers\
+    \  # e.g. [\"openai_primary\", \"azure_backup\", \"anthropic_fallback\"]\n        self.rate_limits: Dict[str, int] = {\"\
+    user_standard\": 60, \"user_tier1\": 300}\n        self.user_requests: Dict[str, List[float]] = {}\n\n    def check_rate_limit(self,\
+    \ user_id: str, tier: str = \"user_standard\") -> bool:\n        now = time.time()\n        history = self.user_requests.setdefault(user_id,\
+    \ [])\n        # Prune requests older than 60 seconds\n        self.user_requests[user_id] = [t for t in history if now\
+    \ - t < 60]\n        \n        limit = self.rate_limits.get(tier, 60)\n        if len(self.user_requests[user_id]) >=\
+    \ limit:\n            return False\n        \n        self.user_requests[user_id].append(now)\n        return True\n\n\
+    \    def dispatch_with_failover(self, payload: dict) -> dict:\n        for provider in self.providers:\n            try:\n\
+    \                # Simulate provider call\n                if provider == \"openai_primary\" and payload.get(\"simulate_error\"\
+    ):\n                    raise ConnectionError(\"503 Service Unavailable\")\n                return {\"status\": \"SUCCESS\"\
+    , \"provider_used\": provider, \"response\": \"Completed response\"}\n            except Exception as e:\n           \
+    \     print(f\"⚠️ Provider {provider} failed: {e}. Cascading to fallback...\")\n        raise RuntimeError(\"All configured\
+    \ AI providers failed.\")</code></pre>\n</div>"
   predict:
     question: What HTTP status code is returned by the API Gateway when a user exceeds their Token Bucket rate limit?
     answer: '429'
@@ -1508,16 +1528,24 @@ days:
     ke liye kitne GPUs chahiye.'
   analogy: 'System design math for LLMs is like civil engineering for water supply: you calculate reservoir capacity (VRAM
     for weights), pipe diameter (memory bandwidth), and pump flow rate (Tokens/Sec throughput) to prevent system bottlenecks.'
-  theory_html: |-
-    <h3 class="sh3">1. GPU Sizing & Hardware Capacity Planning Formulas</h3>
-    <p>
-    Before deploying an enterprise LLM, engineers must calculate exact hardware memory and bandwidth requirements:
-    </p>
-    <div class="math-block">
-    $$M_{\text{weights}} = P \times \text{BytesPerParam} \quad (\text{e.g. } 70\text{B} \times 2 = 140\text{GB in FP16})$$
-    $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{Bytes} \times \text{BatchSize} \times \text{SeqLen}$$
-    $$\text{Throughput Limit} = \frac{\text{Memory Bandwidth (TB/s)}}{\text{Model Size (GB)}} \quad (\text{Tokens/Sec})$$
-    </div>
+  theory_html: "<h3 class=\"sh3\">1. Complete System Design Math for GenAI Clusters</h3>\n<p>\nDesigning infrastructure for\
+    \ enterprise language models requires precise hardware capacity calculations:\n</p>\n\n<h3 class=\"sh3\">2. Exact Formulas\
+    \ for GPU Sizing & KV Cache</h3>\n<div class=\"math-block\">\n$$M_{\text{weights}} = P \times \text{BytesPerParam} \\\
+    quad (\text{FP16: } 2 \text{ bytes}, \text{INT8: } 1 \text{ byte}, \text{INT4: } 0.5 \text{ bytes})$$\n$$M_{\text{KV\\\
+    _per\\_token}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{BytesPerElem}$$\n\
+    $$\text{Total VRAM Required} = M_{\text{weights}} + (M_{\text{KV\\_per\\_token}} \times B \times S) + M_{\text{activations}}\
+    \ + M_{\text{CUDA\\_overhead}}$$\n</div>\n\n<h3 class=\"sh3\">3. Production Python Sizing Calculator</h3>\n<div class=\"\
+    cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\"\
+    \ onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>def calculate_llm_gpu_requirements(\n    params_billions:\
+    \ float = 70.0,\n    quant_bits: int = 16,\n    num_layers: int = 80,\n    num_kv_heads: int = 8,  # Grouped-Query Attention\
+    \ (GQA)\n    head_dim: int = 128,\n    batch_size: int = 32,\n    max_seq_len: int = 4096\n) -> dict:\n    bytes_per_param\
+    \ = quant_bits / 8.0\n    weight_memory_gb = (params_billions * 1e9 * bytes_per_param) / (1024**3)\n    \n    # KV cache\
+    \ bytes: 2 (K and V) * layers * heads * dim * bytes * batch * seq_len\n    kv_cache_bytes = 2 * num_layers * num_kv_heads\
+    \ * head_dim * 2 * batch_size * max_seq_len\n    kv_memory_gb = kv_cache_bytes / (1024**3)\n    \n    total_gb = weight_memory_gb\
+    \ + kv_memory_gb + 4.0 # 4GB CUDA overhead\n    num_a100_80gb = int(np.ceil(total_gb / 80.0))\n    \n    return {\n  \
+    \      \"weight_vram_gb\": round(weight_memory_gb, 2),\n        \"kv_cache_vram_gb\": round(kv_memory_gb, 2),\n      \
+    \  \"total_vram_gb\": round(total_gb, 2),\n        \"recommended_a100_80gb_gpus\": num_a100_80gb\n    }</code></pre>\n\
+    </div>"
   predict:
     question: If a 7B model is quantized to 4-bit, how much VRAM do the weights take?
     answer: 'Total VRAM Required: 89.06 GB (Recommend: 2x 80GB GPU)'
@@ -1793,16 +1821,16 @@ days:
   analogy: 'The Advanced GenAI milestone is like earning a pilot''s instrument rating: you can now navigate, fly, and land
     complex multi-engine AI systems through heavy traffic, turbulence, and adverse conditions with confidence.'
   theory_html: |-
-    <h3 class="sh3">1. Advanced GenAI System Design Milestone</h3>
+    <h3 class="sh3">1. Advanced GenAI Systems Engineering Synthesis</h3>
     <p>
-    Congratulations on completing the Advanced GenAI and Agentic Systems module! You have developed mastery across:
+    Over the past 4 weeks (Weeks 19 to 22), you have built the entire stack required for senior enterprise AI engineering:
     </p>
-    <ul>
-      <li><strong>Advanced Retrieval:</strong> Hybrid search with Reciprocal Rank Fusion, Cross-Encoder reranking, small-to-big parent-child chunking, and GraphRAG.</li>
-      <li><strong>Stateful Agents:</strong> ReAct loops, cyclic StateGraphs in LangGraph, structured outputs with Instructor, multi-agent supervisor hierarchies, and human-in-the-loop safety checkpoints.</li>
-      <li><strong>Serving & Optimization:</strong> PagedAttention virtual memory, FlashAttention IO kernel fusion, AWQ/QLoRA quantization, and DPO preference alignment.</li>
-      <li><strong>Production Operations:</strong> RAGAS quantitative evaluation gates, OpenTelemetry distributed tracing, multi-layer guardrails, and Redis semantic caching.</li>
-    </ul>
+    <ol>
+      <li><strong>Advanced RAG Systems (Week 19):</strong> Hybrid dense/sparse indexing, Reciprocal Rank Fusion, Cross-Encoder rerankers, and GraphRAG knowledge clustering.</li>
+      <li><strong>Autonomous LLM Agents (Week 20):</strong> ReAct execution engines, Pydantic structured output validation, and LangGraph cyclic state machines.</li>
+      <li><strong>Inference Acceleration & Fine-Tuning (Week 21):</strong> vLLM PagedAttention, FlashAttention-2 tiling, QLoRA low-rank adaptation, and DPO alignment.</li>
+      <li><strong>Evaluation, Observability & Guardrails (Week 22):</strong> RAGAS triad verification, OpenTelemetry distributed tracing, Presidio PII filtering, and semantic vector caching.</li>
+    </ol>
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
     code: |-

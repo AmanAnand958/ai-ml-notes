@@ -333,15 +333,18 @@ days:
     se lekar model deployment tak har step ka artifact aur metadata automatically track hota hai.
   analogy: 'Vertex AI Pipelines is like an automated logistics rail network: every shipping container (Kubeflow component)
     runs on standardized tracks, with electronic manifests (Vertex ML Metadata) logging origin, cargo, and destination.'
-  theory_html: |-
-    <h3 class="sh3">1. GCP Vertex AI & Kubeflow Pipelines (KFP)</h3>
-    <p>
-    Google Cloud Vertex AI provides a managed Kubeflow execution engine that compiles Python pipeline code into containerized, serverless Directed Acyclic Graphs (DAGs):
-    </p>
-    <ul>
-      <li><strong>Artifact Lineage:</strong> Automatically logs input/output datasets and model weights in Vertex ML Metadata.</li>
-      <li><strong>Custom Container Training:</strong> Spawns ephemeral GPU worker pools that shut down automatically upon job completion.</li>
-    </ul>
+  theory_html: "<h3 class=\"sh3\">1. Google Cloud Vertex AI & Managed Kubeflow Pipelines</h3>\n<p>\nVertex AI unifies ML lifecycle\
+    \ management on Google Cloud infrastructure. Using the <strong>Kubeflow Pipelines (KFP) SDK</strong>, engineers author\
+    \ reusable Python pipeline components that compile into containerized Directed Acyclic Graphs (DAGs) executed on serverless\
+    \ Google Cloud compute.\n</p>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
+    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>from\
+    \ kfp.v2 import dsl\nfrom kfp.v2.dsl import component, Output, Dataset, Model\n\n@component(base_image=\"python:3.10-slim\"\
+    , packages_to_install=[\"pandas\", \"scikit-learn\"])\ndef train_tabular_model(\n    input_data: dsl.Input[Dataset],\n\
+    \    model_output: dsl.Output[Model]\n):\n    import pandas as pd\n    from sklearn.ensemble import RandomForestClassifier\n\
+    \    import joblib\n    \n    df = pd.read_csv(input_data.path)\n    X, y = df.drop(\"target\", axis=1), df[\"target\"\
+    ]\n    \n    clf = RandomForestClassifier(n_estimators=100)\n    clf.fit(X, y)\n    \n    joblib.dump(clf, model_output.path\
+    \ + \"/model.joblib\")\n\n@dsl.pipeline(name=\"enterprise-vertex-ml-pipeline\", pipeline_root=\"gs://my-bucket/pipeline_root\"\
+    )\ndef ml_pipeline():\n    # Pipeline DAG declaration\n    pass</code></pre>\n</div>"
   predict:
     question: What string is output when Google Cloud Vertex AI Pipeline completes all DAG component executions?
     answer: PIPELINE_SUCCESS
@@ -604,14 +607,19 @@ days:
     hai.
   analogy: 'Serverless ML with AWS Lambda is like calling a taxi on demand: the car arrives when you hail it, takes you to
     your destination, and departs. You never pay for parking, insurance, or maintenance while the car sits idle in a garage.'
-  theory_html: |-
-    <h3 class="sh3">1. Serverless ML Inference with AWS Lambda + ONNX</h3>
-    <p>
-    For intermittent or bursty ML workloads, provisioning dedicated EC2 GPU instances 24/7 is financially wasteful.
-    </p>
-    <p>
-    By converting models to <strong>ONNX Runtime format with INT8 quantization</strong>, models run inside containerized AWS Lambda functions (up to 10GB RAM) with <strong>&lt;100ms cold starts</strong> and zero idle costs.
-    </p>
+  theory_html: "<h3 class=\"sh3\">1. Serverless ML with AWS Lambda & ONNX Runtime</h3>\n<p>\nProvisioning dedicated GPU instances\
+    \ 24/7 for low-frequency or bursty ML workloads results in massive idle compute costs. By compiling Scikit-Learn or PyTorch\
+    \ models to the <strong>ONNX (Open Neural Network Exchange) format</strong> with 8-bit integer quantization, models run\
+    \ inside lightweight serverless AWS Lambda containers with &lt;80ms cold starts.\n</p>\n\n<div class=\"cb\">\n  <div class=\"\
+    cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\"\
+    >copy</button></div></div>\n  <pre><code>import json\nimport onnxruntime as ort\nimport numpy as np\n\n# Global warm session\
+    \ initialized outside handler\nsession = ort.InferenceSession(\"model_quantized.onnx\")\ninput_name = session.get_inputs()[0].name\n\
+    \ndef lambda_handler(event, context):\n    try:\n        body = json.loads(event.get(\"body\", \"{}\"))\n        features\
+    \ = np.array(body[\"features\"], dtype=np.float32)\n        \n        # ONNX vectorized forward pass\n        preds =\
+    \ session.run(None, {input_name: features})[0]\n        \n        return {\n            \"statusCode\": 200,\n       \
+    \     \"headers\": {\"Content-Type\": \"application/json\"},\n            \"body\": json.dumps({\"prediction\": preds.tolist()})\n\
+    \        }\n    except Exception as e:\n        return {\"statusCode\": 500, \"body\": json.dumps({\"error\": str(e)})}</code></pre>\n\
+    </div>"
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
     code: |-
@@ -899,14 +907,17 @@ days:
     public street (VNet Peering), access is strictly biometric (Managed Identities), and you have a guaranteed dedicated teller
     (PTUs).'
   theory_html: |-
-    <h3 class="sh3">1. Enterprise Azure OpenAI Service Architecture</h3>
+    <h3 class="sh3">1. Azure OpenAI Service & Enterprise Private Endpoints</h3>
     <p>
-    Deploying generative AI solutions in regulated industries (healthcare, banking, government) requires strict security and networking compliance:
+    In regulated industries (Banking, Healthcare, Government), enterprise data cannot traverse the public internet to public AI API endpoints.
+    </p>
+    <p>
+    <strong>Azure OpenAI Service</strong> provisions dedicated OpenAI foundation model deployments inside your organization's private Azure Virtual Network (VNet) via <strong>Azure Private Link</strong>:
     </p>
     <ul>
-      <li><strong>VNet Peering & Private Endpoints:</strong> Disables public internet ingress, ensuring all traffic between enterprise applications and Azure OpenAI travels over private Azure backbone networks.</li>
-      <li><strong>Managed Identities (RBAC):</strong> Eliminates static API keys by authenticating workloads via Azure Active Directory / Entra ID.</li>
-      <li><strong>Provisioned Throughput Units (PTU):</strong> Reserves dedicated GPU capacity to guarantee predictable inference throughput and strict sub-second latency SLAs.</li>
+      <li><strong>Zero Public Internet Exposure:</strong> Model inference requests traverse private fiber backbone links.</li>
+      <li><strong>Data Boundary Isolation:</strong> Enterprise customer prompts are cryptographically isolated and never used for model retraining.</li>
+      <li><strong>Role-Based Access Control (RBAC):</strong> Managed identities and Azure Active Directory (Microsoft Entra ID) authenticate API callers.</li>
     </ul>
   predict:
     question: What string network security configuration ensures Azure OpenAI is only accessible from inside a Private VPC?
@@ -1169,18 +1180,20 @@ days:
     model ko route karta hai.
   analogy: 'FinOps Model Cascading is like an enterprise customer service triage: a quick automated voice menu answers 80%
     of routine balance inquiries for pennies, only transferring complex dispute cases to human senior bankers.'
-  theory_html: |-
-    <h3 class="sh3">1. FinOps Model Cascading Architecture</h3>
-    <p>
-    Enterprise LLM deployments process queries with wildly differing complexity:
-    </p>
-    <ul>
-      <li><strong>80% Simple Lookups:</strong> Routed to fast Small Language Models ($0.15/1M tokens).</li>
-      <li><strong>20% Complex Reasoning:</strong> Routed to frontier models ($5.00/1M tokens).</li>
-    </ul>
-    <p>
-    This cascading strategy cuts monthly LLM API bills by <strong>75%</strong> while maintaining benchmark accuracy equivalence.
-    </p>
+  theory_html: "<h3 class=\"sh3\">1. Cloud FinOps: LLM Cost Optimization & Model Cascading</h3>\n<p>\nIn production generative\
+    \ AI architectures, user queries exhibit extreme variance in required reasoning depth. Routing 100% of user traffic to\
+    \ frontier reasoning models (e.g. GPT-4o @ $5.00/1M tokens) is financially unsustainable.\n</p>\n<p>\n<strong>Model Cascading</strong>\
+    \ routes 80% of routine traffic to fast, cost-effective Small Language Models (e.g. GPT-4o-mini @ $0.15/1M tokens) and\
+    \ cascades to frontier models only when uncertainty metrics exceed confidence thresholds:\n</p>\n\n<div class=\"cb\">\n\
+    \  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"\
+    copyCode(this)\">copy</button></div></div>\n  <pre><code>class ModelCascader:\n    def __init__(self, slm_client, frontier_client,\
+    \ confidence_threshold: float = 0.85):\n        self.slm = slm_client\n        self.frontier = frontier_client\n     \
+    \   self.threshold = confidence_threshold\n\n    def execute_query(self, prompt: str) -> dict:\n        # 1. Attempt fast\
+    \ SLM execution\n        slm_resp = self.slm.generate(prompt)\n        confidence = slm_resp.get(\"confidence_score\"\
+    , 0.0)\n        \n        # 2. Cascade if confidence is insufficient\n        if confidence >= self.threshold:\n     \
+    \       return {\"source\": \"SLM (Cost: $0.0001)\", \"response\": slm_resp[\"text\"]}\n        \n        frontier_resp\
+    \ = self.frontier.generate(prompt)\n        return {\"source\": \"Frontier (Cost: $0.005)\", \"response\": frontier_resp[\"\
+    text\"]}</code></pre>\n</div>"
   predict:
     question: What percentage cloud infrastructure cost savings are achieved by switching batch training to Spot Instances
       with 70% discount?
@@ -1461,14 +1474,16 @@ days:
     runtime par environment variables dynamically inject karte hain aur periodic automatic rotation handle karte hain.
   analogy: Secrets management is like using digital one-time security keycards instead of writing the master combination code
     with a permanent marker on the front door of the building.
-  theory_html: |-
-    <h3 class="sh3">1. Secrets Governance & Zero Hardcoded Credentials</h3>
-    <p>
-    Baking API keys, database credentials, or private certificates into Docker containers or Git repositories is a critical security vulnerability.
-    </p>
-    <p>
-    Production AI platforms dynamically inject credentials at runtime using <strong>AWS Secrets Manager</strong> or <strong>HashiCorp Vault</strong> with automated secret rotation policies and IAM role-based authentication.
-    </p>
+  theory_html: "<h3 class=\"sh3\">1. Enterprise Secrets Management: Vault, AWS SSM & KMS</h3>\n<p>\nHardcoding API keys or\
+    \ database connection strings into Docker images or git repositories is a critical security vulnerability.\n</p>\n<p>\n\
+    Production AI systems retrieve credentials dynamically at runtime using <strong>AWS Secrets Manager</strong> with automated\
+    \ rotation and KMS envelope encryption:\n</p>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\"\
+    >python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
+    \  <pre><code>import boto3, json\nfrom botocore.exceptions import ClientError\n\ndef get_secret(secret_name: str, region_name:\
+    \ str = \"us-east-1\") -> dict:\n    session = boto3.session.Session()\n    client = session.client(service_name='secretsmanager',\
+    \ region_name=region_name)\n    try:\n        get_secret_value_response = client.get_secret_value(SecretId=secret_name)\n\
+    \    except ClientError as e:\n        raise e\n    \n    secret = get_secret_value_response['SecretString']\n    return\
+    \ json.loads(secret)</code></pre>\n</div>"
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
     code: |-
@@ -1765,16 +1780,16 @@ days:
   analogy: 'The Cloud RAG Capstone is like constructing an enterprise-grade hospital information kiosk: highly secure, fault-tolerant,
     connected to patient record archives, and compliant with privacy standards.'
   theory_html: |-
-    <h3 class="sh3">1. Capstone: Production Cloud RAG Architecture</h3>
+    <h3 class="sh3">1. Capstone: Deploying a Multi-Tier RAG Architecture to AWS</h3>
     <p>
-    The Week 23 Capstone deploys an end-to-end production RAG microservice on AWS combining:
+    This capstone integrates all Week 23 cloud architecture components into a resilient, production-grade cloud deployment:
     </p>
-    <ul>
-      <li><strong>Amazon ECS Fargate:</strong> Containerized FastAPI application running in private VPC subnets.</li>
-      <li><strong>Managed Qdrant Vector DB:</strong> Scalable vector search cluster.</li>
-      <li><strong>Amazon Bedrock:</strong> Claude-3.5-Sonnet foundation model integration.</li>
-      <li><strong>AWS Secrets Manager:</strong> Encrypted runtime configuration injection.</li>
-    </ul>
+    <ol>
+      <li><strong>Storage Layer:</strong> S3 Bucket holding document corpus with KMS encryption at rest.</li>
+      <li><strong>Vector Database:</strong> Serverless OpenSearch or pgvector on AWS RDS PostgreSQL.</li>
+      <li><strong>Compute Layer:</strong> FastAPI inference container running on AWS ECS Fargate with Application Load Balancer (ALB).</li>
+      <li><strong>Security & FinOps:</strong> Secrets Manager for OpenAI API keys and CloudWatch alarms for token cost budgeting.</li>
+    </ol>
   predict:
     question: What integer HTTP status code verifies health check of the deployed ECS RAG cluster load balancer?
     answer: '200'

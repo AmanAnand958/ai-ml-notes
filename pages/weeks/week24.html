@@ -702,10 +702,28 @@ print("✅ All MLflow tracking assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-172-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Modern Model Governance with MLflow Aliases</h3>
+          <h3 class="sh3">1. MLflow Model Registry: Aliases, Tags & Governance</h3>
 <p>
-In MLflow 2.8+, legacy stage tags (<code>Staging</code>, <code>Production</code>) were replaced by <strong>Model Aliases</strong>. Aliases provide dynamic, point-and-click pointer tags (e.g. <code>@champion</code>, <code>@challenger</code>, <code>@shadow</code>) enabling serving endpoints to load models via immutable URIs (<code>models:/FraudClassifier@champion</code>) without redeploying code.
+Transitioning models from experimental notebooks to live customer-facing endpoints requires strict governance. The <strong>MLflow Model Registry</strong> provides centralized version control, stage transitions, and automated validation approvals.
 </p>
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from mlflow.tracking import MlflowClient
+
+client = MlflowClient()
+
+# 1. Transition model version with aliases (MLflow 2.x standard)
+client.set_registered_model_alias(
+    name="customer_churn_detector",
+    alias="champion",
+    version="3"
+)
+
+# 2. Query production model dynamically
+model_info = client.get_model_version_by_alias("customer_churn_detector", "champion")
+print(f"Loaded production model version: {model_info.version} (Status: {model_info.status})")</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1699,19 +1717,38 @@ with tempfile.TemporaryDirectory() as ws:
         <!-- THEORY SECTION -->
         <div id="day-174-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Apache Airflow ML Retraining Orchestration</h3>
+          <h3 class="sh3">1. ML Workflow Orchestration with Apache Airflow</h3>
 <p>
-Production models degrade over time as real-world distributions shift. Apache Airflow orchestrates automated daily retraining DAGs:
+Production models degrade over time as real-world distributions shift. Apache Airflow schedules and orchestrates automated daily retraining pipelines with conditional dependency branching and Slack alert webhooks.
 </p>
-<div class="mermaid">
-graph LR
-    Extract["1. Extract New Data"] --> Validate["2. Great Expectations Schema Check"]
-    Validate --> Train["3. Distributed GPU Training"]
-    Train --> Eval["4. Statistical Evaluation Gate (PR-AUC > Baseline)"]
-    Eval -->|Passed| Registry["5. Promote Model Alias @champion"]
-    Eval -->|Failed| Alert["Alert Engineering on Slack"]
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+
+default_args = {
+    'owner': 'mlops-team',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'retries': 2,
+    'retry_delay': timedelta(minutes=5),
+}
+
+def check_data_drift():
+    # Calculate PSI; return downstream task id
+    psi_score = 0.08
+    if psi_score > 0.20:
+        return 'trigger_retraining'
+    return 'skip_retraining'
+
+with DAG('daily_ml_retraining_dag', default_args=default_args, schedule_interval='@daily') as dag:
+    drift_check = BranchPythonOperator(
+        task_id='check_data_drift',
+        python_callable=check_data_drift
+    )</code></pre>
 </div>
-<div class="diagram-cap">Figure 174.1: Automated Airflow Retraining DAG with Evaluation Quality Gates.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2218,18 +2255,39 @@ print("✅ Airflow DAG Orchestration assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-175-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Statistical Drift Detection with PSI</h3>
+          <h3 class="sh3">1. Model & Data Drift Monitoring: PSI & KS-Tests</h3>
 <p>
-<strong>Population Stability Index (PSI)</strong> measures shifts in feature distributions between baseline training data and live production traffic:
+Real-world data is non-stationary: macroeconomic conditions change, consumer preferences evolve, and input sensors drift.
 </p>
-<div class="math-block">
-$$\text{PSI} = \sum_{i=1}^B (\text{Actual}_i - \text{Expected}_i) \times \ln\left( \frac{\text{Actual}_i}{\text{Expected}_i} \right)$$
+<p>
+The <strong>Population Stability Index (PSI)</strong> quantifies distribution shifts between baseline training data and live inference data:
+</p>
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>import numpy as np
+
+def calculate_psi(expected: np.ndarray, actual: np.ndarray, num_buckets: int = 10) -> float:
+    """
+    Computes Population Stability Index (PSI) across reference and production distributions.
+    """
+    # Generate quantile bin edges from reference distribution
+    percentiles = np.linspace(0, 100, num_buckets + 1)
+    bin_edges = np.percentile(expected, percentiles)
+    bin_edges[0] -= 1e-5
+    bin_edges[-1] += 1e-5
+    
+    # Calculate bucket frequencies
+    exp_counts, _ = np.histogram(expected, bins=bin_edges)
+    act_counts, _ = np.histogram(actual, bins=bin_edges)
+    
+    # Convert to proportions with smoothing
+    exp_pct = (exp_counts / len(expected)) + 1e-5
+    act_pct = (act_counts / len(actual)) + 1e-5
+    
+    psi_value = np.sum((act_pct - exp_pct) * np.log(act_pct / exp_pct))
+    return float(psi_value)</code></pre>
 </div>
-<ul>
-  <li>$\text{PSI} < 0.10$: No significant shift.</li>
-  <li>$0.10 \le \text{PSI} \le 0.20$: Moderate shift; trigger automated retraining.</li>
-  <li>$\text{PSI} > 0.20$: Severe covariate shift; trigger immediate engineering alert.</li>
-</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2690,12 +2748,12 @@ print("✓ Statistical drift detector benchmark verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-176-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Zero-Downtime Canary Rollouts & Statistical A/B Testing</h3>
+          <h3 class="sh3">1. Canary Deployments & Statistical A/B Testing</h3>
 <p>
-Replacing production models in a single cutover risks catastrophic failures if the new model suffers from unforeseen edge-case bugs.
+Deploying a newly trained model to 100% of production traffic immediately introduces catastrophic risk.
 </p>
 <p>
-<strong>Canary Deployment Strategy:</strong> Routes 5–10% of live user traffic to the challenger model while sending 90–95% to the champion model. Continuous statistical hypothesis testing (Welch's t-test / Chi-square test) verifies conversion and latency metrics before progressing to 100% traffic allocation.
+A <strong>Canary Deployment</strong> routes 5% of live traffic to the candidate model ($M_{	ext{new}}$) while 95% remains on the champion model ($M_{	ext{current}}$). Automated statistical test suites evaluate latency percentiles (p95, p99) and conversion rate significance ($p < 0.01$) before gradually scaling up traffic.
 </p>
         </div>
 
