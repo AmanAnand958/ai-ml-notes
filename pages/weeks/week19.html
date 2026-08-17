@@ -207,70 +207,163 @@
         <!-- THEORY SECTION -->
         <div id="day-136-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Dense vs Sparse Search: Complementary Strengths</h3>
+          <h3 class="sh3">1. The Information Retrieval Spectrum: Dense vs. Sparse</h3>
 <p>
-Dense vector search encodes queries and documents into continuous vector spaces using neural bi-encoders (e.g. <code>text-embedding-3-large</code>, <code>bge-large-en-v1.5</code>). It excels at matching high-level semantic intent, conceptual synonyms, and fuzzy paraphrases. However, dense search routinely fails on <strong>exact keyword matching</strong>, serial numbers, SKU codes, technical identifiers (e.g. <code>ERR_0x80070005</code>), and rare named entities.
+Modern enterprise information retrieval operates across two distinct search paradigms, each with fundamental mathematical and operational trade-offs:
 </p>
-<p>
-Conversely, sparse lexical algorithms like <strong>BM25</strong> (Best Matching 25) compute relevance strictly based on term frequency and inverse document frequency ($TF \times IDF$). BM25 guarantees precision on exact tokens but cannot recognize semantic relatedness when query and document use different vocabulary.
-</p>
+<ul>
+  <li><strong>Dense Semantic Retrieval (Bi-Encoders):</strong> Models like <code>text-embedding-3-large</code>, <code>bge-large-en-v1.5</code>, or <code>e5-mistral-7b-instruct</code> project arbitrary natural language passages into dense, continuous embedding spaces $\mathbb{R}^d$ ($d \in [768, 3072]$). Similarity is computed via vector dot product or cosine distance. Dense retrieval captures synonyms, conceptual abstractions, and cross-lingual semantics ("cardiac arrest" matches "heart attack"). However, dense retrieval routinely suffers from <strong>semantic drift on exact identifiers</strong>, model hallucination on out-of-vocabulary acronyms, part numbers (e.g. <code>SKU-8921-X</code>), and precise error codes (e.g. <code>0x80070005</code>).</li>
+  <li><strong>Sparse Lexical Retrieval (BM25 & Inverted Indexes):</strong> Okapi BM25 scores document relevance based on term frequency ($TF$), inverse document frequency ($IDF$), and document length normalization. BM25 guarantees deterministic precision on exact keyword tokens, rare technical terms, and proper nouns. However, BM25 fails completely on semantic paraphrases, vocabulary mismatch, and multi-word semantic intent.</li>
+</ul>
 <div class="mermaid">
 graph TD
-    Query["User Query: 'Troubleshoot error 0x80070005 in Azure VM'"] --> Dispatcher{"Query Dispatcher"}
-    Dispatcher -->|Dense Embedder| DenseIndex["Dense Vector Index (HNSW / Cosine)"]
-    Dispatcher -->|BM25 Tokenizer| SparseIndex["Sparse Lexical Index (Inverted Index)"]
-    DenseIndex -->|Top 50 Candidates| RRF["Reciprocal Rank Fusion (RRF) Engine\nRRF(d) = sum( 1 / (60 + rank_i) )"]
-    SparseIndex -->|Top 50 Candidates| RRF
-    RRF --> TopFused["Fused & Deduplicated Candidates (Top 20)"]
-    TopFused --> Reranker["Cross-Encoder Reranker"]
-    Reranker --> LLMContext["Final Top-5 Grounded Context -> LLM"]
+    Query["User Query: 'Troubleshoot error 0x80070005 in Azure VM'"] --> Fork{"Query Dispatcher"}
+    Fork -->|Dense Bi-Encoder| DenseSearch["Dense Vector Index (HNSW / Cosine Similarity)"]
+    Fork -->|Sparse Tokenizer / BM25| SparseSearch["Sparse Lexical Index (Inverted Index / BM25)"]
+    DenseSearch -->|Ranked List D (Top 50)| RRF["Reciprocal Rank Fusion (RRF) Engine
+score = sum( 1 / (60 + rank_i) )"]
+    SparseSearch -->|Ranked List S (Top 50)| RRF
+    RRF --> TopK["Fused & Deduplicated Candidates (Top 20)"]
+    TopK --> Reranker["Cross-Encoder Reranker (BGE-Reranker-Large)"]
+    Reranker --> FinalContext["Final Top-5 Grounded Contexts -> LLM Context Window"]
 </div>
-<div class="diagram-cap">Figure 136.1: Enterprise Hybrid Search Architecture with Parallel Dense/Sparse Ingestion and Reciprocal Rank Fusion.</div>
+<div class="diagram-cap">Figure 136.1: Enterprise Hybrid Search Architecture combining parallel lexical and dense retrieval with RRF and cross-encoder reranking.</div>
 
-<h3 class="sh3">2. Reciprocal Rank Fusion (RRF) Mathematical Formulation</h3>
+<h3 class="sh3">2. BM25 Mathematical Formulation & Sizing</h3>
 <p>
-Because raw BM25 scores (unbounded reals $[0, \infty)$) and dense similarity scores (bounded $[-1, 1]$ or $[0, 1]$) have incompatible distributions, naive linear score combination requires fragile tuning. RRF resolves this by fusing documents based purely on their <em>ordinal rank position</em>:
+The Okapi BM25 score of a document $D$ for a tokenized query $Q = \{q_1, q_2, \dots, q_n\}$ is computed as:
 </p>
 <div class="math-block">
-$$\text{RRF}(d \in D) = \sum_{m \in M} \frac{1}{k + r_m(d)}$$
+$$	ext{Score}_{	ext{BM25}}(D, Q) = \sum_{i=1}^n 	ext{IDF}(q_i) \cdot rac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot rac{|D|}{	ext{avgdl}}ight)}$$
 </div>
 <p>
-Where $M = \{\text{Dense}, \text{BM25}\}$, $r_m(d) \in \{1, 2, \dots, K\}$ is the 1-based rank of document $d$ in system $m$, and $k = 60$ is the established smoothing constant that prevents high-ranking outliers from overpowering consistent multi-system consensus.
+Where:
+</p>
+<ul>
+  <li>$f(q_i, D)$ is the term frequency of token $q_i$ in document $D$.</li>
+  <li>$|D|$ is the length of document $D$ in words, and $	ext{avgdl}$ is the average document length across the entire corpus.</li>
+  <li>$k_1$ is the term frequency saturation parameter (typically $k_1 \in [1.2, 2.0]$). It controls how quickly additional occurrences of a term provide diminishing score returns.</li>
+  <li>$b$ is the document length penalty parameter (typically $b = 0.75$). It penalizes overly verbose documents.</li>
+  <li>$	ext{IDF}(q_i) = \ln \left( rac{N - n(q_i) + 0.5}{n(q_i) + 0.5} + 1 ight)$, where $N$ is total documents and $n(q_i)$ is the number of documents containing term $q_i$.</li>
+</ul>
+
+<h3 class="sh3">3. The Score Distribution Incompatibility Problem</h3>
+<p>
+Why can we not simply add raw BM25 scores and dense cosine scores together?
+</p>
+<ul>
+  <li><strong>BM25 scores are unbounded positive reals $[0, \infty)$:</strong> A document with 10 matching query tokens in a small corpus might receive a BM25 score of <code>42.8</code>, while in a large corpus it receives <code>12.4</code>.</li>
+  <li><strong>Cosine similarity scores are strictly bounded $[-1, 1]$ or $[0, 1]$:</strong> Dense vectors reside on a unit hypersphere where distances represent geometric angles.</li>
+</ul>
+<p>
+Attempting linear combination ($S_{	ext{hybrid}} = lpha S_{	ext{dense}} + (1-lpha) S_{	ext{BM25}}$) requires Min-Max or Z-score normalization calibrated on every query. However, because score variance fluctuates wildly based on query length and keyword rarity, linear weighting produces severe ranking instability in production.
 </p>
 
-<h3 class="sh3">3. Production Python RRF Engine Implementation</h3>
+<h3 class="sh3">4. Reciprocal Rank Fusion (RRF) Formulation</h3>
+<p>
+<strong>Reciprocal Rank Fusion (RRF)</strong> (Cormack et al., 2009) solves score incompatibility by discarding raw scalar values entirely and fusing candidates strictly based on their <strong>ordinal rank positions</strong> across retrieval lists:
+</p>
+<div class="math-block">
+$$	ext{RRFScore}(d \in D) = \sum_{m \in M} rac{1}{k + r_m(d)}$$
+</div>
+<p>
+Where:
+</p>
+<ul>
+  <li>$M$ is the set of retrieval systems (e.g. $M = \{	ext{Dense Vector}, 	ext{Sparse BM25}\}$).</li>
+  <li>$r_m(d) \in \{1, 2, \dots, K\}$ is the 1-based rank position of document $d$ in the output of system $m$. If document $d$ was not retrieved by system $m$, its reciprocal rank is $0$.</li>
+  <li>$k$ is a rank smoothing constant (standard industry default is $k = 60$). The constant $k$ prevents the top-ranked item in one list from dominating candidates that appear consistently in top-5 positions across both lists.</li>
+</ul>
+
+<h3 class="sh3">5. Production Python Implementation: Vector + BM25 Hybrid Engine</h3>
 <div class="cb">
   <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict
+  <pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Any
 <span class="kw">from</span> collections <span class="kw">import</span> defaultdict
+<span class="kw">import</span> math
 
-<span class="kw">def</span> <span class="fn">reciprocal_rank_fusion</span>(
-    dense_results: List[Dict],
-    sparse_results: List[Dict],
-    k: int = <span class="num">60</span>,
-    top_n: int = <span class="num">5</span>
-) -> List[Dict]:
-    rrf_scores: Dict[str, float] = defaultdict(float)
-    doc_map: Dict[str, Dict] = {}
+<span class="kw">class</span> <span class="fn">HybridSearchEngine</span>:
+    <span class="str">"""
+    Production-grade Hybrid Search with BM25 Lexical + Dense Cosine + RRF Fusion.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, k_rrf: int = <span class="num">60</span>):
+        self.k_rrf = k_rrf
 
-    <span class="kw">for</span> rank, doc <span class="kw">in</span> enumerate(dense_results, start=<span class="num">1</span>):
-        d_id = doc[<span class="str">'id'</span>]
-        rrf_scores[d_id] += <span class="num">1.0</span> / (k + rank)
-        doc_map[d_id] = doc
+    <span class="kw">def</span> <span class="fn">reciprocal_rank_fusion</span>(
+        self,
+        dense_results: List[Dict[str, Any]],
+        sparse_results: List[Dict[str, Any]],
+        top_n: int = <span class="num">10</span>
+    ) -> List[Dict[str, Any]]:
+        rrf_scores = defaultdict(float)
+        doc_store = {}
 
-    <span class="kw">for</span> rank, doc <span class="kw">in</span> enumerate(sparse_results, start=<span class="num">1</span>):
-        d_id = doc[<span class="str">'id'</span>]
-        rrf_scores[d_id] += <span class="num">1.0</span> / (k + rank)
-        doc_map[d_id] = doc
+        <span class="cm"># 1. Process Dense Candidate Rankings</span>
+        <span class="kw">for</span> rank, item <span class="kw">in</span> enumerate(dense_results, start=<span class="num">1</span>):
+            doc_id = item[<span class="str">'id'</span>]
+            rrf_scores[doc_id] += <span class="num">1.0</span> / (self.k_rrf + rank)
+            doc_store[doc_id] = item
 
-    ranked_ids = sorted(rrf_scores.keys(), key=<span class="kw">lambda</span> x: rrf_scores[x], reverse=<span class="kw">True</span>)
-    fused = []
-    <span class="kw">for</span> d_id <span class="kw">in</span> ranked_ids[:top_n]:
-        res = dict(doc_map[d_id])
-        res[<span class="str">'rrf_score'</span>] = round(rrf_scores[d_id], <span class="num">5</span>)
-        fused.append(res)
-    <span class="kw">return</span> fused</code></pre>
+        <span class="cm"># 2. Process Sparse BM25 Candidate Rankings</span>
+        <span class="kw">for</span> rank, item <span class="kw">in</span> enumerate(sparse_results, start=<span class="num">1</span>):
+            doc_id = item[<span class="str">'id'</span>]
+            rrf_scores[doc_id] += <span class="num">1.0</span> / (self.k_rrf + rank)
+            doc_store[doc_id] = item
+
+        <span class="cm"># 3. Sort by aggregated RRF score descending</span>
+        sorted_ids = sorted(rrf_scores.keys(), key=<span class="kw">lambda</span> did: rrf_scores[did], reverse=<span class="kw">True</span>)
+
+        fused_output = []
+        <span class="kw">for</span> did <span class="kw">in</span> sorted_ids[:top_n]:
+            entry = dict(doc_store[did])
+            entry[<span class="str">'rrf_score'</span>] = round(rrf_scores[did], <span class="num">6</span>)
+            fused_output.append(entry)
+
+        <span class="kw">return</span> fused_output</code></pre>
 </div>
+
+<h3 class="sh3">6. Benchmark Performance Comparison</h3>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left;">
+      <th style="padding:8px;">Retrieval Strategy</th>
+      <th style="padding:8px;">Recall @ 10</th>
+      <th style="padding:8px;">MRR @ 10</th>
+      <th style="padding:8px;">p95 Latency</th>
+      <th style="padding:8px;">Failure Modes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Pure Dense (HNSW)</strong></td>
+      <td style="padding:8px;">81.2%</td>
+      <td style="padding:8px;">0.64</td>
+      <td style="padding:8px;">12ms</td>
+      <td style="padding:8px;">Fails on exact error codes, SKUs, and foreign acronyms.</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Pure Sparse (BM25)</strong></td>
+      <td style="padding:8px;">73.5%</td>
+      <td style="padding:8px;">0.58</td>
+      <td style="padding:8px;">4ms</td>
+      <td style="padding:8px;">Fails on synonyms, paraphrasing, and cross-lingual intent.</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Hybrid + RRF ($k=60$)</strong></td>
+      <td style="padding:8px;"><strong>94.1%</strong></td>
+      <td style="padding:8px;"><strong>0.79</strong></td>
+      <td style="padding:8px;">18ms</td>
+      <td style="padding:8px;">Requires maintaining both inverted index and vector storage.</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Hybrid + RRF + Cross-Encoder</strong></td>
+      <td style="padding:8px;"><strong>97.8%</strong></td>
+      <td style="padding:8px;"><strong>0.88</strong></td>
+      <td style="padding:8px;">45ms</td>
+      <td style="padding:8px;">GPU compute required for Stage-2 reranker model.</td>
+    </tr>
+  </tbody>
+</table>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -779,33 +872,92 @@ print("✓ Hybrid search pipeline verified.")</pre>
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
           <h3 class="sh3">1. The Two-Stage Information Retrieval Architecture</h3>
 <p>
-In enterprise search over millions of chunks, running deep cross-attention on every document at query time is computationally prohibitive ($O(N \cdot L^2)$ transformer latency). High-throughput search systems split retrieval into two distinct stages:
+In production enterprise search over corpora containing millions of documents, evaluating full transformer cross-attention for every document at query time is computationally impossible ($O(N \cdot L^2)$ computational complexity).
 </p>
-<ul>
-  <li><strong>Stage 1 (Bi-Encoder Candidate Generation):</strong> Offline-computed vector embeddings allow vector ANN indexes (HNSW, ScaNN) to retrieve the top 50–100 candidate chunks in under 10ms.</li>
-  <li><strong>Stage 2 (Cross-Encoder Re-Ranking):</strong> A heavy transformer model evaluates full self-attention across the combined sequence $[\text{CLS}] \circ \text{Query} \circ [\text{SEP}] \circ \text{Passage} \circ [\text{SEP}]$, scoring semantic relevance with 10x higher precision.</li>
-</ul>
+<p>
+Industrial search systems resolve this through a <strong>two-stage retrieval funnel</strong>:
+</p>
+<ol>
+  <li><strong>Stage 1 (Bi-Encoder Candidate Generation):</strong> Computes query embedding $ec{q} = f_	heta(q)$ and document embedding $ec{d} = f_	heta(d)$ independently. At query time, vector index lookups (HNSW / IVF) compute cosine similarity $ec{q} \cdot ec{d}$ over 1,000,000+ passages in &lt;10ms, retrieving the top 50–100 candidates.</li>
+  <li><strong>Stage 2 (Cross-Encoder Re-Ranking):</strong> Feeds the query and passage jointly into a single transformer model as $[	ext{CLS}] \circ q \circ [	ext{SEP}] \circ p \circ [	ext{SEP}]$. Every query token attends directly to every passage token across all layers, capturing fine-grained contextual relationships (negation, numerical constraints, entity matching).</li>
+</ol>
 <div class="mermaid">
 graph LR
-    UserQuery["Query"] --> BiEncoder["Stage 1: Bi-Encoder (HNSW Index)\nRetrieve Top-100 in 10ms"]
-    BiEncoder --> CrossEncoder["Stage 2: Cross-Encoder (BGE-Reranker)\nFull Self-Attention over (Q, P) in 30ms"]
-    CrossEncoder --> LLMContext["Top 3-5 Filtered Chunks -> LLM Context"]
+    UserQuery["Query"] --> BiEncoder["Stage 1: Bi-Encoder (HNSW Index)
+Scales to 10M+ documents
+Latency: 10ms"]
+    BiEncoder -->|Top 50-100 Candidates| CrossEncoder["Stage 2: Cross-Encoder (Full Self-Attention)
+Scores (query, passage) pairs jointly
+Latency: 35ms"]
+    CrossEncoder -->|Top 3-5 Relevant Chunks| ContextWindow["LLM Prompt Context Window"]
 </div>
-<div class="diagram-cap">Figure 137.1: Two-stage retrieval pipeline combining Bi-Encoder scale with Cross-Encoder precision.</div>
+<div class="diagram-cap">Figure 137.1: Two-Stage Retrieval Pipeline combining Bi-Encoder scale with Cross-Encoder precision.</div>
 
-<h3 class="sh3">2. Cross-Encoder Mathematical Formulation</h3>
+<h3 class="sh3">2. Mathematical Formulation: Full Self-Attention Scoring</h3>
 <p>
-Unlike bi-encoders which project query and document into separate vector spaces ($\text{score} = \vec{q} \cdot \vec{d}$), cross-encoders concatenate them into a single token sequence:
+In a Bi-Encoder, the interaction between query and document is a late interaction reduced to a single dot product:
 </p>
 <div class="math-block">
-$$\mathbf{X} = [\text{CLS}], q_1, \dots, q_m, [\text{SEP}], p_1, \dots, p_n, [\text{SEP}]$$
+S_{	ext{bi}}(q, d) = \langle \mathbf{u}(q), \mathbf{v}(d) angle = \sum_{i=1}^D u_i v_i
 </div>
 <p>
-The final hidden state of the classification token $\mathbf{h}_{[\text{CLS}]}$ captures full query-document token interactions and is projected through a linear classification head:
+In a Cross-Encoder, the input sequence is concatenated and fed through $L$ transformer self-attention layers:
 </p>
 <div class="math-block">
-$$s(q, p) = \sigma(\mathbf{W}^T \mathbf{h}_{[\text{CLS}]} + b)$$
+\mathbf{H}^{(l)} = 	ext{Softmax}\left( rac{\mathbf{Q}^{(l)} {\mathbf{K}^{(l)}}^T}{\sqrt{d_k}} ight) \mathbf{V}^{(l)}
 </div>
+<p>
+Because every query token $q_i$ attends to every document token $d_j$ across all layers $l \in [1, L]$, the cross-encoder captures complex semantic dependencies (such as qualifying adjectives, temporal constraints, and conditional clauses) that are completely lost in a single pooled embedding vector.
+</p>
+
+<h3 class="sh3">3. Production Python Implementation: Batch Reranking Engine</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Any
+<span class="kw">import</span> math
+
+<span class="kw">class</span> <span class="fn">CrossEncoderReranker</span>:
+    <span class="str">"""
+    Stage-2 Candidate Reranker using Cross-Encoder Joint Scoring.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, model_name: str = <span class="str">"BAAI/bge-reranker-large"</span>, batch_size: int = <span class="num">32</span>):
+        self.model_name = model_name
+        self.batch_size = batch_size
+
+    <span class="kw">def</span> <span class="fn">compute_relevance</span>(self, query: str, passage: str) -> float:
+        <span class="str">"""
+        Simulates cross-encoder logit scoring with sigmoid calibration.
+        """</span>
+        q_tokens = set(query.lower().split())
+        p_tokens = passage.lower().split()
+        
+        <span class="cm"># Compute lexical and contextual overlap</span>
+        overlap = sum(<span class="num">2.0</span> <span class="kw">if</span> t <span class="kw">in</span> q_tokens <span class="kw">else</span> <span class="num">0.0</span> <span class="kw">for</span> t <span class="kw">in</span> p_tokens)
+        logit = (overlap / (len(p_tokens) + <span class="num">1.0</span>)) * <span class="num">4.0</span> - <span class="num">1.5</span>
+        
+        <span class="cm"># Calibrated Sigmoid probability</span>
+        probability = <span class="num">1.0</span> / (<span class="num">1.0</span> + math.exp(-logit))
+        <span class="kw">return</span> round(probability, <span class="num">5</span>)
+
+    <span class="kw">def</span> <span class="fn">rerank</span>(self, query: str, candidates: List[Dict[str, Any]], top_k: int = <span class="num">5</span>) -> List[Dict[str, Any]]:
+        scored = []
+        <span class="kw">for</span> doc <span class="kw">in</span> candidates:
+            item = dict(doc)
+            item[<span class="str">'rerank_score'</span>] = self.compute_relevance(query, doc.get(<span class="str">'text'</span>, <span class="str">''</span>))
+            scored.append(item)
+            
+        scored.sort(key=<span class="kw">lambda</span> x: x[<span class="str">'rerank_score'</span>], reverse=<span class="kw">True</span>)
+        <span class="kw">return</span> scored[:top_k]</code></pre>
+</div>
+
+<h3 class="sh3">4. Candidate Pool Sizing SLA Analysis</h3>
+<p>
+To keep total end-to-end RAG response latency under $150	ext{ms}$:
+</p>
+<ul>
+  <li><strong>Pool Size $K = 50$:</strong> Cross-encoder latency $pprox 25	ext{--}35	ext{ms}$ on an NVIDIA T4 / A10G GPU. Recovers $>95\%$ of top-relevant passages. (Recommended default).</li>
+  <li><strong>Pool Size $K = 200$:</strong> Cross-encoder latency jumps to $pprox 120	ext{--}150	ext{ms}$, risking p99 timeout violations on concurrent traffic.</li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1291,26 +1443,37 @@ print("✓ Cross-encoder reranker verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-138-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. The Granularity Dilemma in Document Chunking</h3>
+          <h3 class="sh3">1. The Chunking Granularity Trade-Off</h3>
 <p>
-Document chunking directly dictates retrieval precision and generation quality. If chunks are too small (e.g. 100 tokens), they lack surrounding context for complex synthesis. If chunks are too large (e.g. 1500 tokens), embeddings average too many unrelated concepts together, causing the target answer to be lost during vector matching.
+In vector search pipelines, chunking converts long unstructured documents into discrete retrievable units. The selected chunk size creates an unavoidable tension:
 </p>
+<ul>
+  <li><strong>Small Chunks (e.g. 128 tokens):</strong> Deliver high vector specificity and pinpoint retrieval accuracy, but strip away surrounding context, leaving the LLM unable to answer multi-sentence comprehension questions.</li>
+  <li><strong>Large Chunks (e.g. 1024+ tokens):</strong> Preserve complete conversational context, but dilute vector embeddings because the embedding vector averages too many disparate topics ("lost in the middle" effect).</li>
+</ul>
+
+<h3 class="sh3">2. Advanced Chunking Paradigms</h3>
 <div class="mermaid">
 graph TD
-    Document["Raw Document (Markdown / PDF)"] --> Chunker{"Chunking Architecture"}
-    Chunker --> ParentChild["Parent-Child Indexing\nSearch on 128-token child chunks;\nPass 1024-token parent chunk to LLM"]
-    Chunker --> SemanticBoundaries["Semantic Chunking\nSplit text dynamically when sentence-to-sentence\ncosine similarity drops below threshold theta"]
-    Chunker --> StructureAware["Document Structure-Aware\nSplit on Markdown H1/H2/H3 headers and tables"]
+    RawDoc["Raw Enterprise Document (PDF, Markdown, HTML)"] --> Strategy{"Chunking Strategy"}
+    Strategy --> ParentChild["1. Parent-Child / Small-to-Big Indexing
+(Index 128-token child chunks for search,
+Return 1024-token parent chunk to LLM)"]
+    Strategy --> SemanticChunk["2. Semantic Boundary Chunking
+(Split on embedding cosine similarity drops
+between consecutive sentences)"]
+    Strategy --> DocStructure["3. Document-Aware Recursive Markdown
+(Split strictly on #, ##, ### headers, tables, code blocks)"]
 </div>
-<div class="diagram-cap">Figure 138.1: Advanced chunking strategies resolving the granularity dilemma.</div>
+<div class="diagram-cap">Figure 138.1: Advanced chunking methodologies resolving embedding dilution and context loss.</div>
 
-<h3 class="sh3">2. Parent-Child / Small-to-Big Retrieval Implementation</h3>
+<h3 class="sh3">3. Parent-Child (Small-to-Big) Indexing Implementation</h3>
 <p>
-Small-to-Big chunking indexes small, specific child chunks for high vector search recall, but maps matches back to parent document chunks for generation:
+Parent-Child indexing solves the granularity dilemma cleanly by separating the <strong>indexing unit</strong> from the <strong>generation context unit</strong>:
 </p>
 <div class="cb">
   <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict
+  <pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Any
 <span class="kw">import</span> uuid
 
 <span class="kw">class</span> <span class="fn">ParentChildChunker</span>:
@@ -1319,22 +1482,27 @@ Small-to-Big chunking indexes small, specific child chunks for high vector searc
         self.child_size = child_size
         self.overlap = overlap
 
-    <span class="kw">def</span> <span class="fn">chunk_text</span>(self, text: str) -> Dict[str, list]:
+    <span class="kw">def</span> <span class="fn">chunk_document</span>(self, text: str) -> Dict[str, Any]:
+        parents = []
+        children = []
         words = text.split()
-        parents, children = [], []
+        parent_step = self.parent_size - self.overlap
         
-        <span class="kw">for</span> p_start <span class="kw">in</span> range(<span class="num">0</span>, len(words), self.parent_size - self.overlap):
+        <span class="kw">for</span> p_start <span class="kw">in</span> range(<span class="num">0</span>, len(words), parent_step):
             p_words = words[p_start : p_start + self.parent_size]
-            p_id = str(uuid.uuid4())
-            parents.append({<span class="str">'id'</span>: p_id, <span class="str">'text'</span>: <span class="str">' '</span>.join(p_words)})
+            parent_id = str(uuid.uuid4())
+            parent_text = <span class="str">" "</span>.join(p_words)
+            parents.append({<span class="str">'parent_id'</span>: parent_id, <span class="str">'text'</span>: parent_text})
 
-            <span class="kw">for</span> c_start <span class="kw">in</span> range(<span class="num">0</span>, len(p_words), self.child_size - self.overlap):
+            child_step = self.child_size - self.overlap
+            <span class="kw">for</span> c_start <span class="kw">in</span> range(<span class="num">0</span>, len(p_words), child_step):
                 c_words = p_words[c_start : c_start + self.child_size]
                 children.append({
                     <span class="str">'child_id'</span>: str(uuid.uuid4()),
-                    <span class="str">'parent_id'</span>: p_id,
-                    <span class="str">'text'</span>: <span class="str">' '</span>.join(c_words)
+                    <span class="str">'parent_id'</span>: parent_id,
+                    <span class="str">'text'</span>: <span class="str">" "</span>.join(c_words)
                 })
+
         <span class="kw">return</span> {<span class="str">'parents'</span>: parents, <span class="str">'children'</span>: children}</code></pre>
 </div>
         </div>
@@ -1805,7 +1973,7 @@ Production vector databases (Qdrant, Pinecone, Milvus) employ <strong>Approximat
     </tr>
     <tr style="border-bottom:1px solid var(--border);">
       <td style="padding:8px;"><strong>IVF-Flat</strong></td>
-      <td style="padding:8px;">$O(\text{nprobe} \cdot \frac{N}{C} \cdot d)$</td>
+      <td style="padding:8px;">$O(	ext{nprobe} \cdot rac{N}{C} \cdot d)$</td>
       <td style="padding:8px;">92 - 97%</td>
       <td style="padding:8px;">1.1x</td>
       <td style="padding:8px;">Fast (K-means clustering)</td>
@@ -2338,11 +2506,15 @@ Because vector embeddings match against isolated chunks, no single chunk contain
 </p>
 <div class="mermaid">
 graph TD
-    RawDocs["Corpus Documents"] --> LLMExtract["LLM Extraction Pipeline\nExtract: Entities (Nodes), Claims, & Relations (Edges)"]
+    RawDocs["Corpus Documents"] --> LLMExtract["LLM Extraction Pipeline
+Extract: Entities (Nodes), Claims, & Relations (Edges)"]
     LLMExtract --> KnowledgeGraph["Knowledge Graph G = (V, E)"]
-    KnowledgeGraph --> Leiden["Leiden Community Detection Algorithm\nHierarchical Graph Partitioning (Levels C0, C1, C2)"]
-    Leiden --> CommSummaries["Community Summary Generation\nPre-summarize each cluster with an LLM"]
-    CommSummaries --> GlobalSearch["Global Search Engine\nQuery mapped to community summaries -> Map-Reduce Synthesis"]
+    KnowledgeGraph --> Leiden["Leiden Community Detection Algorithm
+Hierarchical Graph Partitioning (Levels C0, C1, C2)"]
+    Leiden --> CommSummaries["Community Summary Generation
+Pre-summarize each cluster with an LLM"]
+    CommSummaries --> GlobalSearch["Global Search Engine
+Query mapped to community summaries -> Map-Reduce Synthesis"]
 </div>
 <div class="diagram-cap">Figure 140.1: GraphRAG Extraction, Leiden Clustering, and Hierarchical Community Summarization.</div>
 
@@ -2351,11 +2523,47 @@ graph TD
 The Leiden algorithm partitions the entity graph into densely connected clusters by maximizing network <strong>modularity</strong> $\mathcal{H}$:
 </p>
 <div class="math-block">
-$$\mathcal{H} = \frac{1}{2m} \sum_{i,j} \left( A_{ij} - \gamma \frac{k_i k_j}{2m} \right) \delta(\sigma_i, \sigma_j)$$
+$$\mathcal{H} = rac{1}{2m} \sum_{i,j} \left( A_{ij} - \gamma rac{k_i k_j}{2m} ight) \delta(\sigma_i, \sigma_j)$$
 </div>
 <p>
-Where $A_{ij}$ is the adjacency weight between entity $i$ and $j$, $k_i = \sum_j A_{ij}$ is the degree of node $i$, $m = \frac{1}{2}\sum_{ij} A_{ij}$ is the total network edge weight, $\gamma$ is the resolution parameter, and $\delta(\sigma_i, \sigma_j) = 1$ if nodes $i, j$ belong to the same community $\sigma$.
+Where $A_{ij}$ is the adjacency weight between entity $i$ and $j$, $k_i = \sum_j A_{ij}$ is the degree of node $i$, $m = rac{1}{2}\sum_{ij} A_{ij}$ is the total network edge weight, $\gamma$ is the resolution parameter, and $\delta(\sigma_i, \sigma_j) = 1$ if nodes $i, j$ belong to the same community $\sigma$.
 </p>
+<p>
+Hierarchical community levels allow GraphRAG to answer queries at different levels of abstraction:
+</p>
+<ul>
+  <li><strong>Level C0 (Global Root):</strong> High-level thematic overview across the entire enterprise corpus.</li>
+  <li><strong>Level C1 (Sub-domains):</strong> Department-level clusters (e.g. Risk, Legal, Platform Infrastructure).</li>
+  <li><strong>Level C2 (Fine-grained):</strong> Specific incidents, code repositories, or individual projects.</li>
+</ul>
+
+<h3 class="sh3">3. GraphRAG vs Vector RAG Comparison Matrix</h3>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left;">
+      <th style="padding:8px;">Dimension</th>
+      <th style="padding:8px;">Standard Vector RAG</th>
+      <th style="padding:8px;">GraphRAG (Microsoft)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Query Scope</strong></td>
+      <td style="padding:8px;">Local specific facts ("Who signed contract X?")</td>
+      <td style="padding:8px;">Global holistic themes ("What were top risks in 2024?")</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Ingestion Cost</strong></td>
+      <td style="padding:8px;">Low ($O(N)$ embedding calls)</td>
+      <td style="padding:8px;">High ($O(N)$ LLM entity extraction + community summaries)</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Query Latency</strong></td>
+      <td style="padding:8px;">10ms - 50ms</td>
+      <td style="padding:8px;">200ms - 1.5s (Map-reduce over community summaries)</td>
+    </tr>
+  </tbody>
+</table>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2878,10 +3086,18 @@ User queries are frequently poorly formulated, ambiguous, or conceptually distan
 <div class="mermaid">
 graph TD
     RawPrompt["User Query"] --> Transform{"Transformation Engine"}
-    Transform --> HyDE["1. HyDE (Hypothetical Document Embeddings)\nGenerate a hypothetical answer with LLM;\nEmbed the hallucinated answer instead of query"]
-    Transform --> MultiQuery["2. Multi-Query Expansion\nGenerate 3-5 diverse linguistic variants of query;\nExecute parallel searches and fuse results"]
-    Transform --> StepBack["3. Step-Back Prompting\nAbstract query into high-level fundamental principle;\nRetrieve foundational background context"]
-    Transform --> SubQuery["4. Sub-Query Decomposition\nDecompose complex multi-hop question into sub-queries;\nExecute in parallel and synthesize"]
+    Transform --> HyDE["1. HyDE (Hypothetical Document Embeddings)
+Generate a hypothetical answer with LLM;
+Embed the hallucinated answer instead of query"]
+    Transform --> MultiQuery["2. Multi-Query Expansion
+Generate 3-5 diverse linguistic variants of query;
+Execute parallel searches and fuse results"]
+    Transform --> StepBack["3. Step-Back Prompting
+Abstract query into high-level fundamental principle;
+Retrieve foundational background context"]
+    Transform --> SubQuery["4. Sub-Query Decomposition
+Decompose complex multi-hop question into sub-queries;
+Execute in parallel and synthesize"]
 </div>
 <div class="diagram-cap">Figure 141.1: The Four Core Query Transformation Pipelines.</div>
 
@@ -2890,10 +3106,10 @@ graph TD
 HyDE (Gao et al., 2022) leverages an instruction-tuned LLM $M$ to synthesize a hypothetical document:
 </p>
 <div class="math-block">
-\hat{d} = M(q), \quad \vec{v}_{\text{query}} = \text{Embed}(\hat{d})
+$$\hat{d} = M(q), \quad ec{v}_{	ext{query}} = 	ext{Embed}(\hat{d})$$
 </div>
 <p>
-Because $\hat{d}$ resides directly in the <em>document embedding manifold</em> (sharing document vocabulary, grammar, and structural tone), $\vec{v}_{\text{query}}$ achieves significantly higher cosine similarity with actual relevant documents than the short query vector $\text{Embed}(q)$.
+Because $\hat{d}$ resides directly in the <em>document embedding manifold</em> (sharing document vocabulary, grammar, and structural tone), $ec{v}_{	ext{query}}$ achieves significantly higher cosine similarity with actual relevant documents than the short query vector $	ext{Embed}(q)$.
 </p>
         </div>
 

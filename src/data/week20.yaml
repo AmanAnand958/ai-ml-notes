@@ -38,34 +38,58 @@ days:
     answer return hota hai.'
   analogy: 'ReAct is like a diagnostic mechanic: inspect symptom -> formulate thought -> test spark plug with a meter -> observe
     reading -> formulate next thought. Plan-and-Solve is like following a pre-printed engine overhaul checklist.'
-  theory_html: |-
-    <h3 class="sh3">1. The ReAct Paradigm: Synergizing Reasoning & Action</h3>
-    <p>
-    Standard prompting techniques either focus purely on internal reasoning (e.g. <strong>Chain-of-Thought / CoT</strong>) or purely on action execution (e.g. single-step tool calling). Chain-of-Thought suffers from hallucination and state drift on multi-step interactive tasks because it lacks grounded observations from external environments.
-    </p>
-    <p>
-    The <strong>ReAct (Reason + Act)</strong> framework (Yao et al., 2022) introduces an iterative, cyclic feedback loop:
-    </p>
-    <div class="math-block">
-    $$\text{Thought}_t \longrightarrow \text{Action}_t(a_t) \longrightarrow \text{Observation}_t(o_t) \longrightarrow \text{Thought}_{t+1} \dots$$
-    </div>
-    <div class="mermaid">
-    graph LR
-        User["User Task Goal"] --> Thought["1. Thought: Reason about sub-goal"]
-        Thought --> Action["2. Action: Call API / Database / Code Tool"]
-        Action --> Env["Environment Execution (OS, SQL, Web)"]
-        Env --> Obs["3. Observation: Parse tool execution output"]
-        Obs --> Check{"Goal Satisfied?"}
-        Check -->|No / Need Info| Thought
-        Check -->|Yes| Finish["Final Synthesized Answer"]
-    </div>
-    <div class="diagram-cap">Figure 143.1: The Cyclic ReAct Execution State Machine.</div>
-
-    <h3 class="sh3">2. ReAct vs Plan-and-Solve Architecture</h3>
-    <ul>
-      <li><strong>ReAct:</strong> Greedy, reactive next-step selection. Ideal for exploratory queries and unstructured debug workflows.</li>
-      <li><strong>Plan-and-Solve:</strong> Generates a full decomposition DAG upfront before executing sub-tasks. Minimizes token consumption on structured multi-step tasks.</li>
-    </ul>
+  theory_html: "<h3 class=\"sh3\">1. The ReAct Framework: Synergizing Reasoning & Action</h3>\n<p>\nTraditional LLM prompting\
+    \ methods operate either strictly as internal reasoning engines (e.g. <strong>Chain-of-Thought / CoT</strong>) or as isolated\
+    \ action selectors (e.g. single-step function calling). Chain-of-Thought prompting suffers from hallucination on multi-step\
+    \ interactive tasks because it lacks grounded observations from external environments.\n</p>\n<p>\nThe <strong>ReAct (Reason\
+    \ + Act)</strong> framework (Yao et al., 2022) introduces an iterative, cyclic execution state machine:\n</p>\n<div class=\"\
+    math-block\">\n$$\\text{Thought}_t \\longrightarrow \\text{Action}_t(a_t) \\longrightarrow \\text{Observation}_t(o_t)\
+    \ \\longrightarrow \\text{Thought}_{t+1} \\dots$$\n</div>\n<div class=\"mermaid\">\ngraph LR\n    User[\"User Goal: 'Calculate\
+    \ Q3 revenue growth for Apple'\"] --> Thought1[\"1. Thought: Need Apple 10-Q filing for Q3\"]\n    Thought1 --> Action1[\"\
+    2. Action: call_sec_edgar_api(ticker='AAPL')\"]\n    Action1 --> Env[\"Environment Execution (REST API / Database)\"]\n\
+    \    Env --> Obs1[\"3. Observation: Q3 Revenue = $81.8B vs Q3 Prior = $82.9B\"]\n    Obs1 --> Thought2[\"4. Thought: Compute\
+    \ percentage change: (81.8-82.9)/82.9\"]\n    Thought2 --> Action2[\"5. Action: call_calculator('(81.8-82.9)/82.9')\"\
+    ]\n    Action2 --> Env\n    Env --> Obs2[\"6. Observation: -0.01326 (-1.33%)\"]\n    Obs2 --> Final[\"7. Final Grounded\
+    \ Answer: Revenue declined 1.33% YoY\"]\n</div>\n<div class=\"diagram-cap\">Figure 143.1: The Cyclic ReAct Execution State\
+    \ Machine grounding reasoning in tool observations.</div>\n\n<h3 class=\"sh3\">2. ReAct vs Plan-and-Solve Architecture</h3>\n\
+    <table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px\
+    \ solid var(--border); text-align:left;\">\n      <th style=\"padding:8px;\">Dimension</th>\n      <th style=\"padding:8px;\"\
+    >ReAct (Reason + Act)</th>\n      <th style=\"padding:8px;\">Plan-and-Solve (Wang et al.)</th>\n    </tr>\n  </thead>\n\
+    \  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Planning\
+    \ Horizon</strong></td>\n      <td style=\"padding:8px;\">Greedy, 1-step ahead. Reacts dynamically to tool outputs.</td>\n\
+    \      <td style=\"padding:8px;\">Global DAG generated upfront before executing sub-tasks.</td>\n    </tr>\n    <tr style=\"\
+    border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Error Recovery</strong></td>\n   \
+    \   <td style=\"padding:8px;\">Self-heals dynamically when a tool returns unexpected errors.</td>\n      <td style=\"\
+    padding:8px;\">Requires explicit replanning if a step fails.</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid\
+    \ var(--border);\">\n      <td style=\"padding:8px;\"><strong>Token Cost</strong></td>\n      <td style=\"padding:8px;\"\
+    >Higher ($O(N)$ prompt accumulation per tool iteration).</td>\n      <td style=\"padding:8px;\">Lower (Structured linear\
+    \ execution).</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"\
+    ><strong>Best Use Case</strong></td>\n      <td style=\"padding:8px;\">Exploratory debugging, web browsing, dynamic troubleshooting.</td>\n\
+    \      <td style=\"padding:8px;\">Deterministic multi-part reporting, batch data ETL.</td>\n    </tr>\n  </tbody>\n</table>\n\
+    \n<h3 class=\"sh3\">3. Production Python ReAct Loop Implementation</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"\
+    ><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
+    \  <pre><code><span class=\"kw\">from</span> typing <span class=\"kw\">import</span> Dict, Callable, Any, List\n<span\
+    \ class=\"kw\">import</span> re\n\n<span class=\"kw\">class</span> <span class=\"fn\">ReActAgent</span>:\n    <span class=\"\
+    kw\">def</span> <span class=\"fn\">__init__</span>(self, max_steps: int = <span class=\"num\">6</span>):\n        self.max_steps\
+    \ = max_steps\n        self.tools: Dict[str, Callable] = {}\n\n    <span class=\"kw\">def</span> <span class=\"fn\">register_tool</span>(self,\
+    \ name: str, fn: Callable):\n        self.tools[name] = fn\n\n    <span class=\"kw\">def</span> <span class=\"fn\">execute_loop</span>(self,\
+    \ user_goal: str) -> Dict[str, Any]:\n        trace: List[Dict[str, str]] = []\n        scratchpad = f<span class=\"str\"\
+    >\"Goal: {user_goal}\\n\"</span>\n\n        <span class=\"kw\">for</span> step <span class=\"kw\">in</span> range(<span\
+    \ class=\"num\">1</span>, self.max_steps + <span class=\"num\">1</span>):\n            <span class=\"cm\"># 1. Thought\
+    \ Generation (Simulated LLM response)</span>\n            thought = f<span class=\"str\">\"Step {step}: Need to verify\
+    \ data for query: '{user_goal}'\"</span>\n            \n            <span class=\"cm\"># 2. Action Selection</span>\n\
+    \            tool_name = <span class=\"str\">\"calculator\"</span> <span class=\"kw\">if</span> <span class=\"str\">\"\
+    calc\"</span> <span class=\"kw\">in</span> user_goal.lower() <span class=\"kw\">else</span> <span class=\"str\">\"search\"\
+    </span>\n            action_input = user_goal\n            \n            <span class=\"cm\"># 3. Environment Execution</span>\n\
+    \            <span class=\"kw\">if</span> tool_name <span class=\"kw\">in</span> self.tools:\n                obs = self.tools[tool_name](action_input)\n\
+    \            <span class=\"kw\">else</span>:\n                obs = f<span class=\"str\">\"Error: Tool '{tool_name}' not\
+    \ found.\"</span>\n\n            trace.append({<span class=\"str\">\"thought\"</span>: thought, <span class=\"str\">\"\
+    action\"</span>: tool_name, <span class=\"str\">\"observation\"</span>: str(obs)})\n            \n            <span class=\"\
+    cm\"># Convergence condition</span>\n            <span class=\"kw\">if</span> step >= <span class=\"num\">2</span>:\n\
+    \                <span class=\"kw\">break</span>\n\n        <span class=\"kw\">return</span> {\n            <span class=\"\
+    str\">\"final_answer\"</span>: f<span class=\"str\">\"Verified grounded resolution for '{user_goal}'\"</span>,\n     \
+    \       <span class=\"str\">\"steps_taken\"</span>: len(trace),\n            <span class=\"str\">\"trace\"</span>: trace\n\
+    \        }</code></pre>\n</div>"
   predict:
     question: What integer step count did this ReAct agent execute before reaching the finish condition?
     answer: '3'
@@ -338,29 +362,30 @@ days:
     is missing a required declaration stamp, it is immediately sent back to the sender with a clear rejection notice to fix
     and resubmit.'
   theory_html: |-
-    <h3 class="sh3">1. The Need for Guaranteed Structured Outputs</h3>
+    <h3 class="sh3">1. The Critical Need for Structured Outputs in Enterprise APIs</h3>
     <p>
-    When LLMs power downstream microservices, robotic control loops, or database operations, raw unstructured natural language is unacceptable. Responses must conform strictly to typed schemas (Pydantic / JSON Schema) without hallucinated keys, invalid enums, or parsing failures.
+    When Large Language Models are integrated into automated production pipelines (e.g. database schema migrations, automated financial trading, Robotic Process Automation), raw natural language strings are unacceptable. A single missing quotation mark, hallucinated JSON key, or malformed enum value causes downstream API parsers to crash with unhandled exceptions.
     </p>
     <div class="mermaid">
     graph LR
-        Prompt["Prompt + Pydantic Schema"] --> LLM["LLM Inference Engine"]
-        LLM --> JSONParse{"JSON Validation"}
-        JSONParse -->|Valid Schema| Success["Typed Pydantic Object Output"]
-        JSONParse -->|ValidationError| RetryLoop["Instructor Self-Correction Loop\nFeed Error Diff back to LLM for instant heal"]
-        RetryLoop --> LLM
+        Prompt["Prompt + Pydantic Type Schema"] --> LLM["LLM Inference Core (OpenAI / vLLM)"]
+        LLM --> RawJSON["Raw Generated String"]
+        RawJSON --> PydanticValidator{"Pydantic Schema Validation"}
+        PydanticValidator -->|Valid Schema| Output["Typed Python Model Instance"]
+        PydanticValidator -->|ValidationError (e.g. invalid enum)| Instructor["Instructor Self-Correction Loop\nFeed Validation Error Diff back to LLM"]
+        Instructor --> LLM
     </div>
     <div class="diagram-cap">Figure 144.1: Instructor Schema Validation & Automated Self-Correction Loop.</div>
 
-    <h3 class="sh3">2. Constrained Grammar Masking (CFG)</h3>
+    <h3 class="sh3">2. Grammar-Constrained Token Decoding (CFG)</h3>
     <p>
-    Modern inference engines (e.g. vLLM, outlines) enforce JSON compliance at the token logit level:
+    Modern inference engines (vLLM, Outlines, llama.cpp) enforce structured JSON schemas at the <strong>token logit level</strong> using Context-Free Grammars (CFG):
     </p>
     <div class="math-block">
-    \text{LogitMask}(t_i) = \begin{cases} 0 & \text{if token } t_i \text{ is syntactically valid in CFG state } S \\ -\infty & \text{if token } t_i \text{ violates JSON schema} \end{cases}
+    \text{LogitMask}(t_i) = \begin{cases} 0 & \text{if token } t_i \text{ is valid under grammar state } S \\ -\infty & \text{if token } t_i \text{ violates schema syntax} \end{cases}
     </div>
     <p>
-    This mathematically guarantees 100% syntactically valid JSON in a single forward pass without retry overhead.
+    By setting the logits of invalid tokens to $-\infty$ before computing softmax, grammar-constrained sampling mathematically guarantees <strong>100% syntactically valid JSON in a single forward pass</strong> with zero retry overhead.
     </p>
   predict:
     question: What string value is returned by the validated Pydantic model's status field?
@@ -603,7 +628,10 @@ days:
   theory_html: |-
     <h3 class="sh3">1. Why StateGraphs? Moving Beyond Linear Chains</h3>
     <p>
-    Real-world agentic workflows are inherently <strong>cyclical and stateful</strong>. An agent must evaluate code output, catch exceptions, loop back to rewrite the code, ask for human clarification, or branch dynamically based on run-time tool responses. <strong>LangGraph</strong> models these compound systems as a <strong>Cyclic StateGraph</strong>:
+    Traditional orchestration frameworks (e.g. early LangChain linear chains) modeled workflows as strict <strong>Directed Acyclic Graphs (DAGs)</strong> where execution moves strictly forward in one direction ($A \to B \to C$).
+    </p>
+    <p>
+    However, real-world agentic behavior is inherently <strong>cyclical and stateful</strong>. An agent must evaluate code output, catch runtime exceptions, loop back to rewrite the code, ask for human clarification, or branch dynamically based on tool responses. <strong>LangGraph</strong> models these systems as a <strong>Cyclic StateGraph</strong>:
     </p>
     <div class="mermaid">
     stateDiagram-v2
@@ -617,7 +645,7 @@ days:
 
     <h3 class="sh3">2. Core StateGraph Architecture Primitives</h3>
     <ul>
-      <li><strong>State Schema (TypedDict / Pydantic):</strong> Immutable state passed between nodes. Nodes return functional state diffs.</li>
+      <li><strong>State Schema (TypedDict / Pydantic):</strong> The single immutable source of truth passed between nodes. Nodes return <em>state updates (diffs)</em> rather than mutating global memory directly.</li>
       <li><strong>Nodes (Pure Functions):</strong> Callable Python units ($f(\text{State}) \to \Delta \text{State}$) that perform discrete tasks.</li>
       <li><strong>Conditional Edges:</strong> Routing functions that inspect state and determine the next execution node dynamically.</li>
       <li><strong>Checkpointers:</strong> Snapshot state history across every step, enabling deterministic time-travel rollbacks and human-in-the-loop approvals.</li>
