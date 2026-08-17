@@ -210,28 +210,43 @@
         <!-- THEORY SECTION -->
         <div id="day-150-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. High-Throughput LLM Serving with vLLM & PagedAttention</h3>
+          <h3 class="sh3">1. GPU VRAM Memory Bottlenecks in LLM Serving</h3>
 <p>
-Standard autoregressive decoding suffers from severe GPU memory fragmentation because the Key-Value (KV) cache grows dynamically per token. Traditional serving allocates contiguous memory for the maximum possible sequence length, wasting up to 60–80% of VRAM.
+Serving large language models in production requires managing three distinct memory components:
+</p>
+<ol>
+  <li><strong>Model Weights ($M_{\text{weights}}$):</strong> Fixed footprint ($P \times \text{bytes\_per\_param}$). A 70B parameter model in FP16 requires $70 \times 2\text{GB} = 140\text{GB}$ VRAM.</li>
+  <li><strong>Activation Memory:</strong> Intermediate tensor activations during forward passes.</li>
+  <li><strong>Key-Value (KV) Cache ($M_{\text{KV}}$):</strong> Dynamically grows with batch size and context length. For multi-head attention:
+    <div class="math-block">
+    $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{bytes} \times B \times S$$
+    </div>
+  </li>
+</ol>
+<p>
+In legacy serving engines, KV cache tensors were pre-allocated contiguously for the maximum sequence length (e.g. $S = 4096$). This led to massive <strong>internal memory fragmentation</strong> ($60\text{--}80\%$ of GPU VRAM wasted on unused reserved slots) and limited concurrency.
+</p>
+
+<h3 class="sh3">2. PagedAttention Architecture: Virtual Memory for KV Cache</h3>
+<p>
+Developed by Kwon et al. (UC Berkeley / vLLM), <strong>PagedAttention</strong> draws inspiration from operating system virtual memory paging:
 </p>
 <div class="mermaid">
 graph TD
-  subgraph Traditional Serving (Contiguous Pre-allocation)
-    A1["Request 1 KV: [Tokens 1..50] (Allocated 2048 - 95% Wasted)"]
-    A2["Severe Virtual Memory Fragmentation & OOM under batching"]
-  end
-  subgraph PagedAttention (Non-Contiguous Virtual Paging)
-    B1["Physical KV Blocks in VRAM: [Block 0][Block 1][Block 2]..."]
-    B2["Virtual Page Table maps Request Token Sequence to arbitrary physical blocks"]
-    B3["Near Zero Memory Waste (>96% GPU Memory Utilization)"]
-  end
+    LogicalTokens["Logical Sequence Tokens (0 to 63)"] --> PageTable["Block Table / Page Directory\nMaps Logical Blocks -> Physical Blocks"]
+    PageTable --> Block0["Physical Block 7 (SRAM/HBM: Tokens 0-15)"]
+    PageTable --> Block1["Physical Block 23 (Non-contiguous: Tokens 16-31)"]
+    PageTable --> Block2["Physical Block 12 (Non-contiguous: Tokens 32-47)"]
+    PageTable --> Block3["Physical Block 89 (Non-contiguous: Tokens 48-63)"]
 </div>
-<div class="diagram-cap">PagedAttention Virtual Memory Allocation vs Traditional Contiguous Pre-allocation.</div>
-
-<h3 class="sh3">2. Continuous Batching & KV Cache Sizing</h3>
+<div class="diagram-cap">Figure 150.1: PagedAttention virtual block tables allocating non-contiguous physical GPU VRAM pages.</div>
 <p>
-vLLM pairs PagedAttention with <strong>Continuous (Iteration-Level) Batching</strong>: rather than waiting for an entire batch to finish generation, completed sequences are evicted immediately and new requests are injected at the next token iteration.
+By partitioning the KV cache into fixed-size physical blocks (e.g. 16 or 32 tokens per block), vLLM achieves:
 </p>
+<ul>
+  <li><strong>Near-Zero Memory Waste:</strong> Reduces VRAM fragmentation to &lt;4%, allowing <strong>2x - 4x larger concurrent batch sizes</strong>.</li>
+  <li><strong>Copy-on-Write Memory Sharing:</strong> Enables parallel speculative decoding and tree search without duplicating prompt KV cache in memory.</li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -834,30 +849,29 @@ print("✓ Continuous iteration-level batching verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-151-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. FlashAttention: IO-Aware Exact Attention</h3>
+          <h3 class="sh3">1. The Memory Bandwidth Bottleneck: Standard Attention</h3>
 <p>
-Standard attention computes $QK^T$, writes the full $N 	imes N$ matrix to slow GPU High-Bandwidth Memory (HBM), computes Softmax, writes to HBM, and multiplies by $V$. <strong>FlashAttention</strong> tiles the computation into fast on-chip SRAM blocks, computing online softmax without ever materializing the $O(N^2)$ attention matrix in HBM.
+Standard Multi-Head Attention computes the attention matrix:
+</p>
+<div class="math-block">
+$$\mathbf{A} = \text{softmax}\left(\frac{\mathbf{Q} \mathbf{K}^T}{\sqrt{d_k}}\right) \mathbf{V}$$
+</div>
+<p>
+On modern GPUs (e.g. NVIDIA A100 / H100), compute throughput (Tensor Cores: 312 TFLOPS) is orders of magnitude faster than High-Bandwidth Memory (HBM) read/write bandwidth (2.0 TB/s). In standard PyTorch attention, the intermediate $N \times N$ attention matrix must be materialized in HBM, read into on-chip SRAM for softmax, written back to HBM, and read again for multiplication with $\mathbf{V}$. This causes an <strong>$O(N^2)$ IO memory bandwidth bottleneck</strong>.
+</p>
+
+<h3 class="sh3">2. FlashAttention: Exact Attention with IO-Aware SRAM Tiling</h3>
+<p>
+<strong>FlashAttention</strong> (Tri Dao et al.) computes exact attention with zero memory footprint for the $N \times N$ matrix by tiling query, key, and value blocks directly inside ultra-fast on-chip <strong>SRAM (19 TB/s)</strong>:
 </p>
 <div class="mermaid">
 graph LR
-  subgraph Standard Attention (Memory Bottleneck)
-    Q1["Q, K, V in HBM"] -->|Read| S1["Compute S = QK^T"]
-    S1 -->|Write O(N^2) to HBM| HBM1["Slow HBM Matrix"]
-    HBM1 -->|Read| S2["Softmax(S)"]
-    S2 -->|Write O(N^2) to HBM| HBM2["Slow HBM Matrix"]
-    HBM2 -->|Read| S3["P * V -> Out"]
-  end
-  subgraph FlashAttention (IO-Aware Tiling)
-    Q2["Load Blocks Q_i, K_j into Fast SRAM"] --> Tile["Tile Computation + Online Softmax in SRAM"]
-    Tile -->|Write Final O(N) only| Out["Output in HBM (2x-4x Speedup, O(N) Memory)"]
-  end
+    HBM["GPU High-Bandwidth Memory (HBM: 2 TB/s)"] -->|Load Block Q_i, K_j (SRAM Tiling)| SRAM["Fast On-Chip SRAM (19 TB/s)"]
+    SRAM -->|Online Softmax Scaling| Compute["Tensor Core Matmul: S_ij = Q_i K_j^T"]
+    Compute -->|Accumulate Output Block O_i| SRAM
+    SRAM -->|Write Final Output (O(N) IO)| HBM
 </div>
-<div class="diagram-cap">FlashAttention IO-aware SRAM block tiling vs Standard HBM read/write round-trips.</div>
-
-<h3 class="sh3">2. Speculative Decoding</h3>
-<p>
-Speculative decoding uses a fast, lightweight draft model (e.g. 1B params) to guess $K$ candidate tokens in parallel, which are verified by the primary target model (e.g. 70B params) in a single parallel forward pass, achieving 2x–3x lower latency with identical output distribution.
-</p>
+<div class="diagram-cap">Figure 151.1: FlashAttention SRAM tiling and online softmax scaling eliminating HBM IO passes.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1440,22 +1454,20 @@ print("✓ Speculative decoding verification passed.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-152-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Model Quantization: AWQ vs. GPTQ vs. GGUF</h3>
+          <h3 class="sh3">1. Post-Training Quantization (PTQ): AWQ vs GPTQ vs GGUF</h3>
 <p>
-Large language models are memory-bandwidth bound during inference. Quantizing weights from 16-bit floats (FP16/BF16) to 4-bit integers (INT4) reduces VRAM requirements by up to 75% and doubles token generation speed.
+Quantization compresses 16-bit floating-point weights (FP16/BF16) to lower bitwidths (INT8, INT4, INT2), slashing memory requirements and memory bandwidth bottlenecks during autoregressive decoding.
 </p>
-<div class="mermaid">
-graph TD
-  Quant["Quantization Paradigms"] --> PTQ["1. Post-Training Quantization (PTQ)"]
-  Quant --> QAT["2. Quantization-Aware Training (QAT)"]
-  PTQ --> AWQ["AWQ (Activation-aware Weight Quantization)
-(Protects top 1% salient weights, best for serving)"]
-  PTQ --> GPTQ["GPTQ (One-shot Layer-wise Inversion)
-(High compression, fast GPU kernels)"]
-  PTQ --> GGUF["GGUF / llama.cpp
-(CPU + GPU offloading, k-quants)"]
+<ul>
+  <li><strong>AWQ (Activation-aware Weight Quantization):</strong> Observes that not all weights are equally important; protecting the top 1% salient weight channels (based on activation magnitudes) allows 4-bit quantization with near-zero perplexity degradation.</li>
+  <li><strong>GPTQ:</strong> Layer-by-layer second-order Taylor expansion (Optimal Brain Surgeon) minimizing mean squared error: $\arg\min_{\hat{\mathbf{W}}} \|\mathbf{W}\mathbf{X} - \hat{\mathbf{W}}\mathbf{X}\|_2^2$.</li>
+  <li><strong>GGUF / llama.cpp:</strong> Binary format optimized for CPU and mixed CPU/GPU offloaded inference with non-uniform k-quants.</li>
+</ul>
+
+<h3 class="sh3">2. Quantization Mathematical Formulation</h3>
+<div class="math-block">
+$$X_{\text{quant}} = \text{clip}\left( \left\lfloor \frac{X}{\text{Scale}} \right\rceil + Z, -2^{b-1}, 2^{b-1}-1 \right)$$
 </div>
-<div class="diagram-cap">LLM Quantization Methods and Architectural Trade-offs.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1931,29 +1943,26 @@ print("✓ INT8 uniform quantization verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-153-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Parameter-Efficient Fine-Tuning (PEFT) & LoRA</h3>
+          <h3 class="sh3">1. Low-Rank Adaptation (LoRA)</h3>
 <p>
-Full parameter fine-tuning of a 70B model requires updating and storing 140GB+ of optimizer states and gradients across multiple GPUs. <strong>Low-Rank Adaptation (LoRA)</strong> freezes the pretrained weight matrix $W_0 \in \mathbb{R}^{d 	imes k}$ and decomposes the update into two low-rank matrices $A \in \mathbb{R}^{r 	imes k}$ and $B \in \mathbb{R}^{d 	imes r}$ with rank $r \ll \min(d, k)$:
+LoRA freezes the pre-trained weight matrix $\mathbf{W}_0 \in \mathbb{R}^{d \times k}$ and injects trainable low-rank decomposition matrices:
 </p>
 <div class="math-block">
-$$W = W_0 + \Delta W = W_0 + rac{lpha}{r} (B \cdot A)$$
+$$\mathbf{W} = \mathbf{W}_0 + \frac{\alpha}{r} (\mathbf{B} \cdot \mathbf{A})$$
 </div>
 <p>
-Where $A \sim \mathcal{N}(0, \sigma^2)$ and $B = 0$ at initialization, ensuring $\Delta W = 0$ before training begins.
+Where $\mathbf{A} \in \mathbb{R}^{r \times k} \sim \mathcal{N}(0, \sigma^2)$, $\mathbf{B} \in \mathbb{R}^{d \times r} = 0$, and rank $r \in \{8, 16, 32\}$.
 </p>
-<div class="mermaid">
-graph LR
-  x["Input Vector x"] --> W0["Frozen Pretrained Weights W_0
-(d x k)"]
-  x --> A["LoRA Down-projection A
-(r x k)"]
-  A --> B["LoRA Up-projection B
-(d x r)"]
-  W0 --> Add["(+)"]
-  B -->|Scaled by alpha/r| Add
-  Add --> Out["Output Vector h"]
-</div>
-<div class="diagram-cap">LoRA Low-Rank Decomposition with Frozen Base Weights.</div>
+
+<h3 class="sh3">2. QLoRA: 4-Bit NormalFloat (NF4)</h3>
+<p>
+QLoRA fine-tunes 70B parameter models on a single 48GB GPU by combining:
+</p>
+<ul>
+  <li><strong>NF4 Quantization:</strong> Information-theoretically optimal for normal distributions.</li>
+  <li><strong>Double Quantization (DQ):</strong> Quantizes scale constants, saving 0.37 bits/param.</li>
+  <li><strong>Paged Optimizers:</strong> Pages memory to CPU RAM during activation spikes.</li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2433,26 +2442,12 @@ print("✓ QLoRA NF4 quantization simulation verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-154-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Preference Alignment: DPO vs. ORPO vs. GRPO</h3>
+          <h3 class="sh3">1. Direct Preference Optimization (DPO)</h3>
 <p>
-Post-training alignment teaches models to follow human preferences (helpfulness and harmlessness). While traditional RLHF requires training a separate Reward Model and running complex PPO loops, modern alignment uses direct loss formulations:
+DPO aligns language models directly on pairwise human preferences without training a separate reward model or tuning unstable PPO actor-critic loops:
 </p>
-<div class="mermaid">
-graph TD
-  Align["Alignment Methodologies"] --> RLHF["1. RLHF (PPO)
-(Requires Actor + Critic + Reward + Ref Model = 4 models in VRAM)"]
-  Align --> DPO["2. DPO (Direct Preference Optimization)
-(Closed-form optimization over pairwise preferences [y_w > y_l])"]
-  Align --> ORPO["3. ORPO (Odds Ratio Preference Optimization)
-(Monolithic SFT + Odds Ratio penalty, no ref model needed)"]
-  Align --> GRPO["4. GRPO (Group Relative Policy Optimization)
-(Group-normalized reward sampling, DeepSeek-R1 reasoning alignment)"]
-</div>
-<div class="diagram-cap">Evolution of Preference Alignment from RLHF to Direct Closed-Form and Group-Relative Optimization.</div>
-
-<h3 class="sh3">2. The DPO Objective</h3>
 <div class="math-block">
-$$\mathcal{L}_{	ext{DPO}}(\pi_	heta; \pi_{	ext{ref}}) = -\mathbb{E}_{(x, y_w, y_l)} \left[ \log \sigma \left( eta \log rac{\pi_	heta(y_w|x)}{\pi_{	ext{ref}}(y_w|x)} - eta \log rac{\pi_	heta(y_l|x)}{\pi_{	ext{ref}}(y_l|x)} ight) ight]$$
+$$\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l)} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w | x)}{\pi_{\text{ref}}(y_w | x)} - \beta \log \frac{\pi_\theta(y_l | x)}{\pi_{\text{ref}}(y_l | x)} \right) \right]$$
 </div>
         </div>
 
@@ -2928,17 +2923,14 @@ print("✓ DPO loss function verified.")</pre>
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
           <h3 class="sh3">1. Synthetic Data Generation & MinHash Deduplication</h3>
 <p>
-High-quality fine-tuning data is the primary determinant of model performance. Synthetic data pipelines use frontier LLMs to generate reasoning traces, instruction-response pairs, and self-critiques, filtered by rigorous quality and deduplication gates.
+Frontier fine-tuning datasets are increasingly synthesized using frontier LLMs (Self-Instruct, Evol-Instruct). However, un-deduplicated synthetic data causes severe model overfitting and loss of reasoning diversity.
 </p>
-<div class="mermaid">
-graph LR
-  Seed["Seed Prompts"] --> LLM["Frontier LLM (Evol-Instruct / Self-Instruct)"]
-  LLM --> Raw["Raw Synthetic Corpus"]
-  Raw --> MinHash["MinHash + LSH Near-Deduplication"]
-  MinHash --> Filter["Reward / Quality LLM Filter"]
-  Filter --> Dataset["Curated High-Quality SFT Dataset"]
+<p>
+<strong>MinHash with Locality-Sensitive Hashing (LSH)</strong> approximates Jaccard similarity across millions of text strings in near-linear time:
+</p>
+<div class="math-block">
+$$J(A, B) = \frac{|A \cap B|}{|A \cup B|} \approx \Pr(\min(h(A)) = \min(h(B)))$$
 </div>
-<div class="diagram-cap">Synthetic Data Generation, Quality Filtering, and MinHash Deduplication Pipeline.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3405,20 +3397,15 @@ print("✓ Deduplication pipeline verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-156-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Capstone: Deploying a Custom Fine-Tuned Model</h3>
+          <h3 class="sh3">1. End-to-End Fine-Tuning & Serving Lifecycle</h3>
 <p>
-Completing the end-to-end LLM lifecycle: SFT dataset curation with synthetic augmentation, QLoRA fine-tuning with Hugging Face TRL / Unsloth, DPO preference alignment, LoRA weight merging, AWQ quantization, and production deployment on vLLM.
+Deploying a fine-tuned LLM to production requires:
 </p>
-<div class="mermaid">
-graph LR
-  Data["Curated SFT Dataset"] --> QLoRA["QLoRA Fine-Tuning"]
-  QLoRA --> DPO["DPO Preference Tuning"]
-  DPO --> Merge["Merge Adapters -> FP16"]
-  Merge --> AWQ["AWQ 4-bit Quantization"]
-  AWQ --> vLLM["vLLM High-Throughput Serving Cluster"]
-  vLLM --> Client["Client Application"]
-</div>
-<div class="diagram-cap">End-to-End Fine-Tuning, Alignment, Quantization, and vLLM Serving Pipeline.</div>
+<ol>
+  <li><strong>LoRA Adapter Merge:</strong> Merge $\Delta \mathbf{W}$ into $\mathbf{W}_0$ for zero inference forward-pass latency overhead.</li>
+  <li><strong>AWQ INT4 Quantization:</strong> Quantize merged weights to achieve 70% VRAM reduction.</li>
+  <li><strong>vLLM Serving Container:</strong> Deploy with PagedAttention and continuous batching under FastAPI.</li>
+</ol>
         </div>
 
         <!-- PREDICT THE OUTPUT -->

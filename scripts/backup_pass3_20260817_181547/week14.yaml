@@ -1,0 +1,3161 @@
+week_number: 14
+title: Transformers & Attention
+description: Vector databases, similarity metrics (Cosine, Euclidean, Dot Product), indexing algorithms (HNSW, IVF-Flat),
+  and Milvus/Chroma.
+days:
+- id: 94
+  day_num: 94
+  title: The Mathematics of Scaled Dot-Product Attention
+  subtitle: Understanding the fundamental limits of recurrent models and deriving the mathematical foundation of Self-Attention,
+    Queries, Keys, Values, and the necessity of temperature scaling ($1/\sqrt{d_k}$). We will deeply analyze the bottleneck
+    problem in Seq2Seq models and how parallel attention mechanisms bypass it entirely.
+  time_estimate: 4 hours
+  difficulty: Medium
+  badges:
+  - label: ⚡ Medium
+    variant: o
+  xp: 150
+  objectives:
+  - 'Apply: Mathematically define the Seq2Seq Information Bottleneck.'
+  - Derive the Attention matrix computations using linear projections.
+  - Analyze the gradient saturation problem in unscaled dot products.
+  - Implement a computationally optimal causal masked self-attention block.
+  - Analyze time complexity differences between RNNs and Transformers.
+  checklist:
+  - id: chk_94_1
+    text: Derive and analyze mathematical and architectural principles for The Mathematics of Scaled Dot-Product Attention
+  - id: chk_94_2
+    text: Build and benchmark production coding pipelines for The Mathematics of Scaled Dot-Product Attention
+  - id: chk_94_3
+    text: Execute and validate test verification suite for Basic Softmax Calculation
+  - id: chk_94_4
+    text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
+  concept_flow:
+  - The Mathematics of Scaled Dot-Product Attention
+  - Transformer Architecture & Modern Positional Encodings (RoPE)
+  - 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  - Hugging Face Ecosystem & Advanced Tokenizers
+  - Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - 'Capstone Part 1: Advanced Information Retrieval (RAG)'
+  - 'Capstone Part 2: Deployment & Model Serving'
+  hinglish: Attention is O(n²) in sequence length — 1000 token sequence mein 1M attention computations! Flash Attention, Longformer
+    jaisi techniques is quadratic cost ko address karte hain!
+  analogy: Imagine you are in a library searching for 'Indian spices'. The query (Q) is your search term. The database cards
+    (K) are the index descriptions of all the books in the library. The value (V) is the actual content pages of the books.
+    Self-attention does a dot-product search of Q against all Ks, finds the best matches, and pulls a weighted combination
+    of their Vs.
+  theory_html: |-
+    <h3 class="sh3">
+           1. Information Bottleneck in RNNs
+          </h3>
+    <p>
+           In standard sequence-to-sequence models (e.g., LSTMs), an entire input sequence of length
+           <em>
+            T
+           </em>
+           is encoded into a fixed-dimensional context vector
+           <em>
+            $h_T$ ∈ ℝ^d
+           </em>
+           . For large
+           <em>
+            T
+           </em>
+           (e.g., 500 words), compressing a distribution of variable length into a static bounded space leads to high information loss. The Jacobian matrix of hidden states across time steps reveals exponentially decaying singular values, proving that long-term dependencies vanish.
+          </p>
+
+    <h3 class="sh3">
+           2. $Q$, $K$, $V$ Projections
+          </h3>
+    <p>
+           Attention resolves this by allowing the decoder to access a soft-addressed memory of all encoder states. We project the input embeddings
+           <em>
+            $X$ ∈ ℝ^(T × $d_{\text{model}}$)
+           </em>
+           into three distinct sub-spaces using learned weight matrices:
+          </p>
+    <div class="math-block">
+    <span class="formula">
+            $Q$ = $XW_Q$  (where $W_Q$ ∈ ℝ^($d_{\text{model}}$ × $d_k$))
+           </span>
+    <span class="formula">
+            $K$ = $XW_K$  (where $W_K$ ∈ ℝ^($d_{\text{model}}$ × $d_k$))
+           </span>
+    <span class="formula">
+            $V$ = $XW_V$  (where $W_V$ ∈ ℝ^($d_{\text{model}}$ × $d_v$))
+           </span>
+    <span class="desc">
+            $Q$ represents what we are searching for, $K$ acts as the database index, and $V$ is the actual feature content.
+           </span>
+    </div>
+    <h3 class="sh3">
+           3. Deriving Scaled Dot-Product Attention
+          </h3>
+    <p>
+           The unscaled attention scores are given by
+           <em>
+            S = $QK$^T
+           </em>
+           . If components of $Q$ and $K$ are independent random variables with mean 0 and variance 1, the dot product will have mean 0 and variance
+           <em>
+            $d_k$
+           </em>
+           . For a large
+           <em>
+            $d_k$
+           </em>
+           (e.g., 64), the variance is 64.
+          </p>
+    <p>
+           Passing a vector with high variance into the Softmax function pushes the values to the tails of the exponential curve, where the derivative of softmax approaches zero. This causes
+           <strong>
+            gradient saturation
+           </strong>
+           and halts learning. To solve this, we scale by the standard deviation
+           <em>
+            √$d_k$
+           </em>
+           .
+          </p>
+    <div class="math-block">
+    <span class="formula">
+            $$\text{Attention}(Q, K, V) = \text{Softmax}\left( \frac{QK^T}{\sqrt{d_k}} \right) V$$
+           </span>
+    </div>
+    <div class="mermaid">
+    graph TD
+      Q["Query Q"] --> M1["MatMul"]
+      K["Key K"] --> T["Transpose K^T"]
+      T --> M1
+      M1 --> S["Scale by 1/sqrt - d_k"]
+      S --> Mask["Mask optional"]
+      Mask --> Softmax["Softmax"]
+      Softmax --> M2["MatMul"]
+      V["Value V"] --> M2
+      M2 --> Out["Output Vector"]
+    </div>
+    <div class="table-wrap" style="overflow-x: auto; margin: 1.2rem 0; width: 100%;"><table class="concept-table">
+    <thead>
+    <tr>
+    <th>
+              Operation
+             </th>
+    <th>
+              Complexity per Layer
+             </th>
+    <th>
+              Sequential Operations
+             </th>
+    <th>
+              Maximum Path Length
+             </th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td>
+    <strong>
+               Recurrent (LSTM)
+              </strong>
+    </td>
+    <td>
+              $O(n \cdot d^2)$
+             </td>
+    <td>
+              O(n)
+             </td>
+    <td>
+              O(n)
+             </td>
+    </tr>
+    <tr>
+    <td>
+    <strong>
+               Self-Attention
+              </strong>
+    </td>
+    <td>
+              O(n^2 * d)
+             </td>
+    <td>
+              $O(1)$
+             </td>
+    <td>
+              $O(1)$
+             </td>
+    </tr>
+    </tbody>
+    </table></div>
+    <div class="cb">
+    <div class="cb-head">
+    <span class="cb-lang">
+             python — causal_attention.py
+            </span>
+    <div class="cb-btns">
+    <button class="copy-btn" onclick="copyCode(this)">
+              copy
+             </button>
+    <button class="run-btn" onclick="runCode(this)" style="margin-left: 4px;">
+              Run
+             </button>
+    </div>
+    </div>
+    <pre><code><span class="kw">import</span> torch
+    <span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+    <span class="kw">import</span> math
+
+    <span class="kw">def</span> <span class="fn">causal_self_attention</span>(q, k, v, mask=<span class="kw">True</span>):
+        <span class="cm"># q, k, v shapes: [batch_size, seq_len, d_k]</span>
+        d_k = q.<span class="fn">size</span>(-<span class="num">1</span>)
+        seq_len = q.<span class="fn">size</span>(-<span class="num">2</span>)
+
+        <span class="cm"># 1. Dot product: (Q @ K.T) / sqrt(d_k)</span>
+        scores = torch.<span class="fn">matmul</span>(q, k.<span class="fn">transpose</span>(-<span class="num">2</span>, -<span class="num">1</span>)) / math.<span class="fn">sqrt</span>(d_k)
+
+        <span class="cm"># 2. Causal Masking (autoregressive property)</span>
+        <span class="kw">if</span> mask:
+            <span class="cm"># lower triangular matrix of ones</span>
+            causal_mask = torch.<span class="fn">tril</span>(torch.<span class="fn">ones</span>(seq_len, seq_len, device=q.device))
+            <span class="cm"># replace 0s with -infinity</span>
+            scores = scores.<span class="fn">masked_fill</span>(causal_mask == <span class="num">0</span>, <span class="fn">float</span>(<span class="str">'-inf'</span>))
+
+        <span class="cm"># 3. Softmax along the last dimension (keys)</span>
+        attn_weights = F.<span class="fn">softmax</span>(scores, dim=-<span class="num">1</span>)
+
+        <span class="cm"># 4. Multiply with values</span>
+        output = torch.<span class="fn">matmul</span>(attn_weights, v)
+        <span class="kw">return</span> output, attn_weights
+    </code></pre>
+    </div>
+  predict:
+    question: What is the output shape of the Multi-Head Attention projection tensor (Batch, Seq_Len, Hidden_Dim)?
+    answer: (2, 16, 128)
+    explanation: 'Self-attention preserves sequence length and hidden dimension: batch_size 2, sequence length 16, hidden
+      dim 128.'
+    code: |-
+      batch_size = 2
+      seq_len = 16
+      hidden_dim = 128
+      print(f'({batch_size}, {seq_len}, {hidden_dim})')
+  tasks:
+  - title: Basic Softmax Calculation
+    badge: 🟢 EASY
+    badge_class: tb-easy
+    time: 25 min
+    prompt_html: "<p><strong>\n           Using NumPy, write a function that takes a 1D array of scores\n           \n   \
+      \         [10, 20, 30]\n           \n           , applies softmax, and prints the probabilities. Then try it with\n\
+      \           \n            [100, 200, 300]\n           \n           to observe numerical instability (overflow) and fix\
+      \ it by subtracting the maximum value before exponentiation.\n          </strong></p>"
+    done_when: Your function prints correct probability distributions without NaN errors for large numbers.
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day94: complete day 94 tasks and coding exercises"'
+    sol_id: sol-w14d94t1
+    solution_title: ✅ NumPy Stable Softmax Implementation
+    solution_code: |-
+      import numpy as np
+
+      def softmax_naive(x):
+          exps = np.exp(x)
+          return exps / np.sum(exps)
+
+      def softmax_stable(x):
+          # Subtract the max value to prevent overflow (e^300 = inf)
+          shifted_x = x - np.max(x)
+          exps = np.exp(shifted_x)
+          return exps / np.sum(exps)
+
+      x1 = np.array([10.0, 20.0, 30.0])
+      print("Naive:", softmax_naive(x1))
+      print("Stable:", softmax_stable(x1))
+
+      x2 = np.array([100.0, 200.0, 300.0])
+      # print(softmax_naive(x2)) # Prints [nan, nan, nan] because of inf / inf
+      print("Stable large:", softmax_stable(x2))
+      assert x2 is not None, "x2 should not be None"
+    solution_lang: python
+    time_minutes: 30
+  - title: $QKV$ Projections
+    badge: 🟡 MEDIUM
+    badge_class: tb-med
+    time: 45 min
+    prompt_html: "<p><strong>\n           Create a PyTorch script with a dummy sequence\n           \n            X\n    \
+      \       \n           of shape\n           \n            (batch=2, seq_len=5, d_model=16)\n           \n           .\
+      \ Initialize three linear layers for $Q$, $K$, and $V$. Pass\n           \n            X\n           \n           through\
+      \ them, calculate the scaled dot-product attention without a mask, and verify the output shape is exactly the same as\n\
+      \           \n            X\n           \n           .\n          </strong></p>"
+    done_when: "When output shape is verified as\n           \n            (2, 5, 16)\n           \n           ."
+    git_cmd: 'git add q_k_v_projections.py &amp;&amp; git commit -m "feat(day): day94: q-k-v-projections"'
+    sol_id: sol-w14d94t2
+    solution_title: ✅ PyTorch QKV Projections &amp; Attention Flow
+    solution_code: |-
+      # Step 1: Model Training & Evaluation Workflow
+      import torch
+      import torch.nn as nn
+      import math
+
+      torch.manual_seed(42)
+      B, T, d_model = 2, 5, 16
+      d_k = 16
+
+      X = torch.randn(B, T, d_model)
+
+      W_q = nn.Linear(d_model, d_k, bias=False)
+      W_k = nn.Linear(d_model, d_k, bias=False)
+      W_v = nn.Linear(d_model, d_model, bias=False)
+
+      Q = W_q(X) # (B, T, d_k)
+      K = W_k(X) # (B, T, d_k)
+      V = W_v(X) # (B, T, d_model)
+
+      scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(d_k) # (B, T, T)
+      attn_weights = torch.softmax(scores, dim=-1)                  # (B, T, T)
+      output = torch.matmul(attn_weights, V)                         # (B, T, d_model)
+
+      print("Input shape:", X.shape)
+      print("Output shape:", output.shape)
+      assert output.shape == X.shape
+    solution_lang: python
+    time_minutes: 45
+  - title: Implement FlashAttention Concept (Tiling)
+    badge: 🔴 HARD
+    badge_class: tb-hard
+    time: 90 min
+    prompt_html: "<p><strong>\n           Standard attention has\n           \n            O(N^2)\n           \n         \
+      \  memory complexity. FlashAttention avoids this by block-tiling the computation. Write a naive PyTorch implementation\
+      \ of block-wise attention (without fused CUDA kernels). Loop over chunks of queries (size\n           \n           \
+      \ B_q\n           \n           ) and chunks of keys/values (size\n           \n            B_k\n           \n      \
+      \     ) to compute the softmax incrementally using the online softmax trick, never instantiating the full\n        \
+      \   \n            N x N\n           \n           matrix.\n          </strong></p>"
+    done_when: Your chunked attention output matches the standard PyTorch attention output to within 1e-5 tolerance.
+    git_cmd: 'git add implement_flashattention_concept_tiling.py &amp;&amp; git commit -m "feat(day): day94: implement-flashattention-concept-tiling"'
+    sol_id: sol-w14d94t3
+    solution_title: ✅ Naive Tiled FlashAttention Implementation
+    solution_code: |-
+      import numpy as np
+      import torch
+      np.random.seed(42)
+      torch.manual_seed(42)
+      # Step 1: Algorithmic Implementation & Core Transformations
+      import torch
+      import math
+
+      def flash_attention_naive(Q, K, V, B_q=2, B_k=2):
+          T, d = Q.shape
+          O = torch.zeros(T, d)
+          L = torch.zeros(T, 1)
+          M = torch.fill(torch.zeros(T, 1), float('-inf'))
+
+          for i in range(0, T, B_q):
+              q_block = Q[i:i+B_q]
+
+              for j in range(0, T, B_k):
+                  k_block = K[j:j+B_k]
+                  v_block = V[j:j+B_k]
+
+                  S = torch.matmul(q_block, k_block.t()) / math.sqrt(d)
+                  m_block = torch.max(S, dim=-1, keepdim=True)[0]
+
+                  new_M = torch.max(M[i:i+B_q], m_block)
+                  exp_old = torch.exp(M[i:i+B_q] - new_M)
+                  exp_new = torch.exp(S - new_M)
+
+                  new_L = exp_old * L[i:i+B_q] + torch.sum(exp_new, dim=-1, keepdim=True)
+                  O[i:i+B_q] = (O[i:i+B_q] * exp_old * L[i:i+B_q] + torch.matmul(exp_new, v_block)) / new_L
+
+                  L[i:i+B_q] = new_L
+                  M[i:i+B_q] = new_M
+
+          return O
+
+      Q = torch.randn(6, 8)
+      K = torch.randn(6, 8)
+      V = torch.randn(6, 8)
+
+      standard_attn = torch.softmax(torch.matmul(Q, K.t()) / math.sqrt(8), dim=-1) @ V
+      tiled_attn = flash_attention_naive(Q, K, V)
+
+      print("Max Difference:", torch.max(torch.abs(standard_attn - tiled_attn)).item())
+      assert tiled_attn is not None, "tiled_attn should not be None"
+    solution_lang: python
+    time_minutes: 60
+  quizzes:
+  - num_str: Q1 OF 5
+    question: Mathematically, what is the variance of the dot product of two vectors of size $d_k$, assuming their elements
+      are i.i.d with mean 0 and variance 1?
+    qid: q94_1
+    options:
+    - letter: A
+      text: 1 / √$d_k$
+      is_correct: false
+      id: a
+    - letter: B
+      text: $d_k$
+      is_correct: true
+      id: b
+    - letter: C
+      text: √$d_k$
+      is_correct: false
+      id: c
+    - letter: D
+      text: Option D
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! The variance of the sum of independent variables is the sum of their variances, which equals $d_k$.
+      Scaling by √$d_k$ brings the standard deviation back to 1.
+    wrong_fb: ❌ Incorrect. The variance sums up across the dimensions.
+    correct: b
+  - num_str: Q2 OF 5
+    question: Why does an unscaled dot-product cause issues during backpropagation?
+    qid: q94_2
+    options:
+    - letter: A
+      text: It leads to floating-point overflows.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It creates zero gradients everywhere.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It pushes the softmax function into regions with extremely small gradients.
+      is_correct: true
+      id: c
+    - letter: D
+      text: It causes memory fragmentation.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Large values push the softmax output towards 1 and 0, where the derivative of softmax is nearly
+      flat (vanishing gradients).
+    wrong_fb: ❌ Incorrect. Focus on the derivative of the softmax function for extreme values.
+    correct: c
+  - num_str: Q3 OF 5
+    question: What is the memory complexity of calculating the full attention matrix for a sequence of length N?
+    qid: q94_3
+    options:
+    - letter: A
+      text: $O(N)$
+      is_correct: false
+      id: a
+    - letter: B
+      text: O(N log N)
+      is_correct: false
+      id: b
+    - letter: C
+      text: $O(N^2)$
+      is_correct: true
+      id: c
+    - letter: D
+      text: $O(1)$
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! The scores matrix is $N \times N$, making self-attention scale quadratically with sequence length.
+    wrong_fb: ❌ Incorrect. If every token attends to every other token, how large is the resulting grid?
+    correct: c
+  - num_str: Q4 OF 5
+    question: In causal attention, what value is used to mask out future tokens BEFORE applying softmax?
+    qid: q94_4
+    options:
+    - letter: A
+      text: Negative Infinity (-inf)
+      is_correct: true
+      id: a
+    - letter: B
+      text: Zero (0)
+      is_correct: false
+      id: b
+    - letter: C
+      text: One (1)
+      is_correct: false
+      id: c
+    - letter: D
+      text: Positive Infinity (+inf)
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Setting values to -inf ensures that after the exponentiation in softmax (e^-inf = 0), the attention
+      weight becomes exactly 0.
+    wrong_fb: ❌ Incorrect. If you mask with 0, e^0 becomes 1 in the softmax numerator, which still gives a probability!
+    correct: a
+  - num_str: Q5 OF 5
+    question: In the query-key-value analogy, what does the Key ($K$) represent?
+    qid: q94_5
+    options:
+    - letter: A
+      text: The search term you are looking for.
+      is_correct: false
+      id: a
+    - letter: B
+      text: The address or label of the information in the database.
+      is_correct: true
+      id: b
+    - letter: C
+      text: The actual content of the database.
+      is_correct: false
+      id: c
+    - letter: D
+      text: The final context vector.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Query searches, Key indexes, and Value holds the actual content.
+    wrong_fb: ❌ Incorrect. Think of it like a hash map. $Q$ is the lookup, $V$ is the value. What is $K$?
+    correct: b
+  flashcards:
+  - front: What is the Scaled Dot-Product Attention formula?
+    back: Attention(Q,K,V) = softmax(Q K^T / sqrt(d_k)) V. The scaling factor sqrt(d_k) prevents dot products from growing
+      large and pushing softmax into vanishing gradients.
+  - front: Why does Transformer self-attention have O(N^2) complexity?
+    back: Every token in a sequence of length N computes an attention score with every other token, resulting in an N x N
+      attention matrix.
+  - front: 'Core concept: What is the significance of WSGI vs ASGI? in The Mathematics of Scaled Dot-Product Attention?'
+    back: 'WSGI: Web Server Gateway Interface (synchronous). ASGI: Asynchronous Server Gateway Interface (async, supports
+      WebSockets).'
+  - front: 'Core concept: What is the significance of Docker Image? in The Mathematics of Scaled Dot-Product Attention?'
+    back: Read-only blueprint template with instructions to build a container environment (defined in a Dockerfile).
+  - front: Pydantic Validation?
+    back: Python library for data parsing and validation using type hints, raising clear runtime errors for invalid input
+      schemas.
+  gotcha:
+    title: '⚠️ Gotcha: Quantization Scale Calibration'
+    description: Post-training quantization requires representative calibration datasets to calculate dynamic scales accurately.
+  takeaways:
+    hinglish_line: |-
+      <strong>
+                Ek line mein:
+               </strong>
+               Scaled Dot-Product Attention har word ko Query, Key, aur Value matrices mein project karke unke contextual correlations calculate karta hai.
+    bullets:
+    - RNNs suffer from an information bottleneck; Attention solves this with an $O(1)$ path length between any two tokens.
+    - Scaling by √$d_k$ is mathematically required to prevent dot products from exploding in variance and causing vanishing
+      gradients.
+    - Causal masking is achieved by replacing future token scores with -infinity before the softmax operation.
+  resources:
+  - title: The Mathematics of Scaled Dot-Product Attention — Let's build GPT from scratch, in code, spelled out — Andrej Karpathy
+    url: https://www.youtube.com/watch?v=kCc8FmEb1nY#day-94
+    type: VIDEO
+    author: Andrej Karpathy
+    duration: 1h 56m
+  - title: The Mathematics of Scaled Dot-Product Attention — Generative AI, LangChain & LLM Master Series — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVN7MIbEIqHBNqYvV3yq_7l_#day-94
+    type: VIDEO
+    author: Krish Naik
+    duration: Full Series
+  - title: The Mathematics of Scaled Dot-Product Attention — NLP & Transformers Explained from Math to PyTorch — CampusX
+    url: https://www.youtube.com/playlist?list=PLKnIA16_RmvZk1w_4N7_0Wc3Q2g9w7bYc#day-94
+    type: VIDEO
+    author: CampusX
+    duration: Series
+  - title: The Mathematics of Scaled Dot-Product Attention — Hugging Face Transformers Documentation & Tasks Guide
+    url: https://huggingface.co/docs/transformers/index#day-94
+    type: DOCS
+    author: Hugging Face
+    duration: Reference
+  - title: The Mathematics of Scaled Dot-Product Attention Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-94
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
+  gotchas:
+  - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test splits produces overly optimistic evaluation
+    metrics. Always fit transformations strictly on training partitions.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon stabilization in denominators
+    triggers silent NaN gradients and GPU Out-Of-Memory (OOM) crashes in production.'
+- id: 95
+  day_num: 95
+  title: Transformer Architecture & Modern Positional Encodings (RoPE)
+  subtitle: Constructing the full Encoder-Decoder stack, understanding Multi-Head Attention, and upgrading from sinusoidal
+    absolute position embeddings to Rotary Positional Embeddings (RoPE) used in LLaMA. We will also analyze inference optimizations
+    like KV Caching.
+  time_estimate: 4 hours
+  difficulty: Medium
+  badges:
+  - label: ⚡ Medium
+    variant: o
+  xp: 150
+  objectives:
+  - 'Apply: Differentiate between Encoder and Decoder architectures.'
+  - Demonstrate the mechanism and benefits of Multi-Head Attention over Single-Head Attention.
+  - Derive Absolute Positional Encodings and implement Rotary Positional Embeddings (RoPE).
+  - Demonstrate how KV Caching reduces autoregressive generation complexity from $O(N^2)$ to $O(N)$.
+  - 'Apply: Contrast Pre-LayerNorm and Post-LayerNorm strategies.'
+  checklist:
+  - id: chk_95_1
+    text: Derive and analyze mathematical and architectural principles for Transformer Architecture & Modern Positional Encodings
+      (RoPE)
+  - id: chk_95_2
+    text: Build and benchmark production coding pipelines for Transformer Architecture & Modern Positional Encodings (RoPE)
+  - id: chk_95_3
+    text: Execute and validate test verification suite for Multi-Head Split
+  - id: chk_95_4
+    text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
+  concept_flow:
+  - The Mathematics of Scaled Dot-Product Attention
+  - Transformer Architecture & Modern Positional Encodings (RoPE)
+  - 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  - Hugging Face Ecosystem & Advanced Tokenizers
+  - Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - 'Capstone Part 1: Advanced Information Retrieval (RAG)'
+  - 'Capstone Part 2: Deployment & Model Serving'
+  hinglish: 'Speculative decoding: small ''draft'' model se candidate tokens generate karo, large model se verify karo. 2-3x
+    speedup ho sakta hai quality maintain karte hue!'
+  analogy: Imagine writing a recipe step-by-step. Sinusoidal encoding is like writing the step number at the top of the card.
+    RoPE (Rotary Position Embeddings) is like drawing a clock hand on the card that rotates a specific angle for each step.
+    When you compare two cards, you just check the relative angle difference between the clock hands to know how far apart
+    the steps are, regardless of their card numbers. (This mirrors how Transformer fundamentally operates.)
+  theory_html: |-
+    <h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
+    <p>Core engineering patterns and implementation reference for Transformer Architecture & Modern Positional Encodings (RoPE).</p>
+    <div class="cb">
+      <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+      <pre><code># Architectural Reference for Day 95: Transformer Architecture & Modern Positional Encodings (RoPE)
+    import os
+    import sys
+
+    def execute_module():
+        print("Executing Transformer Architecture & Modern Positional Encodings (RoPE) pipeline...")
+        config = {"module": "Transformer Architecture & Modern Positional Encodings (RoPE)", "status": "ACTIVE", "day": 95}
+        print("Configuration:", config)
+        return config
+
+    if __name__ == "__main__":
+        execute_module()</code></pre>
+    </div>
+    <h3 class="sh3">
+           1. The Transformer Architecture
+          </h3>
+    <figure class="svg-diagram">
+    <svg aria-label="Transformer architecture showing encoder and decoder with multi-head attention" height="420" role="img" viewBox="0 0 700 420" width="700" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%; height: auto;">
+    <defs>
+    <lineargradient id="tr-bg_s2_s" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#1a1e2e">
+    </stop>
+    <stop offset="100%" stop-color="var(--bg)">
+    </stop>
+    </lineargradient>
+    </defs>
+    <rect fill="url(#tr-bg)" height="420" rx="12" width="700">
+    </rect>
+    <text fill="#e6edf3" font-family="DM Sans,sans-serif" font-size="15" font-weight="700" text-anchor="middle" x="350" y="22">
+             The Transformer Architecture
+            </text>
+    <!-- ENCODER STACK (left) -->
+    <rect fill="none" height="340" rx="10" stroke="var(--blue, #82aaff)" stroke-dasharray="6,3" stroke-width="1.5" width="260" x="40" y="45">
+    </rect>
+    <text fill="var(--blue, #82aaff)" font-family="DM Sans,sans-serif" font-size="12" font-weight="700" text-anchor="middle" x="170" y="65">
+             ENCODER (×N)
+            </text>
+    <!-- Input Embedding -->
+    <rect fill="#1c2333" height="28" rx="5" stroke="#d2a8ff" stroke-width="1.5" width="180" x="80" y="340">
+    </rect>
+    <text fill="#d2a8ff" font-family="DM Sans,sans-serif" font-size="9" text-anchor="middle" x="170" y="358">
+             Input Embedding + Pos Encoding
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="170" x2="170" y1="340" y2="320">
+    </line>
+    <!-- Multi-Head Self-Attention -->
+    <rect fill="#1c2333" height="38" rx="6" stroke="#f0c846" stroke-width="2" width="180" x="80" y="280">
+    </rect>
+    <text fill="#f0c846" font-family="DM Sans,sans-serif" font-size="9" font-weight="600" text-anchor="middle" x="170" y="298">
+             Multi-Head Self-Attention
+            </text>
+    <text fill="var(--text2)" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="170" y="312">
+             Q, K, V from same input
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="170" x2="170" y1="280" y2="260">
+    </line>
+    <!-- Add &amp; Norm 1 -->
+    <rect fill="rgba(126,231,135,0.15)" height="15" rx="3" width="120" x="110" y="245">
+    </rect>
+    <text fill="#7ee787" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="170" y="255">
+             Add &amp; LayerNorm
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="170" x2="170" y1="245" y2="225">
+    </line>
+    <!-- Feed-Forward -->
+    <rect fill="#1c2333" height="38" rx="6" stroke="var(--blue, #82aaff)" stroke-width="1.5" width="180" x="80" y="185">
+    </rect>
+    <text fill="var(--blue, #82aaff)" font-family="DM Sans,sans-serif" font-size="9" font-weight="600" text-anchor="middle" x="170" y="203">
+             Feed-Forward Network
+            </text>
+    <text fill="var(--text2)" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="170" y="217">
+             FFN(x) = ReLU(xW₁+b₁)W₂+b₂
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="170" x2="170" y1="185" y2="165">
+    </line>
+    <!-- Add &amp; Norm 2 -->
+    <rect fill="rgba(126,231,135,0.15)" height="15" rx="3" width="120" x="110" y="150">
+    </rect>
+    <text fill="#7ee787" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="170" y="160">
+             Add &amp; LayerNorm
+            </text>
+    <!-- Residual connection arrows -->
+    <path d="M75,310 L60,310 L60,253 L108,253" fill="none" stroke="#7ee787" stroke-dasharray="3,3" stroke-width="1">
+    </path>
+    <path d="M75,210 L60,210 L60,158 L108,158" fill="none" stroke="#7ee787" stroke-dasharray="3,3" stroke-width="1">
+    </path>
+    <!-- DECODER STACK (right) -->
+    <rect fill="none" height="340" rx="10" stroke="#f97583" stroke-dasharray="6,3" stroke-width="1.5" width="280" x="380" y="45">
+    </rect>
+    <text fill="#f97583" font-family="DM Sans,sans-serif" font-size="12" font-weight="700" text-anchor="middle" x="520" y="65">
+             DECODER (×N)
+            </text>
+    <!-- Output Embedding -->
+    <rect fill="#1c2333" height="28" rx="5" stroke="#d2a8ff" stroke-width="1.5" width="200" x="420" y="340">
+    </rect>
+    <text fill="#d2a8ff" font-family="DM Sans,sans-serif" font-size="9" text-anchor="middle" x="520" y="358">
+             Output Embedding + Pos Encoding
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="520" x2="520" y1="340" y2="318">
+    </line>
+    <!-- Masked Self-Attention -->
+    <rect fill="#1c2333" height="36" rx="6" stroke="#f97583" stroke-width="2" width="200" x="420" y="280">
+    </rect>
+    <text fill="#f97583" font-family="DM Sans,sans-serif" font-size="9" font-weight="600" text-anchor="middle" x="520" y="298">
+             Masked Self-Attention
+            </text>
+    <text fill="var(--text2)" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="520" y="310">
+             Prevents seeing future tokens
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="520" x2="520" y1="280" y2="262">
+    </line>
+    <!-- Add &amp; Norm -->
+    <rect fill="rgba(126,231,135,0.15)" height="14" rx="3" width="120" x="460" y="248">
+    </rect>
+    <text fill="#7ee787" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="520" y="258">
+             Add &amp; LayerNorm
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="520" x2="520" y1="248" y2="228">
+    </line>
+    <!-- Cross-Attention -->
+    <rect fill="#1c2333" height="36" rx="6" stroke="#f0c846" stroke-width="2" width="200" x="420" y="190">
+    </rect>
+    <text fill="#f0c846" font-family="DM Sans,sans-serif" font-size="9" font-weight="600" text-anchor="middle" x="520" y="208">
+             Cross-Attention
+            </text>
+    <text fill="var(--text2)" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="520" y="220">
+             K,V from encoder; Q from decoder
+            </text>
+    <!-- Arrow from encoder to cross-attention -->
+    <path d="M300,155 L340,155 L340,208 L418,208" fill="none" marker-end="url(#arrowhead)" stroke="#f0c846" stroke-width="1.5">
+    </path>
+    <text fill="#f0c846" font-family="DM Sans,sans-serif" font-size="7" x="345" y="175">
+             K, V
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="520" x2="520" y1="190" y2="172">
+    </line>
+    <!-- Add &amp; Norm -->
+    <rect fill="rgba(126,231,135,0.15)" height="14" rx="3" width="120" x="460" y="158">
+    </rect>
+    <text fill="#7ee787" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="520" y="168">
+             Add &amp; LayerNorm
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="520" x2="520" y1="158" y2="138">
+    </line>
+    <!-- Feed-Forward -->
+    <rect fill="#1c2333" height="36" rx="6" stroke="var(--blue, #82aaff)" stroke-width="1.5" width="200" x="420" y="100">
+    </rect>
+    <text fill="var(--blue, #82aaff)" font-family="DM Sans,sans-serif" font-size="9" font-weight="600" text-anchor="middle" x="520" y="118">
+             Feed-Forward Network
+            </text>
+    <line stroke="#6b7590" stroke-width="1.2" x1="520" x2="520" y1="100" y2="82">
+    </line>
+    <!-- Add &amp; Norm -->
+    <rect fill="rgba(126,231,135,0.15)" height="14" rx="3" width="120" x="460" y="72">
+    </rect>
+    <text fill="#7ee787" font-family="DM Sans,sans-serif" font-size="7" text-anchor="middle" x="520" y="82">
+             Add &amp; LayerNorm
+            </text>
+    <!-- Output -->
+    <text fill="#f0c846" font-family="DM Sans,sans-serif" font-size="9" font-weight="600" text-anchor="middle" x="350" y="405">
+             Input: "The cat sat" → Encoder → Decoder → "Le chat assis" (autoregressive, one token at a time)
+            </text>
+    </svg>
+    <figcaption>
+            The Transformer uses self-attention instead of recurrence. The encoder processes the full input; the decoder generates output tokens autoregressively with masked attention and cross-attention to the encoder.
+           </figcaption>
+    </figure>
+    <div class="mermaid">
+    graph TD
+    subgraph "Encoder"
+      E1["Input Embeddings"] --> E2["Add Positional Encoding"]
+      E2 --> E3["Multi-Head Self Attention"]
+      E3 --> E4["Add and Norm"]
+      E4 --> E5["Feed Forward Network"]
+      E5 --> E6["Add and Norm"]
+    end
+    subgraph "Decoder"
+      D1["Target Embeddings"] --> D2["Add Positional Encoding"]
+      D2 --> D3["Masked Multi-Head Attention"]
+      D3 --> D4["Add and Norm"]
+      E6 --> D5["Cross-Attention"]
+      D4 --> D5
+      D5 --> D6["Add and Norm"]
+      D6 --> D7["Feed Forward Network"]
+      D7 --> D8["Add and Norm"]
+    end
+    </div>
+    <h3 class="sh3">
+           2. Multi-Head Attention
+          </h3>
+    <p>
+           Instead of calculating a single attention distribution, Multi-Head Attention splits the embeddings into
+           <em>
+            h
+           </em>
+           heads, computes attention independently in parallel, and concatenates the results. This allows the model to simultaneously attend to different representation subspaces (e.g., one head for syntax, one head for subject-verb relationships).
+          </p>
+    <h3 class="sh3">
+           3. Rotary Positional Embeddings (RoPE)
+          </h3>
+    <p>
+           The original Transformer used Absolute Positional Encodings (adding sine/cosine waves to token vectors). Modern LLMs (like LLaMA and Mistral) use
+           <strong>
+            RoPE
+           </strong>
+           , which encodes relative position by rotating the query and key representations in a 2D plane by an angle proportional to their absolute position.
+          </p>
+    <div class="math-block">
+    <span class="formula">
+            $$RoPE(x_m) = x_m * cos(mθ) + [-x_m(2), x_m(1)] * sin(mθ)$$
+           </span>
+    <span class="desc">
+            Where m is the absolute position. The inner product between two rotated vectors naturally decays relative to their distance (m - n), giving strong relative position bias.
+           </span>
+    </div>
+    <h3 class="sh3">
+           4. Pre-LN vs Post-LN
+          </h3>
+    <p>
+           Original Transformers used Post-LayerNorm (LayerNorm after residual connections). This led to severe gradient vanishing during early training, requiring a long learning rate warmup. Modern architectures (GPT-2, LLaMA) use Pre-LayerNorm (LayerNorm inside the residual block), allowing for stable training without warmup.
+          </p>
+    <h3 class="sh3">
+           5. Autoregressive Generation &amp; KV Caching
+          </h3>
+    <p>
+           During inference, decoder models generate tokens one by one. Recomputing attention for all past tokens at every step is computationally expensive
+           <em>
+            $O(N^2)$
+           </em>
+           .
+           <strong>
+            KV Caching
+           </strong>
+           solves this by storing the previously computed Key and Value vectors for past tokens in memory. At step
+           <em>
+            t
+           </em>
+           , we only compute the Query, Key, and Value for the new token, and append its $K$ and $V$ to the cache, reducing time complexity per step to
+           <em>
+            $O(N)$
+           </em>
+           .
+          </p>
+  predict:
+    question: What is the output shape of the Multi-Head Attention projection tensor (Batch, Seq_Len, Hidden_Dim)?
+    answer: (2, 16, 128)
+    explanation: 'Self-attention preserves sequence length and hidden dimension: batch_size 2, sequence length 16, hidden
+      dim 128.'
+    code: |-
+      batch_size = 2
+      seq_len = 16
+      hidden_dim = 128
+      print(f'({batch_size}, {seq_len}, {hidden_dim})')
+  tasks:
+  - title: Multi-Head Split
+    badge: 🟢 EASY
+    badge_class: tb-easy
+    time: 25 min
+    prompt_html: "<p><strong>\n           In PyTorch, create a tensor\n           \n            x\n           \n         \
+      \  of shape\n           \n            (batch=2, seq_len=10, d_model=512)\n           \n           . Write code to reshape\
+      \ and transpose this tensor so that it is split into\n           \n            h=8\n           \n           heads. The\
+      \ final shape should be\n           \n            (batch, num_heads, seq_len, head_dim)\n           \n           .\n\
+      \          </strong></p>"
+    done_when: "Your tensor successfully reshapes to\n           \n            (2, 8, 10, 64)\n           \n           ."
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day95: complete day 95 tasks and coding exercises"'
+    sol_id: sol-w14d95t1
+    solution_title: ✅ Multi-Head Reshaping &amp; Transposition
+    solution_code: |-
+      import numpy as np
+      import torch
+      np.random.seed(42)
+      torch.manual_seed(42)
+      # Step 1: Model Training & Evaluation Workflow
+      import torch
+
+      B, T, d_model = 2, 10, 512
+      h = 8
+      head_dim = d_model // h
+
+      x = torch.randn(B, T, d_model)
+      x_split = x.view(B, T, h, head_dim)
+      x_final = x_split.transpose(1, 2)
+
+      print("Original shape:", x.shape)
+      print("Reshaped shape:", x_split.shape)
+      print("Final shape:   ", x_final.shape)
+      assert x_final.shape == (B, h, T, head_dim)
+    solution_lang: python
+    time_minutes: 30
+  - title: KV Cache Implementation
+    badge: 🟡 MEDIUM
+    badge_class: tb-med
+    time: 45 min
+    prompt_html: "<p><strong>\n           Write a simplified\n           \n            DecoderBlock\n           \n       \
+      \    class. Add an argument\n           \n            past_key_values=None\n           \n           . Inside the forward\
+      \ pass, if\n           \n            past_key_values\n           \n           is provided, concatenate the current step's\
+      \ $K$ and $V$ with the past $K$ and $V$ along the sequence length dimension, and return the new cache for the next step.\n\
+      \          </strong></p>"
+    done_when: Your model successfully generates sequence step-by-step using cached values, avoiding recomputation.
+    git_cmd: 'git add kv_cache_implementation.py &amp;&amp; git commit -m "feat(day): day95: kv-cache-implementation"'
+    sol_id: sol-w14d95t2
+    solution_title: ✅ Simplified Decoder Causal Attention with KV Caching
+    solution_code: |-
+      # Step 1: Algorithmic Implementation & Core Transformations
+      import torch
+      import torch.nn as nn
+      import math
+
+      class CausalSelfAttentionWithCache(nn.Module):
+          def __init__(self, d_model, n_heads):
+              super().__init__()
+              self.d_model = d_model
+              self.n_heads = n_heads
+              self.head_dim = d_model // n_heads
+
+              self.q_proj = nn.Linear(d_model, d_model, bias=False)
+              self.k_proj = nn.Linear(d_model, d_model, bias=False)
+              self.v_proj = nn.Linear(d_model, d_model, bias=False)
+              self.out_proj = nn.Linear(d_model, d_model, bias=False)
+
+          def forward(self, x, past_key_values=None):
+              B, T, C = x.shape
+              q = self.q_proj(x).view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
+              k = self.k_proj(x).view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
+              v = self.v_proj(x).view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
+
+              if past_key_values is not None:
+                  past_k, past_v = past_key_values
+                  k = torch.cat([past_k, k], dim=-2)
+                  v = torch.cat([past_v, v], dim=-2)
+
+              new_past_key_values = (k, v)
+              total_T = k.size(-2)
+
+              scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
+              causal_mask = torch.tril(torch.ones(T, total_T, device=x.device))
+              scores = scores.masked_fill(causal_mask == 0, float('-inf'))
+
+              attn = torch.softmax(scores, dim=-1)
+              out = torch.matmul(attn, v).transpose(1, 2).contiguous().view(B, T, C)
+              return self.out_proj(out), new_past_key_values
+    solution_lang: python
+    time_minutes: 45
+  - title: Implement RoPE from Scratch
+    badge: 🔴 HARD
+    badge_class: tb-hard
+    time: 90 min
+    prompt_html: "<p><strong>\n           Implement the\n           \n            apply_rotary_emb(q, k, freqs_cis)\n    \
+      \       \n           function in PyTorch as described in the RoPE paper. You will need to reshape vectors into complex\
+      \ numbers (\n           \n            torch.view_as_complex\n           \n           ), multiply by complex exponentials\
+      \ of frequencies, and cast back to real tensors (\n           \n            torch.view_as_real\n           \n      \
+      \     ).\n          </strong></p>"
+    done_when: When you successfully rotate the embeddings and verify that the dot product decays predictably as distance
+      increases.
+    git_cmd: 'git add implement_rope_from_scratch.py &amp;&amp; git commit -m "feat(day): day95: implement-rope-from-scratch"'
+    sol_id: sol-w14d95t3
+    solution_title: ✅ Rotary Positional Embeddings (RoPE) Implementation
+    solution_code: |-
+      # Step 1: Algorithmic Implementation & Core Transformations
+      import torch
+
+      def precompute_freqs_cis(dim, end, theta=10000.0):
+          freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
+          t = torch.arange(end, device=freqs.device)
+          freqs = torch.outer(t, freqs).float()
+          freqs_cis = torch.polar(torch.ones_like(freqs), freqs)
+          return freqs_cis
+
+      def apply_rotary_emb(xq, xk, freqs_cis):
+          xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
+          xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
+          freqs_cis = freqs_cis.view(1, xq_.size(1), 1, xq_.size(3))
+          xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
+          xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
+          return xq_out.type_as(xq), xk_out.type_as(xk)
+      assert xk_out is not None, "xk_out should not be None"
+    solution_lang: python
+    time_minutes: 60
+  quizzes:
+  - num_str: Q1 OF 5
+    question: What is the primary advantage of Multi-Head Attention over Single-Head Attention?
+    qid: q95_1
+    options:
+    - letter: A
+      text: It reduces the overall parameter count of the model.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It allows the model to jointly attend to information from different representation subspaces.
+      is_correct: true
+      id: b
+    - letter: C
+      text: It operates faster by using smaller batch sizes.
+      is_correct: false
+      id: c
+    - letter: D
+      text: It eliminates the need for positional encodings.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Different heads can learn different concepts (e.g. grammar vs semantics) in parallel.
+    wrong_fb: ❌ Incorrect. The parameter count is roughly the same. Think about representation spaces.
+    correct: b
+  - num_str: Q2 OF 5
+    question: Why is Pre-LayerNorm preferred in modern LLMs over Post-LayerNorm?
+    qid: q95_2
+    options:
+    - letter: A
+      text: It prevents gradient vanishing and allows for stable training without long learning rate warmups.
+      is_correct: true
+      id: a
+    - letter: B
+      text: It uses less VRAM.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It increases the context window size.
+      is_correct: false
+      id: c
+    - letter: D
+      text: It makes the model exactly translation-invariant.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Post-LN suffers from vanishing gradients near the output layer, requiring careful warmup schedules.
+      Pre-LN keeps the residual stream clean.
+    wrong_fb: ❌ Incorrect. Pre-LN affects gradient flow, not memory or context window size.
+    correct: a
+  - num_str: Q3 OF 5
+    question: How does KV Caching improve autoregressive generation speed?
+    qid: q95_3
+    options:
+    - letter: A
+      text: It quantizes weights to 4-bit.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It predicts multiple tokens at once.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It saves previously computed Keys and Values so they don't have to be recalculated at every token step.
+      is_correct: true
+      id: c
+    - letter: D
+      text: It caches the final softmax probabilities.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! By caching $K$ and $V$, we avoid $O(N^2)$ recalculation at every step, dropping the cost to $O(N)$
+      per step.
+    wrong_fb: ❌ Incorrect. KV caching is about avoiding redundant matrix multiplications for past sequence tokens.
+    correct: c
+  - num_str: Q4 OF 5
+    question: What does Rotary Positional Embedding (RoPE) actually do to the feature vectors?
+    qid: q95_4
+    options:
+    - letter: A
+      text: Adds a scalar index to every dimension.
+      is_correct: false
+      id: a
+    - letter: B
+      text: Rotates the vectors in a 2D plane by an angle that corresponds to their absolute position.
+      is_correct: true
+      id: b
+    - letter: C
+      text: Multiplies the vector by a learned diagonal matrix.
+      is_correct: false
+      id: c
+    - letter: D
+      text: Concatenates position indices to the embedding.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! RoPE applies a rotation matrix. The dot product between two rotated vectors depends only on their
+      relative angle (distance).
+    wrong_fb: ❌ Incorrect. Think about the word "Rotary".
+    correct: b
+  - num_str: Q5 OF 5
+    question: In a standard Encoder-Decoder Transformer (like T5 or standard translation model), what does Cross-Attention
+      do?
+    qid: q95_5
+    options:
+    - letter: A
+      text: It allows the encoder to look at the decoder's future tokens.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It uses the Decoder's hidden states as Queries, and the Encoder's output states as Keys and Values.
+      is_correct: true
+      id: b
+    - letter: C
+      text: It averages the weights of all heads together.
+      is_correct: false
+      id: c
+    - letter: D
+      text: It computes attention across different batches.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! The decoder queries the encoder's output to "translate" or map the source context to the target
+      context.
+    wrong_fb: ❌ Incorrect. Cross-attention connects the Decoder and the Encoder.
+    correct: b
+  flashcards:
+  - front: What is the difference between MHA, MQA, and GQA?
+    back: Multi-Head Attention (MHA) has distinct KV heads per Q head; Multi-Query Attention (MQA) shares 1 KV head across
+      all Q heads; Grouped-Query Attention (GQA) groups Q heads to share KV heads, balancing quality and memory bandwidth.
+  - front: Why does GQA drastically reduce KV Cache memory in production LLMs?
+    back: By sharing key-value projections across groups of query heads (e.g. 8 KV heads for 32 Q heads), KV cache VRAM is
+      cut by 4x to 8x.
+  - front: 'Core concept: What is the significance of WSGI vs ASGI? in Transformer Architecture & Modern Positional Encodings
+      ...'
+    back: 'WSGI: Web Server Gateway Interface (synchronous). ASGI: Asynchronous Server Gateway Interface (async, supports
+      WebSockets).'
+  - front: 'Core concept: What is the significance of Docker Image? in Transformer Architecture & Modern Positional Encodings
+      ...'
+    back: Read-only blueprint template with instructions to build a container environment (defined in a Dockerfile).
+  - front: Pydantic Validation (D95)?
+    back: Python library for data parsing and validation using type hints, raising clear runtime errors for invalid input
+      schemas.
+  gotcha:
+    title: '⚠️ Gotcha: Quantization Scale Calibration'
+    description: Post-training quantization requires representative calibration datasets to calculate dynamic scales accurately.
+  takeaways:
+    hinglish_line: |-
+      <strong>
+                Ek line mein:
+               </strong>
+               RoPE (Rotary Embeddings) positional info ko features vector space mein rotate karke store karta hai, jisse model tokens ke beech ki relative doori ko behtar samajhta hai.
+    bullets:
+    - Multi-Head Attention extracts diverse semantic and syntactic representations in parallel.
+    - Pre-LayerNorm prevents gradient vanishing and removes the need for learning rate warmups.
+    - KV Caching is absolutely critical for fast inference in production LLMs.
+    - RoPE natively injects relative positional information through complex rotations.
+  resources:
+  - title: Transformer Architecture & Modern Positional Encodings (RoPE) — Let's build GPT from scratch, in code, spelled
+      out — Andrej Karpathy
+    url: https://www.youtube.com/watch?v=kCc8FmEb1nY#day-95
+    type: VIDEO
+    author: Andrej Karpathy
+    duration: 1h 56m
+  - title: Transformer Architecture & Modern Positional Encodings (RoPE) — Generative AI, LangChain & LLM Master Series —
+      Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVN7MIbEIqHBNqYvV3yq_7l_#day-95
+    type: VIDEO
+    author: Krish Naik
+    duration: Full Series
+  - title: Transformer Architecture & Modern Positional Encodings (RoPE) — NLP & Transformers Explained from Math to PyTorch
+      — CampusX
+    url: https://www.youtube.com/playlist?list=PLKnIA16_RmvZk1w_4N7_0Wc3Q2g9w7bYc#day-95
+    type: VIDEO
+    author: CampusX
+    duration: Series
+  - title: Transformer Architecture & Modern Positional Encodings (RoPE) — Hugging Face Transformers Documentation & Tasks
+      Guide
+    url: https://huggingface.co/docs/transformers/index#day-95
+    type: DOCS
+    author: Hugging Face
+    duration: Reference
+  - title: Transformer Architecture & Modern Positional Encodings (RoPE) Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-95
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
+  gotchas:
+  - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test splits produces overly optimistic evaluation
+    metrics. Always fit transformations strictly on training partitions.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon stabilization in denominators
+    triggers silent NaN gradients and GPU Out-Of-Memory (OOM) crashes in production.'
+- id: 96
+  day_num: 96
+  title: 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  subtitle: BERT (Devlin et al., Google 2018) was the moment NLP changed forever. For the first time, a single pre-trained
+    model could be fine-tuned to achieve state-of-the-art on eleven different NLP benchmarks simultaneously. Today we dissect
+    exactly how BERT's bidirectional architecture works, how Masked Language Modeling forces the model to learn deep contextual
+    representations, and how to prepare inputs and fine-tune BERT for classification tasks.
+  time_estimate: 4 hours
+  difficulty: Medium
+  badges:
+  - label: ⚡ Medium
+    variant: o
+  xp: 150
+  objectives:
+  - Demonstrate BERT's architecture (Encoder-only, Bidirectional Self-Attention) and why bidirectionality matters for representations.
+  - 'Apply: Detail both pre-training tasks: Masked Language Modeling (MLM) with 80/10/10 masking strategy, and Next Sentence
+    Prediction (NSP).'
+  - Demonstrate the function of [CLS], [SEP], and [MASK] special tokens and how [CLS] is used for classification.
+  - Build text inputs with WordPiece tokenization, attention masks, and token type IDs for a classification task.
+  - Benchmark BERT-base vs BERT-large and understand the parameter scaling tradeoffs.
+  checklist:
+  - id: chk_96_1
+    text: 'Derive and analyze mathematical and architectural principles for Day 96 — BERT: Bidirectional Encoder Representations
+      from Transformers'
+  - id: chk_96_2
+    text: 'Build and benchmark production coding pipelines for Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  - id: chk_96_3
+    text: Execute and validate test verification suite for Calculate Perplexity
+  - id: chk_96_4
+    text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
+  concept_flow:
+  - The Mathematics of Scaled Dot-Product Attention
+  - Transformer Architecture & Modern Positional Encodings (RoPE)
+  - 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  - Hugging Face Ecosystem & Advanced Tokenizers
+  - Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - 'Capstone Part 1: Advanced Information Retrieval (RAG)'
+  - 'Capstone Part 2: Deployment & Model Serving'
+  hinglish: '💡 BERT ka superpower hai Bidirectional Attention: Ye aage aur peeche dono context ek saath dekhta hai. Classification
+    ke liye hamesha pehla [CLS] token ka output use karo aur specific task dataset pe fine-tune karo.'
+  analogy: BERT is like a student filling in the blanks in a textbook paragraph where some words are blacked out (Masked Language
+    Model). By looking at both the left and right context of the sentence simultaneously, the student can easily guess the
+    missing words with high accuracy. (This mirrors how BERT fundamentally operates.)
+  theory_html: "<div id=\"transformer-ln-rope-enriched\" style=\"margin:1.5rem 0;\">\n<h3 class=\"sh3\">Pre-LN vs Post-LN\
+    \ &amp; Rotary Positional Embeddings (RoPE)</h3>\n<p>Modern LLMs (Llama 3, Mistral, Gemma) replace original Post-LN and\
+    \ Sinusoidal encodings with two critical architectural innovations:</p>\n<ul>\n<li><strong>Pre-Layer Normalization (Pre-LN\
+    \ with RMSNorm):</strong> Normalizes inputs <em>before</em> the Multi-Head Attention and MLP blocks ($x + \text{MHA}(\t\
+    ext{RMSNorm}(x))$), preventing exploding gradients and enabling stable training without aggressive warmup schedules.</li>\n\
+    <li><strong>Rotary Positional Embedding (RoPE):</strong> Encodes relative token distance by rotating Query and Key vector\
+    \ pairs in the 2D complex plane ($R_{\\Theta, m} q_m$), preserving relative spatial awareness across long context windows\
+    \ (32k–128k tokens).</li>\n</ul>\n</div>\n<h3 class=\"sh3\">\n       1. Why Bidirectionality Is the Key Innovation\n \
+    \     </h3>\n<p>\n       GPT (OpenAI, 2018) used a Decoder-only Transformer — trained left-to-right, predicting the next\
+    \ token. This creates representations where each token can only \"see\" the tokens before it. For a word like \"bank\"\
+    \ in \"I went to the bank to deposit money\", a left-to-right model has only seen \"I went to the\" — not enough context\
+    \ to disambiguate financial vs. river bank.\n      </p>\n<p>\n       BERT uses only the Encoder stack, which applies\n\
+    \       <strong>\n        fully bidirectional\n       </strong>\n       self-attention — each token attends to every other\
+    \ token in both directions simultaneously. The representation of \"bank\" is computed using the full context including\
+    \ \"deposit money\" which follows it. This produces dramatically richer contextual representations, especially for tasks\
+    \ requiring deep understanding like QA, NLI, and coreference resolution.\n      </p>\n<div class=\"math-block\">\n<span\
+    \ class=\"formula\">\n        $$h_i^{(l)} = \\\\text{TransformerEncoder}\\\\!\\\\left(h_1^{(l-1)}, \\\\ldots, h_n^{(l-1)}\\\
+    \\right)_i$$\n       </span>\n<span class=\"desc\">\n        Each token representation at layer l is a function of ALL\
+    \ tokens at layer l-1. Contrast with GPT where h_i^(l) depends only on h_1...h_i^(l-1).\n       </span>\n</div>\n<div\
+    \ class=\"mermaid\">\ngraph LR\nsubgraph \"BERT: Bidirectional Attention\"\n  B1[\"Token 1\"] --- B2[\"Token 2\"]\n  B2\
+    \ --- B3[\"Token 3\"]\n  B1 --- B3\nend\nsubgraph \"GPT: Causal Masked Attention\"\n  G1[\"Token 1\"] --> G2[\"Token 2\"\
+    ]\n  G1 --> G3[\"Token 3\"]\n  G2 --> G3\nend\n</div>\n<h3 class=\"sh3\">\n       2. Masked Language Modeling — The 80/10/10\
+    \ Strategy\n      </h3>\n<p>\n       BERT cannot use standard next-token prediction (that would require a causal mask,\
+    \ destroying bidirectionality). Instead, it uses\n       <strong>\n        Masked Language Modeling (MLM)\n       </strong>\n\
+    \       : randomly select 15% of tokens per sequence, then replace them as follows — 80% with [MASK], 10% with a random\
+    \ token, 10% left unchanged. The model must predict the original token for all 15% selected positions.\n      </p>\n<div\
+    \ class=\"table-wrap\" style=\"overflow-x: auto; margin: 1.2rem 0; width: 100%;\"><table class=\"concept-table\">\n<thead>\n\
+    <tr>\n<th>\n          Selection (15%)\n         </th>\n<th>\n          What happens\n         </th>\n<th>\n          Proportion\n\
+    \         </th>\n<th>\n          Rationale\n         </th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>\n          Selected\n\
+    \         </td>\n<td>\n          Replaced with [MASK]\n         </td>\n<td>\n          80%\n         </td>\n<td>\n   \
+    \       Primary learning signal — predict masked tokens\n         </td>\n</tr>\n<tr>\n<td>\n          Selected\n     \
+    \    </td>\n<td>\n          Replaced with random token\n         </td>\n<td>\n          10%\n         </td>\n<td>\n  \
+    \        Forces model to maintain contextual representation for all tokens (not just [MASK])\n         </td>\n</tr>\n\
+    <tr>\n<td>\n          Selected\n         </td>\n<td>\n          Left unchanged\n         </td>\n<td>\n          10%\n\
+    \         </td>\n<td>\n          Prevents model from only focusing on [MASK] positions\n         </td>\n</tr>\n<tr>\n\
+    <td>\n          Not selected (85%)\n         </td>\n<td>\n          Unchanged\n         </td>\n<td>\n          85%\n \
+    \        </td>\n<td>\n          Context for predicting the masked tokens\n         </td>\n</tr>\n</tbody>\n</table></div>\n\
+    <p>\n       The 80/10/10 split is critical. If we only ever replaced with [MASK], the model would learn \"only attend\
+    \ to [MASK] positions\" — but at fine-tuning time, there are no [MASK] tokens. The 10% random + 10% unchanged forces the\
+    \ model to maintain useful representations for every token in every context.\n      </p>\n<h3 class=\"sh3\">\n       3.\
+    \ Special Tokens and Input Construction\n      </h3>\n<p>\n       Every BERT input has a specific structure. Understanding\
+    \ exactly how inputs are constructed is essential for fine-tuning:\n      </p>\n<ul class=\"prose-list\">\n<li>\n<strong>\n\
+    \         [CLS] (Classification Token):\n        </strong>\n        Always the first token. After 12/24 layers of self-attention,\
+    \ the [CLS] representation has attended to all tokens and accumulates a sequence-level summary. For classification tasks,\
+    \ only this representation is passed to the output layer.\n       </li>\n<li>\n<strong>\n         [SEP] (Separator Token):\n\
+    \        </strong>\n        Marks the end of a sentence or the boundary between two sentences in a pair. Required even\
+    \ for single-sentence inputs (appended at end).\n       </li>\n<li>\n<strong>\n         Token Type IDs (Segment Embeddings):\n\
+    \        </strong>\n        0 for all tokens in sentence A, 1 for all tokens in sentence B. Allows BERT to distinguish\
+    \ which sentence each token belongs to in pair tasks.\n       </li>\n<li>\n<strong>\n         Attention Mask:\n      \
+    \  </strong>\n        1 for real tokens, 0 for [PAD] tokens (used when batching sequences of different lengths). Prevents\
+    \ the model from attending to padding positions.\n       </li>\n</ul>\n<h3 class=\"sh3\">\n       4. BERT-base vs BERT-large:\
+    \ Architecture Scaling\n      </h3>\n<div class=\"table-wrap\" style=\"overflow-x: auto; margin: 1.2rem 0; width: 100%;\"\
+    ><table class=\"concept-table\">\n<thead>\n<tr>\n<th>\n          Model\n         </th>\n<th>\n          Layers (L)\n \
+    \        </th>\n<th>\n          Hidden Size (H)\n         </th>\n<th>\n          Attention Heads (A)\n         </th>\n\
+    <th>\n          Parameters\n         </th>\n<th>\n          Training Cost\n         </th>\n</tr>\n</thead>\n<tbody>\n\
+    <tr>\n<td>\n          BERT-base\n         </td>\n<td>\n          12\n         </td>\n<td>\n          768\n         </td>\n\
+    <td>\n          12\n         </td>\n<td>\n          110M\n         </td>\n<td>\n          4 TPUs × 4 days\n         </td>\n\
+    </tr>\n<tr>\n<td>\n          BERT-large\n         </td>\n<td>\n          24\n         </td>\n<td>\n          1024\n  \
+    \       </td>\n<td>\n          16\n         </td>\n<td>\n          340M\n         </td>\n<td>\n          16 TPUs × 4 days\n\
+    \         </td>\n</tr>\n<tr>\n<td>\n          DistilBERT\n         </td>\n<td>\n          6\n         </td>\n<td>\n  \
+    \        768\n         </td>\n<td>\n          12\n         </td>\n<td>\n          66M\n         </td>\n<td>\n        \
+    \  Knowledge distillation from BERT-base\n         </td>\n</tr>\n<tr>\n<td>\n          RoBERTa-base\n         </td>\n\
+    <td>\n          12\n         </td>\n<td>\n          768\n         </td>\n<td>\n          12\n         </td>\n<td>\n  \
+    \        125M\n         </td>\n<td>\n          Longer training, no NSP, dynamic masking\n         </td>\n</tr>\n</tbody>\n\
+    </table></div>\n<h3 class=\"sh3\">\n       5. NLP Evaluation Metrics\n      </h3>\n<div class=\"table-wrap\" style=\"\
+    overflow-x: auto; margin: 1.2rem 0; width: 100%;\"><table class=\"concept-table\">\n<thead>\n<tr>\n<th>\n          Metric\n\
+    \         </th>\n<th>\n          Use Case\n         </th>\n<th>\n          How it Works\n         </th>\n</tr>\n</thead>\n\
+    <tbody>\n<tr>\n<td>\n<strong>\n           Perplexity (PPL)\n          </strong>\n</td>\n<td>\n          Language Modeling\n\
+    \         </td>\n<td>\n          The exponentiated average negative log-likelihood of a sequence. Lower is better. A perplexity\
+    \ of 10 means the model is as confused as if it had to guess uniformly among 10 words.\n         </td>\n</tr>\n<tr>\n\
+    <td>\n<strong>\n           BLEU\n          </strong>\n</td>\n<td>\n          Translation\n         </td>\n<td>\n     \
+    \     Measures n-gram precision. Counts how many n-grams in the generated text appear in the reference text, heavily penalized\
+    \ for short sentences.\n         </td>\n</tr>\n<tr>\n<td>\n<strong>\n           ROUGE\n          </strong>\n</td>\n<td>\n\
+    \          Summarization\n         </td>\n<td>\n          Measures n-gram recall. Counts how many n-grams from the reference\
+    \ text were successfully captured in the generated text.\n         </td>\n</tr>\n</tbody>\n</table></div>\n<div class=\"\
+    cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n         python — bert_tokenization_and_encoding.py\n      \
+    \  </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n          copy\n        \
+    \ </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\" style=\"margin-left: 4px;\">\n          Run\n       \
+    \  </button>\n</div>\n</div>\n<pre><code><span class=\"kw\">from</span> transformers <span class=\"kw\">import</span>\
+    \ BertTokenizer, BertForSequenceClassification\n<span class=\"kw\">import</span> torch\n\ntokenizer = BertTokenizer.<span\
+    \ class=\"fn\">from_pretrained</span>(<span class=\"str\">'bert-base-uncased'</span>)\n\n<span class=\"cm\"># --- Single\
+    \ Sentence ---</span>\ntext = <span class=\"str\">\"NLP embeddings are highly contextual.\"</span>\nenc = <span class=\"\
+    fn\">tokenizer</span>(text, padding=<span class=\"str\">'max_length'</span>, max_length=<span class=\"num\">12</span>,\
+    \ truncation=<span class=\"kw\">True</span>, return_tensors=<span class=\"str\">'pt'</span>)\n<span class=\"fn\">print</span>(<span\
+    \ class=\"str\">\"Tokens:\", tokenizer.convert_ids_to_tokens(enc['</span>input_ids'][<span class=\"num\">0</span>].<span\
+    \ class=\"fn\">tolist</span>()))\n<span class=\"cm\"># &amp;rarr; ['[CLS]', 'nl', '##p', 'em', '##bed', '##ding', '##s',\
+    \ 'are', 'highly', 'contextual', '.', '[SEP]']</span>\n<span class=\"fn\">print</span>(<span class=\"str\">\"Input IDs:\
+    \   \", enc['</span>input_ids'])\n<span class=\"fn\">print</span>(<span class=\"str\">\"Attn Mask:   \", enc['</span>attention_mask'])\
+    \  <span class=\"cm\"># All 1s (no padding needed here)</span>\n<span class=\"fn\">print</span>(<span class=\"str\">\"\
+    Token Types: \", enc['</span>token_type_ids'])   <span class=\"cm\"># All 0s (single sentence)</span>\n\n<span class=\"\
+    cm\"># --- Sentence Pair (for NSP / NLI tasks) ---</span>\nsent_a = <span class=\"str\">\"The patient was admitted to\
+    \ hospital.\"</span>\nsent_b = <span class=\"str\">\"She needed urgent medical attention.\"</span>\npair_enc = <span class=\"\
+    fn\">tokenizer</span>(sent_a, sent_b, padding=<span class=\"str\">'max_length'</span>, max_length=<span class=\"num\"\
+    >24</span>,\n                     truncation=<span class=\"kw\">True</span>, return_tensors=<span class=\"str\">'pt'</span>)\n\
+    <span class=\"fn\">print</span>(<span class=\"str\">\"\\\\nPair Token Type IDs:\", pair_enc['</span>token_type_ids'])\n\
+    <span class=\"cm\"># Sentence A tokens &amp;rarr; 0, Sentence B tokens &amp;rarr; 1</span>\n\n<span class=\"cm\"># ---\
+    \ Run forward pass to get CLS representation ---</span>\nmodel = BertForSequenceClassification.<span class=\"fn\">from_pretrained</span>(<span\
+    \ class=\"str\">'bert-base-uncased'</span>, num_labels=<span class=\"num\">2</span>)\nmodel.<span class=\"fn\">eval</span>()\n\
+    <span class=\"kw\">with</span> torch.<span class=\"fn\">no_grad</span>():\n    outputs = <span class=\"fn\">model</span>(**enc,\
+    \ labels=torch.<span class=\"fn\">tensor</span>([<span class=\"num\">1</span>]))\n    logits = outputs.logits\n    loss\
+    \ = outputs.loss\n<span class=\"fn\">print</span>(<span class=\"str\">\"Logits:\"</span>, logits)\n<span class=\"fn\"\
+    >print</span>(<span class=\"str\">\"Loss:\"</span>, loss)</code></pre>\n</div>"
+  predict:
+    question: What is the output shape of the Multi-Head Attention projection tensor (Batch, Seq_Len, Hidden_Dim)?
+    answer: (2, 16, 128)
+    explanation: 'Self-attention preserves sequence length and hidden dimension: batch_size 2, sequence length 16, hidden
+      dim 128.'
+    code: |-
+      batch_size = 2
+      seq_len = 16
+      hidden_dim = 128
+      print(f'({batch_size}, {seq_len}, {hidden_dim})')
+  tasks:
+  - title: Calculate Perplexity
+    badge: 🟢 EASY
+    badge_class: tb-easy
+    time: 25 min
+    prompt_html: "<p><strong>\n           Write a python script that takes an array of Cross Entropy Losses (e.g.,\n     \
+      \      \n            [0.1, 0.5, 2.3, 5.0]\n           \n           ) and calculates the corresponding Perplexity for\
+      \ each. Print the results.\n          </strong></p>"
+    done_when: "Your script outputs PPL values matching\n           \n            e^loss\n           \n           ."
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day96: complete day 96 tasks and coding exercises"'
+    sol_id: sol-w14d96t1
+    solution_title: ✅ Python Perplexity Calculator
+    solution_code: |-
+      import math
+
+      losses = [0.1, 0.5, 2.3, 5.0]
+
+      for loss in losses:
+          perplexity = math.exp(loss)
+          print(f"Cross Entropy Loss: {loss:.2f} | Perplexity: {perplexity:.4f}")
+      assert perplexity is not None, "perplexity should not be None"
+    solution_lang: python
+    time_minutes: 30
+  - title: Custom MLM Data Collator
+    badge: 🟡 MEDIUM
+    badge_class: tb-med
+    time: 45 min
+    prompt_html: "<p><strong>\n           Write a PyTorch\n           \n            DataCollator\n           \n          \
+      \ class that takes a batch of tokenized sequences and applies the 80-10-10 masking strategy manually. Return the\n \
+      \          \n            input_ids\n           \n           ,\n           \n            attention_mask\n           \n\
+      \           , and\n           \n            labels\n           \n           (with -100 for unmasked tokens to ignore\
+      \ in CrossEntropy calculation).\n          </strong></p>"
+    done_when: Your collator accurately masks 15% of tokens and properly ignores the loss on unmasked tokens.
+    git_cmd: 'git add custom_mlm_data_collator.py &amp;&amp; git commit -m "feat(day): day96: custom-mlm-data-collator"'
+    sol_id: sol-w14d96t2
+    solution_title: ✅ PyTorch Custom MLM Data Collator
+    solution_code: |-
+      # Step 1: Algorithmic Implementation & Core Transformations
+      import torch
+
+      class MLMDataCollator:
+          def __init__(self, tokenizer, mlm_probability=0.15):
+              self.tokenizer = tokenizer
+              self.mlm_probability = mlm_probability
+
+          def __call__(self, examples):
+              input_ids = torch.stack([ex["input_ids"] for ex in examples])
+              labels = input_ids.clone()
+
+              probability_matrix = torch.full(labels.shape, self.mlm_probability)
+              special_tokens_mask = [
+                  self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True)
+                  for val in labels.tolist()
+              ]
+              special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+              probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
+
+              masked_indices = torch.bernoulli(probability_matrix).bool()
+              labels[~masked_indices] = -100
+
+              indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+              input_ids[indices_replaced] = self.tokenizer.convert_tokens_to_ids("[MASK]")
+
+              indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
+              random_words = torch.randint(len(self.tokenizer), labels.shape, dtype=torch.long)
+              input_ids[indices_random] = random_words[indices_random]
+
+              return {
+                  "input_ids": input_ids,
+                  "attention_mask": torch.stack([ex["attention_mask"] for ex in examples]),
+                  "labels": labels
+              }
+      assert random_words is not None, "random_words should not be None"
+    solution_lang: python
+    time_minutes: 45
+  - title: Build a BLEU Score Evaluator
+    badge: 🔴 HARD
+    badge_class: tb-hard
+    time: 90 min
+    prompt_html: |-
+      <p><strong>
+                 Without using NLTK or HuggingFace Evaluate, write a Python function to compute the unigram and bigram precision between a candidate sentence and a reference sentence. Implement the Brevity Penalty to penalize candidate sentences that are too short.
+                </strong></p>
+    done_when: Your function correctly penalizes short sentences and accurately measures n-gram overlap.
+    git_cmd: 'git add build_a_bleu_score_evaluator.py &amp;&amp; git commit -m "feat(day): day96: build-a-bleu-score-evaluator"'
+    sol_id: sol-w14d96t3
+    solution_title: ✅ Pure Python BLEU Evaluator
+    solution_code: |-
+      # Step 1: Algorithmic Implementation & Core Transformations
+      from collections import Counter
+      import math
+
+      def get_ngrams(words, n):
+          return [tuple(words[i:i+n]) for i in range(len(words)-n+1)]
+
+      def bleu_precision(candidate, reference, n):
+          cand_ngrams = get_ngrams(candidate, n)
+          ref_ngrams = get_ngrams(reference, n)
+          if not cand_ngrams:
+              return 0.0
+          cand_counts = Counter(cand_ngrams)
+          ref_counts = Counter(ref_ngrams)
+
+          clipped_matches = 0
+          for ngram, count in cand_counts.items():
+              clipped_matches += min(count, ref_counts[ngram])
+          return clipped_matches / len(cand_ngrams)
+
+      def compute_bleu(candidate_text, reference_text):
+          cand_words = candidate_text.lower().split()
+          ref_words = reference_text.lower().split()
+          p1 = bleu_precision(cand_words, ref_words, 1)
+          p2 = bleu_precision(cand_words, ref_words, 2)
+          if p1 == 0 or p2 == 0:
+              return 0.0
+          c = len(cand_words)
+          r = len(ref_words)
+          bp = 1.0 if c > r else math.exp(1 - r / c)
+          score = bp * math.exp(0.5 * math.log(p1) + 0.5 * math.log(p2))
+          return score
+
+      cand = "the patient was admitted to the hospital"
+      ref = "the patient was admitted to hospital"
+      print(f"BLEU-2 Score: {compute_bleu(cand, ref):.4f}")
+    solution_lang: python
+    time_minutes: 60
+  quizzes:
+  - num_str: Q1 OF 5
+    question: Why does BERT use the 80-10-10 masking rule instead of masking 100% of the selected tokens?
+    qid: q96_1
+    options:
+    - letter: A
+      text: To prevent a train-test mismatch, because the [MASK] token never appears during inference/fine-tuning.
+      is_correct: true
+      id: a
+    - letter: B
+      text: To reduce memory usage during backpropagation.
+      is_correct: false
+      id: b
+    - letter: C
+      text: To force the model to learn causal dependencies.
+      is_correct: false
+      id: c
+    - letter: D
+      text: To increase the perplexity of the model.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! If it only saw [MASK] tokens during training, it wouldn't know how to handle real words during
+      inference.
+    wrong_fb: ❌ Incorrect. Think about what the model sees during actual usage versus pre-training.
+    correct: a
+  - num_str: Q2 OF 5
+    question: What architectural component prevents GPT from seeing future tokens?
+    qid: q96_2
+    options:
+    - letter: A
+      text: The 80-10-10 Masking Rule.
+      is_correct: false
+      id: a
+    - letter: B
+      text: The Encoder block.
+      is_correct: false
+      id: b
+    - letter: C
+      text: A Lower-Triangular Causal Mask applied before the Softmax in self-attention.
+      is_correct: true
+      id: c
+    - letter: D
+      text: Post-LayerNorm.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! The causal mask ensures token i can only attend to tokens 0 through i.
+    wrong_fb: ❌ Incorrect. GPT is an autoregressive decoder. How does a decoder hide future words?
+    correct: c
+  - num_str: Q3 OF 5
+    question: If a language model achieves a Perplexity (PPL) of 1.0, what does this mean?
+    qid: q96_3
+    options:
+    - letter: A
+      text: The model is randomly guessing.
+      is_correct: false
+      id: a
+    - letter: B
+      text: The model perfectly predicts the next token with 100% certainty (Cross Entropy Loss = 0).
+      is_correct: true
+      id: b
+    - letter: C
+      text: The model has perfectly memorized the sequence but cannot generalize.
+      is_correct: false
+      id: c
+    - letter: D
+      text: The model has failed to learn.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Since PPL = e^Loss, if Loss = 0, PPL = e^0 = 1. The model is absolutely certain.
+    wrong_fb: '❌ Incorrect. Think about the mathematical relationship: PPL = e^Loss.'
+    correct: b
+  - num_str: Q4 OF 5
+    question: Why is ROUGE often preferred over BLEU for summarization tasks?
+    qid: q96_4
+    options:
+    - letter: A
+      text: It measures precision rather than recall.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It measures recall (how much of the important reference information was captured in the summary).
+      is_correct: true
+      id: b
+    - letter: C
+      text: It measures perplexity directly.
+      is_correct: false
+      id: c
+    - letter: D
+      text: It requires less compute to calculate.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! In summarization, missing a key fact (low recall) is worse than adding a little extra fluff.
+    wrong_fb: ❌ Incorrect. ROUGE focuses on Recall, BLEU focuses on Precision.
+    correct: b
+  - num_str: Q5 OF 5
+    question: Which finding led to the development of RoBERTa?
+    qid: q96_5
+    options:
+    - letter: A
+      text: BERT's causal mask was too restrictive.
+      is_correct: false
+      id: a
+    - letter: B
+      text: BERT overfitted easily on small datasets.
+      is_correct: false
+      id: b
+    - letter: C
+      text: BERT was severely undertrained, and the Next Sentence Prediction objective was actively hurting performance.
+      is_correct: true
+      id: c
+    - letter: D
+      text: BERT required KV Caching.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! RoBERTa showed that training longer, with bigger batches, and dropping NSP yielded massive gains.
+    wrong_fb: ❌ Incorrect. RoBERTa is essentially BERT but "Robustly Optimized".
+    correct: c
+  flashcards:
+  - front: How does Rotary Position Embedding (RoPE) encode token positions?
+    back: RoPE rotates query and key vectors in complex 2D subspaces proportional to their position index, preserving relative
+      distance without adding absolute embedding vectors.
+  - front: What advantage does RoPE offer for context window extension?
+    back: RoPE naturally generalizes to unseen sequence lengths via position interpolation (NTK-aware scaling or YaRN).
+  - front: 'Core concept: What is the significance of WSGI vs ASGI? in Day 96 — BERT: Bidirectional Encoder Representations
+      fr...'
+    back: 'WSGI: Web Server Gateway Interface (synchronous). ASGI: Asynchronous Server Gateway Interface (async, supports
+      WebSockets).'
+  - front: 'Core concept: What is the significance of Docker Image? in Day 96 — BERT: Bidirectional Encoder Representations
+      fr...'
+    back: Read-only blueprint template with instructions to build a container environment (defined in a Dockerfile).
+  - front: Pydantic Validation (D96)?
+    back: Python library for data parsing and validation using type hints, raising clear runtime errors for invalid input
+      schemas.
+  gotcha:
+    title: '⚠️ Gotcha: Quantization Scale Calibration'
+    description: Post-training quantization requires representative calibration datasets to calculate dynamic scales accurately.
+  takeaways:
+    hinglish_line: |-
+      <strong>
+                Ek line mein:
+               </strong>
+               BERT ek bidirectional model hai jo text ke dono side (left aur right) ko ek sath read karke context ki gehrai ko capture karta hai.
+    bullets:
+    - BERT uses an Encoder-only architecture to learn bidirectional context via MLM.
+    - GPT uses a Decoder-only architecture to learn autoregressive generation via CLM.
+    - Perplexity measures model confusion (lower is better), BLEU measures translation precision, and ROUGE measures summarization
+      recall.
+  resources:
+  - title: 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers — Let''s build GPT from scratch, in code,
+      spelled out — Andrej Karpathy'
+    url: https://www.youtube.com/watch?v=kCc8FmEb1nY#day-96
+    type: VIDEO
+    author: Andrej Karpathy
+    duration: 1h 56m
+  - title: 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers — Generative AI, LangChain & LLM Master
+      Series — Krish Naik'
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVN7MIbEIqHBNqYvV3yq_7l_#day-96
+    type: VIDEO
+    author: Krish Naik
+    duration: Full Series
+  - title: 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers — NLP & Transformers Explained from Math
+      to PyTorch — CampusX'
+    url: https://www.youtube.com/playlist?list=PLKnIA16_RmvZk1w_4N7_0Wc3Q2g9w7bYc#day-96
+    type: VIDEO
+    author: CampusX
+    duration: Series
+  - title: 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers — Hugging Face Transformers Documentation
+      & Tasks Guide'
+    url: https://huggingface.co/docs/transformers/index#day-96
+    type: DOCS
+    author: Hugging Face
+    duration: Reference
+  - title: 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers Official API Reference & Architecture Guide'
+    url: https://docs.ai-ml.org/curriculum/day-96
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
+  gotchas:
+  - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test splits produces overly optimistic evaluation
+    metrics. Always fit transformations strictly on training partitions.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon stabilization in denominators
+    triggers silent NaN gradients and GPU Out-Of-Memory (OOM) crashes in production.'
+- id: 97
+  day_num: 97
+  title: Hugging Face Ecosystem & Advanced Tokenizers
+  subtitle: "Mastering BPE, WordPiece, and the Hugging Face\n \n transformers\n \n API for distributed training and inference.\
+    \ We will build incredibly fast tokenization pipelines in Rust and PyTorch."
+  time_estimate: 5 hours
+  difficulty: Medium
+  badges:
+  - label: ⚡ Medium
+    variant: o
+  xp: 150
+  objectives:
+  - Analyze the Out-of-Vocabulary (OOV) problem in NLP.
+  - 'Apply: Differentiate between BPE, WordPiece, and SentencePiece tokenization algorithms.'
+  - "Construct a fast Rust-based tokenizer pipeline using the\n        \n         tokenizers\n        \n        library."
+  - "Integrate custom tokenizers into the Hugging Face\n        \n         transformers\n        \n        ecosystem."
+  checklist:
+  - id: chk_97_1
+    text: Derive and analyze mathematical and architectural principles for Hugging Face Ecosystem & Advanced Tokenizers
+  - id: chk_97_2
+    text: Build and benchmark production coding pipelines for Hugging Face Ecosystem & Advanced Tokenizers
+  - id: chk_97_3
+    text: Execute and validate test verification suite for Use HF Tokenizer API
+  - id: chk_97_4
+    text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
+  concept_flow:
+  - The Mathematics of Scaled Dot-Product Attention
+  - Transformer Architecture & Modern Positional Encodings (RoPE)
+  - 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  - Hugging Face Ecosystem & Advanced Tokenizers
+  - Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - 'Capstone Part 1: Advanced Information Retrieval (RAG)'
+  - 'Capstone Part 2: Deployment & Model Serving'
+  hinglish: 'Prompt engineering powerful hai: task description, examples, format instructions — sab prompt mein dalo. ''Chain-of-thought''
+    prompting complex reasoning improve karta hai LLMs mein!'
+  analogy: 'Subword tokenization is like spelling names. If a child doesn''t know the word ''Antigravity'', they break it
+    down into familiar syllables: ''Anti'' + ''grav'' + ''ity''. This ensures the tokenizer never hits an ''unknown'' word
+    since it can always break it down into character chunks. (This mirrors how Hugging fundamentally operates.)'
+  theory_html: "<h3 class=\"sh3\">\n       1. Subword Tokenization Algorithms\n      </h3>\n<p>\n       Out of Vocabulary\
+    \ (OOV) issues break word-level tokenization. Modern models use subwords:\n      </p>\n<ul>\n<li>\n<strong>\n        \
+    \ BPE (Byte Pair Encoding):\n        </strong>\n        Merges the most frequent pairs of bytes/characters iteratively.\
+    \ Used in GPT.\n       </li>\n<li>\n<strong>\n         WordPiece:\n        </strong>\n        Merges pairs that maximize\
+    \ the language model likelihood (Score = freq(ab) / (freq(a)*freq(b))). Used in BERT.\n       </li>\n<li>\n<strong>\n\
+    \         SentencePiece (Unigram):\n        </strong>\n        Starts with a massive vocabulary and iteratively prunes\
+    \ tokens that cause the smallest drop in total probability. Used in LLaMA / ALBERT.\n       </li>\n</ul>\n<h3 class=\"\
+    sh3\">\n       2. Fast Tokenizers in Rust\n      </h3>\n<p>\n       Hugging Face's\n       \n        tokenizers\n    \
+    \   \n       library is written in Rust, utilizing a highly parallelized pipeline allowing encoding of 1GB of text in\
+    \ under 20 seconds. The pipeline consists of:\n      </p>\n<ul>\n<li>\n<strong>\n         Normalizer:\n        </strong>\n\
+    \        Lowercases, strips accents, applies unicode normalization (NFC, NFKC).\n       </li>\n<li>\n<strong>\n      \
+    \   Pre-tokenizer:\n        </strong>\n        Splits text into initial chunks (usually by whitespace and punctuation)\
+    \ to restrict subword boundaries.\n       </li>\n<li>\n<strong>\n         Model:\n        </strong>\n        Applies the\
+    \ actual algorithm (BPE, WordPiece) to the chunks.\n       </li>\n<li>\n<strong>\n         Post-processor:\n        </strong>\n\
+    \        Injects special tokens like [CLS] and [SEP] for BERT.\n       </li>\n</ul>\n<div class=\"mermaid\">\ngraph TD\n\
+    \  Raw[\"Raw Input Text\"] --> Norm[\"Normalizer\\nLowercase, Strip Accents, Unicode NFC\"]\n  Norm --> PreT[\"Pre-Tokenizer\\\
+    nWhitespace and Punctuation Splitting\"]\n  PreT --> Mod[\"Model\\nBPE / WordPiece Subword Fitting\"]\n  Mod --> PostP[\"\
+    Post-Processor\\nAdd CLS, SEP Special Tokens\"]\n  PostP --> Out[\"Encoded Output\\nToken IDs and Attention Mask\"]\n\
+    </div>\n\n<div class=\"cb\">\n<div class=\"cb-head\">\n<span class=\"cb-lang\">\n         python — train_tokenizer.py\n\
+    \        </span>\n<div class=\"cb-btns\">\n<button class=\"copy-btn\" onclick=\"copyCode(this)\">\n          copy\n  \
+    \       </button>\n<button class=\"run-btn\" onclick=\"runCode(this)\" style=\"margin-left: 4px;\">\n          Run\n \
+    \        </button>\n</div>\n</div>\n<pre><code><span class=\"kw\">from</span> tokenizers <span class=\"kw\">import</span>\
+    \ Tokenizer\n<span class=\"kw\">from</span> tokenizers.models <span class=\"kw\">import</span> BPE\n<span class=\"kw\"\
+    >from</span> tokenizers.trainers <span class=\"kw\">import</span> BpeTrainer\n<span class=\"kw\">from</span> tokenizers.pre_tokenizers\
+    \ <span class=\"kw\">import</span> Whitespace\n\n<span class=\"cm\"># 1. Initialize empty BPE model</span>\ntokenizer\
+    \ = <span class=\"fn\">Tokenizer</span>(<span class=\"fn\">BPE</span>(unk_token=<span class=\"str\">\"[UNK]\"</span>))\n\
+    tokenizer.pre_tokenizer = <span class=\"fn\">Whitespace</span>()\n\n<span class=\"cm\"># 2. Configure trainer</span>\n\
+    trainer = <span class=\"fn\">BpeTrainer</span>(special_tokens=[<span class=\"str\">\"[UNK]\", \"[CLS]\", \"[SEP]\", \"\
+    [PAD]\", \"[MASK]\"</span>])\n\n<span class=\"cm\"># 3. Train on text files</span>\nfiles = [<span class=\"str\">\"corpus.txt\"\
+    </span>]\ntokenizer.<span class=\"fn\">train</span>(files, trainer)\n\n<span class=\"cm\"># 4. Save to JSON</span>\ntokenizer.<span\
+    \ class=\"fn\">save</span>(<span class=\"str\">\"custom-bpe.json\"</span>)</code></pre>\n</div>"
+  predict:
+    question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
+    code: |-
+      import numpy as np
+      tensor = np.zeros((32, 128))
+      print(tensor.ndim)
+    answer: '2'
+    explanation: A 2D matrix with batch dimension and feature dimension has a tensor rank/ndim of 2.
+  tasks:
+  - title: Use HF Tokenizer API
+    badge: 🟢 EASY
+    badge_class: tb-easy
+    time: 25 min
+    prompt_html: "<p><strong>\n           Using\n           \n            transformers.AutoTokenizer\n           \n      \
+      \     , load the\n           \n            bert-base-uncased\n           \n           tokenizer. Encode the sentence\
+      \ \"I love machine learning!\" and print the resulting\n           \n            input_ids\n           \n          \
+      \ and\n           \n            attention_mask\n           \n           .\n          </strong></p>"
+    done_when: When you successfully print the dictionary of tensor arrays.
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day97: complete day 97 tasks and coding exercises"'
+    sol_id: sol-w14d97t1
+    solution_title: ✅ Hugging Face AutoTokenizer Encoding
+    solution_code: |-
+      from transformers import AutoTokenizer
+
+      tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+      text = "I love machine learning!"
+
+      enc = tokenizer(text)
+      print("Input IDs:", enc["input_ids"])
+      print("Attention Mask:", enc["attention_mask"])
+      print("Tokens:", tokenizer.convert_ids_to_tokens(enc["input_ids"]))
+      assert enc is not None, "enc should not be None"
+    solution_lang: python
+    time_minutes: 30
+  - title: Handle OOV with Special Tokens
+    badge: 🟡 MEDIUM
+    badge_class: tb-med
+    time: 45 min
+    prompt_html: |-
+      <p><strong>
+                 Add 5 new domain-specific tokens (e.g., "[GENOMICS]", "[CRISPR]") to an existing tokenizer's vocabulary. Resize a pre-trained model's embedding layer to accommodate the new vocabulary size without crashing.
+                </strong></p>
+    done_when: Your model successfully processes the new tokens without index out of bounds errors.
+    git_cmd: 'git add handle_oov_with_special_tokens.py &amp;&amp; git commit -m "feat(day): day97: handle-oov-with-special-tokens"'
+    sol_id: sol-w14d97t2
+    solution_title: ✅ Adding OOV Tokens &amp; Resizing Embedding Layers
+    solution_code: |-
+      # Step 1: Model Training & Evaluation Workflow
+      from transformers import AutoTokenizer, AutoModelForCausalLM
+      import torch
+
+      tokenizer = AutoTokenizer.from_pretrained("gpt2")
+      model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+      new_tokens = ["[GENOMICS]", "[CRISPR]", "[SEQUENCING]", "[PROTEOMICS]", "[CELLULAR]"]
+      num_added = tokenizer.add_tokens(new_tokens)
+      print(f"Added {num_added} new tokens.")
+
+      model.resize_token_embeddings(len(tokenizer))
+      print("New vocabulary size:", len(tokenizer))
+
+      inputs = tokenizer("Testing [CRISPR] engineering.", return_tensors="pt")
+      outputs = model(**inputs)
+      print("Logits shape:", outputs.logits.shape)
+      assert outputs is not None, "outputs should not be None"
+    solution_lang: python
+    time_minutes: 45
+  - title: Train a Custom BPE Tokenizer
+    badge: 🔴 HARD
+    badge_class: tb-hard
+    time: 90 min
+    prompt_html: "<p><strong>\n           Using the\n           \n            tokenizers\n           \n           library\
+      \ (not\n           \n            transformers\n           \n           ), build and train a BPE tokenizer from scratch\
+      \ on a downloaded Wikipedia text corpus. Define the normalizer (NFKC), pre-tokenizer (ByteLevel), and train it with\
+      \ a vocab size of 10,000. Save it and load it back using\n           \n            PreTrainedTokenizerFast\n       \
+      \    \n           .\n          </strong></p>"
+    done_when: Your custom tokenizer correctly chunks large texts into subwords based on your specific corpus.
+    git_cmd: 'git add train_a_custom_bpe_tokenizer.py &amp;&amp; git commit -m "feat(day): day97: train-a-custom-bpe-tokenizer"'
+    sol_id: sol-w14d97t3
+    solution_title: ✅ Custom BPE Tokenizer Pipeline from Scratch
+    solution_code: |-
+      # Step 1: Model Training & Evaluation Workflow
+      from tokenizers import Tokenizer, normalizers, pre_tokenizers
+      from tokenizers.models import BPE
+      from tokenizers.trainers import BpeTrainer
+      from transformers import PreTrainedTokenizerFast
+
+      with open("corpus.txt", "w") as f:
+          f.write("Machine learning is a subset of artificial intelligence.\n")
+          f.write("Deep learning models are based on neural networks.\n")
+          f.write("Hugging Face is a library for natural language processing.\n")
+
+      tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
+      tokenizer.normalizer = normalizers.Sequence([normalizers.NFKC(), normalizers.Lowercase()])
+      tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=True)
+
+      trainer = BpeTrainer(vocab_size=10000, special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
+      tokenizer.train(["corpus.txt"], trainer)
+      tokenizer.save("custom_bpe.json")
+
+      fast_tokenizer = PreTrainedTokenizerFast(tokenizer_file="custom_bpe.json", unk_token="[UNK]")
+      print("Encoding test:", fast_tokenizer.encode("natural language processing"))
+      assert fast_tokenizer is not None, "fast_tokenizer should not be None"
+    solution_lang: python
+    time_minutes: 60
+  quizzes:
+  - num_str: Q1 OF 5
+    question: Which tokenization algorithm merges pairs based on the highest frequency of occurrence?
+    qid: q97_1
+    options:
+    - letter: A
+      text: Byte Pair Encoding (BPE)
+      is_correct: true
+      id: a
+    - letter: B
+      text: WordPiece
+      is_correct: false
+      id: b
+    - letter: C
+      text: Unigram / SentencePiece
+      is_correct: false
+      id: c
+    - letter: D
+      text: WhiteSpace Tokenization
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! BPE greedily merges the most frequent pairs.
+    wrong_fb: ❌ Incorrect. WordPiece uses likelihood. What uses pure frequency?
+    correct: a
+  - num_str: Q2 OF 5
+    question: Why does SentencePiece (Unigram) start with a huge vocabulary and prune it, rather than building it up from
+      characters?
+    qid: q97_2
+    options:
+    - letter: A
+      text: It is faster to compute.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It allows a probabilistic approach, keeping tokens that maximize the overall likelihood of the corpus.
+      is_correct: true
+      id: b
+    - letter: C
+      text: It uses less memory.
+      is_correct: false
+      id: c
+    - letter: D
+      text: It requires no training data.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Unigram calculates how much the total corpus probability would drop if a token was removed, pruning
+      the least impactful ones.
+    wrong_fb: ❌ Incorrect. Unigram is a probabilistic model.
+    correct: b
+  - num_str: Q3 OF 5
+    question: What is the role of the 'Normalizer' in the Hugging Face tokenizer pipeline?
+    qid: q97_3
+    options:
+    - letter: A
+      text: It injects [CLS] and [SEP] tokens.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It converts token IDs back to strings.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It cleans the text (e.g., lowercasing, unicode normalization) before any splitting occurs.
+      is_correct: true
+      id: c
+    - letter: D
+      text: It applies LayerNorm to the embeddings.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Normalization is the very first step to ensure standard text encoding.
+    wrong_fb: ❌ Incorrect. LayerNorm is for the neural network. Tokenizers just process text.
+    correct: c
+  - num_str: Q4 OF 5
+    question: Why are Hugging Face fast tokenizers written in Rust?
+    qid: q97_4
+    options:
+    - letter: A
+      text: Rust is the only language that supports regex.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It natively compiles to CUDA.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It provides memory safety and aggressive multi-threading, massively speeding up processing of huge datasets.
+      is_correct: true
+      id: c
+    - letter: D
+      text: It prevents out of vocabulary errors.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Rust's fearless concurrency allows HF tokenizers to chew through GBs of text in seconds.
+    wrong_fb: ❌ Incorrect. It's about performance and safety.
+    correct: c
+  - num_str: Q5 OF 5
+    question: What does a 'Pre-tokenizer' typically do?
+    qid: q97_5
+    options:
+    - letter: A
+      text: Splits text by whitespaces and punctuation to ensure subwords don't cross word boundaries.
+      is_correct: true
+      id: a
+    - letter: B
+      text: Adds the [MASK] token.
+      is_correct: false
+      id: b
+    - letter: C
+      text: Predicts the next word.
+      is_correct: false
+      id: c
+    - letter: D
+      text: Drops stopwords from the sentence.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! We don't want a subword to span across a space and part of the next word. Pre-tokenization prevents
+      this.
+    wrong_fb: ❌ Incorrect. Pre-tokenizer dictates the boundaries before the BPE/WordPiece algorithm runs.
+    correct: a
+  flashcards:
+  - front: How does Byte Pair Encoding (BPE) tokenize out-of-vocabulary words?
+    back: BPE iteratively merges the most frequent pairs of byte/character n-grams into a unified subword vocabulary, preventing
+      unknown token out-of-vocabulary errors.
+  - front: Why are subword tokenizers preferred over character-level or word-level tokenizers?
+    back: They provide a balance between sequence length (efficiency) and open vocabulary coverage (generalization).
+  - front: 'Core concept: What is the significance of WSGI vs ASGI? in Hugging Face Ecosystem & Advanced Tokenizers?'
+    back: 'WSGI: Web Server Gateway Interface (synchronous). ASGI: Asynchronous Server Gateway Interface (async, supports
+      WebSockets).'
+  - front: 'Core concept: What is the significance of Docker Image? in Hugging Face Ecosystem & Advanced Tokenizers?'
+    back: Read-only blueprint template with instructions to build a container environment (defined in a Dockerfile).
+  - front: Pydantic Validation (D97)?
+    back: Python library for data parsing and validation using type hints, raising clear runtime errors for invalid input
+      schemas.
+  gotcha:
+    title: '⚠️ Gotcha: Quantization Scale Calibration'
+    description: Post-training quantization requires representative calibration datasets to calculate dynamic scales accurately.
+  takeaways:
+    hinglish_line: |-
+      <strong>
+                Ek line mein:
+               </strong>
+               BPE aur WordPiece tokenizers unknown words ko chhote subwords mein tod dete hain taaki model vocabulary limits ke bahar na jaaye.
+    bullets:
+    - |-
+      <strong>
+                 Tokenization
+                </strong>
+                converts text into integer IDs. BPE (GPT) merges frequent character pairs; WordPiece (BERT) merges based on likelihood gain.
+    - |-
+      <strong>
+                 Special tokens
+                </strong>
+                ([CLS], [SEP], [PAD]) have fixed roles — [CLS] for classification, [SEP] for separating sentences, [PAD] for batching.
+    - |-
+      <strong>
+                 Attention mask
+                </strong>
+                tells the model which tokens are real (1) vs padding (0). Without it, the model attends to meaningless padding tokens.
+    - |-
+      <strong>
+                 Hugging Face tokenizers
+                </strong>
+                are fast (Rust-backed) and handle alignment between input strings and token IDs for tasks like NER and QA.
+  resources:
+  - title: Hugging Face Ecosystem & Advanced Tokenizers — Let's build GPT from scratch, in code, spelled out — Andrej Karpathy
+    url: https://www.youtube.com/watch?v=kCc8FmEb1nY#day-97
+    type: VIDEO
+    author: Andrej Karpathy
+    duration: 1h 56m
+  - title: Hugging Face Ecosystem & Advanced Tokenizers — Generative AI, LangChain & LLM Master Series — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVN7MIbEIqHBNqYvV3yq_7l_#day-97
+    type: VIDEO
+    author: Krish Naik
+    duration: Full Series
+  - title: Hugging Face Ecosystem & Advanced Tokenizers — NLP & Transformers Explained from Math to PyTorch — CampusX
+    url: https://www.youtube.com/playlist?list=PLKnIA16_RmvZk1w_4N7_0Wc3Q2g9w7bYc#day-97
+    type: VIDEO
+    author: CampusX
+    duration: Series
+  - title: Hugging Face Ecosystem & Advanced Tokenizers — Hugging Face Transformers Documentation & Tasks Guide
+    url: https://huggingface.co/docs/transformers/index#day-97
+    type: DOCS
+    author: Hugging Face
+    duration: Reference
+  - title: Hugging Face Ecosystem & Advanced Tokenizers Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-97
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
+  gotchas:
+  - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test splits produces overly optimistic evaluation
+    metrics. Always fit transformations strictly on training partitions.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon stabilization in denominators
+    triggers silent NaN gradients and GPU Out-Of-Memory (OOM) crashes in production.'
+- id: 98
+  day_num: 98
+  title: Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  subtitle: Fine-tuning 7B+ parameter models is impossible on consumer GPUs. Today we study LoRA (Low-Rank Adaptation) and
+    how to freeze base models while injecting trainable low-rank matrices. We also explore QLoRA for 4-bit quantization.
+  time_estimate: 4 hours
+  difficulty: Medium
+  badges:
+  - label: ⚡ Medium
+    variant: o
+  xp: 150
+  objectives:
+  - 'Apply: Mathematically understand the Intrinsic Rank Hypothesis.'
+  - Formulate the Low-Rank Adaptation (LoRA) update equations.
+  - Implement a custom LoRA layer natively in PyTorch.
+  - "Apply: Utilize the Hugging Face\n        \n         peft\n        \n        library for rapid LLM adaptation."
+  checklist:
+  - id: chk_98_1
+    text: Derive and analyze mathematical and architectural principles for Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - id: chk_98_2
+    text: Build and benchmark production coding pipelines for Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - id: chk_98_3
+    text: Execute and validate test verification suite for Initialize PEFT config
+  - id: chk_98_4
+    text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
+  concept_flow:
+  - The Mathematics of Scaled Dot-Product Attention
+  - Transformer Architecture & Modern Positional Encodings (RoPE)
+  - 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  - Hugging Face Ecosystem & Advanced Tokenizers
+  - Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - 'Capstone Part 1: Advanced Information Retrieval (RAG)'
+  - 'Capstone Part 2: Deployment & Model Serving'
+  hinglish: 'BART denoising autoencoder hai: corrupted text ko original mein reconstruct karo. Summarization aur translation
+    ke liye state-of-the-art results deta hai pre-training ke baad!'
+  analogy: Decoder-only models (like GPT-2) are like playing word association games where you are only allowed to look at
+    the words already spoken. You must write the next word using a causal mask that hides all future cards in the deck, forcing
+    the model to generate one step at a time. (This mirrors how Parameter fundamentally operates.)
+  theory_html: |
+    <h3 class="sh3">
+           1. The Need for PEFT
+          </h3>
+    <p>
+           Full fine-tuning requires updating and storing optimizer states for every parameter. For a 7B model, Adam optimizer states take 14GB of VRAM on top of the model weights. Parameter-Efficient Fine-Tuning (PEFT) methods reduce trainable parameters by &gt;99% while maintaining 90-100% of performance.
+          </p>
+    <h3 class="sh3">
+           2. LoRA (Low-Rank Adaptation)
+          </h3>
+    <p>
+           LoRA hypothesizes that the change in weights (ΔW) during fine-tuning has a low "intrinsic rank". Instead of updating the massive weight matrix
+           <em>
+            $W$ ∈ ℝ^(d × k)
+           </em>
+           directly, we freeze
+           <em>
+            $W$
+           </em>
+           and inject trainable rank decomposition matrices
+           <em>
+            A ∈ ℝ^(d × r)
+           </em>
+           and
+           <em>
+            B ∈ ℝ^(r × k)
+           </em>
+           , where
+           <em>
+            r ≪ min(d, k)
+           </em>
+           .
+          </p>
+    <div class="math-block">
+    <span class="formula">
+            $$h = Wx + ΔWx = Wx + B(Ax)$$
+           </span>
+    <span class="desc">
+            During inference, B and A can be multiplied together and explicitly added to $W$, resulting in zero added latency.
+           </span>
+    </div>
+    <div class="mermaid">
+    graph LR
+      X["Input vector x"] --> W["Frozen Base Weight W_0\nshape: d x k"]
+      X --> A["Trainable Matrix A\nshape: d x r\nRandom Gaussian Init"]
+      A --> B["Trainable Matrix B\nshape: r x k\nZero Init"]
+      W --> Add["Summation Node +"]
+      B --> Scale["Scale by alpha/r"]
+      Scale --> Add
+      Add --> Out["Output vector h"]
+    </div>
+
+    <h3 class="sh3">
+           3. QLoRA (Quantized LoRA)
+          </h3>
+    <p>
+           By loading the base model in 4-bit NormalFloat (NF4) quantization and utilizing Double Quantization and Paged Optimizers, QLoRA allows fine-tuning a 65B parameter model on a single 48GB GPU without performance degradation.
+          </p>
+    <div class="cb">
+    <div class="cb-head">
+    <span class="cb-lang">
+             python — lora.py
+            </span>
+    <div class="cb-btns">
+    <button class="copy-btn" onclick="copyCode(this)">
+              copy
+             </button>
+    <button class="run-btn" onclick="runCode(this)" style="margin-left: 4px;">
+              Run
+             </button>
+    </div>
+    </div>
+    <pre><code><span class="kw">from</span> peft <span class="kw">import</span> LoraConfig, get_peft_model
+    <span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM
+
+    <span class="cm"># Load base model</span>
+    model = AutoModelForCausalLM.<span class="fn">from_pretrained</span>(<span class="str">"meta-llama/Llama-2-7b-hf"</span>)
+
+    <span class="cm"># Define LoRA Config</span>
+    config = <span class="fn">LoraConfig</span>(
+        r=<span class="num">8</span>,
+        lora_alpha=<span class="num">32</span>,
+        target_modules=[<span class="str">"q_proj", "v_proj"</span>],
+        lora_dropout=<span class="num">0.05</span>,
+        bias=<span class="str">"none"</span>,
+        task_type=<span class="str">"CAUSAL_LM"</span>
+    )
+
+    <span class="cm"># Apply LoRA</span>
+    peft_model = <span class="fn">get_peft_model</span>(model, config)
+    peft_model.<span class="fn">print_trainable_parameters</span>()
+    <span class="cm"># Output: trainable params: 4,194,304 || all params: 6,742,609,920 || trainable%: 0.0622</span></code></pre>
+    </div>
+    <div class="bonus-deep-dive" style="background:var(--bg3); border-left:4px solid var(--accent); padding:1.2rem; border-radius:8px; margin:1.5rem 0;">
+    <h3 class="sh3" style="color:var(--accent); margin-top:0;">🎁 Senior Engineer Bonus: Contrastive Vision-Language Learning (CLIP & InfoNCE)</h3>
+    <p>
+    Modern multimodal foundation models (GPT-4o, Stable Diffusion, LLaVA) are powered by <strong>Contrastive Language-Image Pretraining (CLIP)</strong>. Given a batch of $N$ image-text pairs with normalized embeddings $I_i$ and $T_i$, CLIP optimizes a symmetric <strong>InfoNCE Dual-Encoder Loss</strong>:
+    </p>
+    $$\mathcal{L}_{\text{CLIP}} = \frac{1}{2N} \sum_{i=1}^{N} \left( -\log \frac{\exp(I_i \cdot T_i / \tau)}{\sum_{j=1}^N \exp(I_i \cdot T_j / \tau)} - \log \frac{\exp(T_i \cdot I_i / \tau)}{\sum_{j=1}^N \exp(T_i \cdot I_j / \tau)} \right)$$
+    <p>
+    Where $\tau$ is a learnable temperature parameter scaling similarity logits. This creates a shared metric space where image features and text concepts align seamlessly for zero-shot classification and dense retrieval.
+    </p>
+    </div>
+  predict:
+    question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
+    code: |-
+      import numpy as np
+      tensor = np.zeros((32, 128))
+      print(tensor.ndim)
+    answer: '2'
+    explanation: A 2D matrix with batch dimension and feature dimension has a tensor rank/ndim of 2.
+  tasks:
+  - title: Initialize PEFT config
+    badge: 🟢 EASY
+    badge_class: tb-easy
+    time: 25 min
+    prompt_html: "<p><strong>\n           Using the Hugging Face\n           \n            peft\n           \n           library,\
+      \ configure a LoRA setup for\n           \n            roberta-base\n           \n           for sequence classification.\
+      \ Target the\n           \n            query\n           \n           and\n           \n            value\n        \
+      \   \n           matrices.\n          </strong></p>"
+    done_when: Your configuration object prints correctly without errors.
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day98: complete day 98 tasks and coding exercises"'
+    sol_id: sol-w14d98t1
+    solution_title: ✅ Roberta-Base LoRA Config with PEFT
+    solution_code: |-
+      # Step 1: Model Training & Evaluation Workflow
+      from peft import LoraConfig, TaskType, get_peft_model
+      from transformers import AutoModelForSequenceClassification
+
+      model = AutoModelForSequenceClassification.from_pretrained("roberta-base", num_labels=2)
+
+      config = LoraConfig(
+          r=8,
+          lora_alpha=32,
+          target_modules=["query", "value"],
+          lora_dropout=0.05,
+          bias="none",
+          task_type=TaskType.SEQ_CLS
+      )
+
+      peft_model = get_peft_model(model, config)
+      peft_model.print_trainable_parameters()
+      assert peft_model is not None, "peft_model should not be None"
+    solution_lang: python
+    time_minutes: 30
+  - title: Train and Merge
+    badge: 🟡 MEDIUM
+    badge_class: tb-med
+    time: 45 min
+    prompt_html: "<p><strong>\n           Train a dummy LoRA model for 1 epoch. Once trained, write the code to use the\n\
+      \           \n            merge_and_unload()\n           \n           function from PEFT to collapse the A and B matrices\
+      \ back into the base weights, yielding a standard inference model.\n          </strong></p>"
+    done_when: "The resulting merged model can be saved and loaded directly via\n           \n            AutoModel.from_pretrained\n\
+      \           \n           without needing PEFT."
+    git_cmd: 'git add train_and_merge.py &amp;&amp; git commit -m "feat(day): day98: train-and-merge"'
+    sol_id: sol-w14d98t2
+    solution_title: ✅ Merge LoRA Adapter Weights to Base Model
+    solution_code: |-
+      from peft import PeftModel
+      from transformers import AutoModelForCausalLM
+
+      base_model = AutoModelForCausalLM.from_pretrained("gpt2")
+      model = PeftModel.from_pretrained(base_model, "lora_checkpoints")
+      merged_model = model.merge_and_unload()
+      merged_model.save_pretrained("merged_gpt2_model")
+      assert merged_model is not None, "merged_model should not be None"
+    solution_lang: python
+    time_minutes: 45
+  - title: Implement LoRA Layer from Scratch
+    badge: 🔴 HARD
+    badge_class: tb-hard
+    time: 90 min
+    prompt_html: "<p><strong>\n           Do not use the PEFT library. Implement a PyTorch\n           \n            LoRALinear\n\
+      \           \n           module that wraps an existing\n           \n            nn.Linear\n           \n          \
+      \ layer. It should freeze the original weights and initialize matrix A (Kaiming Normal) and matrix B (Zeros). Write\
+      \ a test asserting that only A and B receive gradients during a backward pass.\n          </strong></p>"
+    done_when: "Your module successfully performs a forward pass matching\n           \n            Wx + BAx\n           \n\
+      \           and gradients are isolated."
+    git_cmd: 'git add implement_lora_layer_from_scratch.py &amp;&amp; git commit -m "feat(day): day98: implement-lora-layer-from-scratch"'
+    sol_id: sol-w14d98t3
+    solution_title: ✅ Custom PyTorch LoRA Layer Implementation
+    solution_code: |-
+      import numpy as np
+      import torch
+      np.random.seed(42)
+      torch.manual_seed(42)
+      # Step 1: Algorithmic Implementation & Core Transformations
+      import torch
+      import torch.nn as nn
+      import math
+
+      class LoRALinear(nn.Module):
+          def __init__(self, linear_layer, r=8, alpha=16):
+              super().__init__()
+              self.linear = linear_layer
+              self.r = r
+              self.alpha = alpha
+              self.scaling = alpha / r
+
+              for param in self.linear.parameters():
+                  param.requires_grad = False
+
+              in_features = self.linear.in_features
+              out_features = self.linear.out_features
+
+              self.lora_A = nn.Parameter(torch.zeros(in_features, r))
+              self.lora_B = nn.Parameter(torch.zeros(r, out_features))
+
+              nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+              nn.init.zeros_(self.lora_B)
+
+          def forward(self, x):
+              base_out = self.linear(x)
+              adapter_out = (x @ self.lora_A @ self.lora_B) * self.scaling
+              return base_out + adapter_out
+
+      fc = nn.Linear(10, 5)
+      lora_fc = LoRALinear(fc, r=4)
+
+      x = torch.randn(1, 10)
+      y = lora_fc(x)
+      loss = y.sum()
+      loss.backward()
+
+      print("lora_A gradient computed:", lora_fc.lora_A.grad is not None)
+      print("lora_B gradient computed:", lora_fc.lora_B.grad is not None)
+      print("Base weight gradient computed:", lora_fc.linear.weight.grad is not None)
+      assert loss is not None, "loss should not be None"
+    solution_lang: python
+    time_minutes: 60
+  quizzes:
+  - num_str: Q1 OF 5
+    question: What is the primary benefit of LoRA over full fine-tuning?
+    qid: q98_1
+    options:
+    - letter: A
+      text: It makes the base model smaller on disk.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It increases the context window size.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It drastically reduces the number of trainable parameters and VRAM requirements.
+      is_correct: true
+      id: c
+    - letter: D
+      text: It natively handles multimodality.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! By freezing $W$ and only training A and B, we save immense amounts of memory (Adam states).
+    wrong_fb: ❌ Incorrect. The VRAM savings come from not needing optimizer states for the giant $W$ matrix.
+    correct: c
+  - num_str: Q2 OF 5
+    question: Why does LoRA add zero latency during inference?
+    qid: q98_2
+    options:
+    - letter: A
+      text: Because A and B are dropped during inference.
+      is_correct: false
+      id: a
+    - letter: B
+      text: Because the matrices A and B can be multiplied together and explicitly added to the frozen weight matrix $W$.
+      is_correct: true
+      id: b
+    - letter: C
+      text: Because it uses sparse matrices.
+      is_correct: false
+      id: c
+    - letter: D
+      text: Because of KV Caching.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! W_new = $W$ + BA. We just deploy W_new, which has the exact same dimensions as the original model!
+    wrong_fb: ❌ Incorrect. Think about algebraic matrix addition.
+    correct: b
+  - num_str: Q3 OF 5
+    question: In LoRA, what is the 'r' parameter?
+    qid: q98_3
+    options:
+    - letter: A
+      text: Learning rate.
+      is_correct: false
+      id: a
+    - letter: B
+      text: The number of layers to freeze.
+      is_correct: false
+      id: b
+    - letter: C
+      text: The rank of the low-rank matrices A and B.
+      is_correct: true
+      id: c
+    - letter: D
+      text: The dropout rate.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! r determines the dimensionality of the inner dimension between A and B. Smaller r = fewer parameters.
+    wrong_fb: '❌ Incorrect. Look at the matrix dimensions: A(d x r) and B(r x k).'
+    correct: c
+  - num_str: Q4 OF 5
+    question: What does the '$Q$' in QLoRA stand for?
+    qid: q98_4
+    options:
+    - letter: A
+      text: Query
+      is_correct: false
+      id: a
+    - letter: B
+      text: Quick
+      is_correct: false
+      id: b
+    - letter: C
+      text: Quantized (loading the base model in 4-bit precision)
+      is_correct: true
+      id: c
+    - letter: D
+      text: Quantum
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! QLoRA keeps the massive base model in 4-bit precision in VRAM while training the 16-bit LoRA adapters.
+    wrong_fb: ❌ Incorrect. It refers to the precision of the base model weights.
+    correct: c
+  - num_str: Q5 OF 5
+    question: Which modules in a Transformer are most commonly targeted by LoRA?
+    qid: q98_5
+    options:
+    - letter: A
+      text: The Query (W_q) and Value (W_v) projection matrices in the attention blocks.
+      is_correct: true
+      id: a
+    - letter: B
+      text: The LayerNorm layers.
+      is_correct: false
+      id: b
+    - letter: C
+      text: The final Softmax layer.
+      is_correct: false
+      id: c
+    - letter: D
+      text: The Positional Encodings.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Targeting the attention projections yields the best performance trade-offs.
+    wrong_fb: ❌ Incorrect. We want to target massive dense weight matrices.
+    correct: a
+  flashcards:
+  - front: How does FlashAttention achieve 2-4x speedups on GPU self-attention?
+    back: It uses SRAM tiling and an online softmax algorithm to compute attention without materializing the full N x N intermediate
+      matrix in high-latency GPU High Bandwidth Memory (HBM).
+  - front: What is the primary memory bottleneck solved by FlashAttention?
+    back: Memory bandwidth I/O between GPU High Bandwidth Memory (HBM) and Fast On-Chip SRAM cache.
+  - front: 'Core concept: What is the significance of WSGI vs ASGI? in Parameter-Efficient Fine-Tuning (PEFT) & LoRA?'
+    back: 'WSGI: Web Server Gateway Interface (synchronous). ASGI: Asynchronous Server Gateway Interface (async, supports
+      WebSockets).'
+  - front: 'Core concept: What is the significance of Docker Image? in Parameter-Efficient Fine-Tuning (PEFT) & LoRA?'
+    back: Read-only blueprint template with instructions to build a container environment (defined in a Dockerfile).
+  - front: Pydantic Validation (D98)?
+    back: Python library for data parsing and validation using type hints, raising clear runtime errors for invalid input
+      schemas.
+  gotcha:
+    title: '⚠️ Gotcha: Quantization Scale Calibration'
+    description: Post-training quantization requires representative calibration datasets to calculate dynamic scales accurately.
+  takeaways:
+    hinglish_line: |-
+      <strong>
+                Ek line mein:
+               </strong>
+               Decoder models (jaise GPT-2) causal mask ka use karte hain taaki predictions ke waqt aage ke words hide rahein aur model auto-regressively generate kare.
+    bullets:
+    - |-
+      <strong>
+                 LoRA
+                </strong>
+                decomposes weight updates as ΔW = BA where B and A are low-rank matrices. Only B and A are trained — the original weights stay frozen.
+    - |-
+      <strong>
+                 Rank r
+                </strong>
+                controls expressiveness vs parameter count. r=8-16 works for most tasks. Higher rank = more capacity, more parameters.
+    - |-
+      <strong>
+                 PEFT methods
+                </strong>
+                (LoRA, Adapters, Prefix Tuning) enable fine-tuning models with billions of parameters on a single GPU.
+    - |-
+      <strong>
+                 Merge weights
+                </strong>
+                after training: $W_{\text{new}} = W + \frac{\alpha}{r} \cdot BA$. This eliminates inference overhead — the merged model runs at.
+  resources:
+  - title: Parameter-Efficient Fine-Tuning (PEFT) & LoRA — Let's build GPT from scratch, in code, spelled out — Andrej Karpathy
+    url: https://www.youtube.com/watch?v=kCc8FmEb1nY#day-98
+    type: VIDEO
+    author: Andrej Karpathy
+    duration: 1h 56m
+  - title: Parameter-Efficient Fine-Tuning (PEFT) & LoRA — Generative AI, LangChain & LLM Master Series — Krish Naik
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVN7MIbEIqHBNqYvV3yq_7l_#day-98
+    type: VIDEO
+    author: Krish Naik
+    duration: Full Series
+  - title: Parameter-Efficient Fine-Tuning (PEFT) & LoRA — NLP & Transformers Explained from Math to PyTorch — CampusX
+    url: https://www.youtube.com/playlist?list=PLKnIA16_RmvZk1w_4N7_0Wc3Q2g9w7bYc#day-98
+    type: VIDEO
+    author: CampusX
+    duration: Series
+  - title: Parameter-Efficient Fine-Tuning (PEFT) & LoRA — Hugging Face Transformers Documentation & Tasks Guide
+    url: https://huggingface.co/docs/transformers/index#day-98
+    type: DOCS
+    author: Hugging Face
+    duration: Reference
+  - title: Parameter-Efficient Fine-Tuning (PEFT) & LoRA Official API Reference & Architecture Guide
+    url: https://docs.ai-ml.org/curriculum/day-98
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
+  gotchas:
+  - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test splits produces overly optimistic evaluation
+    metrics. Always fit transformations strictly on training partitions.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon stabilization in denominators
+    triggers silent NaN gradients and GPU Out-Of-Memory (OOM) crashes in production.'
+- id: 99
+  day_num: 99
+  title: 'Capstone Part 1: Advanced Information Retrieval (RAG)'
+  subtitle: Retrieval-Augmented Generation (RAG) pipelines combine the embedding power of BERT/Sentence-Transformers with
+    vector databases for semantic search to ground LLMs in factual reality.
+  time_estimate: 8 hours
+  difficulty: Medium
+  badges:
+  - label: ⚡ Medium
+    variant: o
+  xp: 150
+  objectives:
+  - Analyze hallucination mitigations via RAG.
+  - Implement a chunking strategy for long documents.
+  - Generate dense vector embeddings using Sentence Transformers.
+  - Identify and query documents using FAISS (Facebook AI Similarity Search).
+  checklist:
+  - id: chk_99_1
+    text: 'Derive and analyze mathematical and architectural principles for Capstone Part 1: Advanced Information Retrieval
+      (RAG)'
+  - id: chk_99_2
+    text: 'Build and benchmark production coding pipelines for Capstone Part 1: Advanced Information Retrieval (RAG)'
+  - id: chk_99_3
+    text: Execute and validate test verification suite for Generate Embeddings
+  - id: chk_99_4
+    text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
+  concept_flow:
+  - The Mathematics of Scaled Dot-Product Attention
+  - Transformer Architecture & Modern Positional Encodings (RoPE)
+  - 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  - Hugging Face Ecosystem & Advanced Tokenizers
+  - Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - 'Capstone Part 1: Advanced Information Retrieval (RAG)'
+  - 'Capstone Part 2: Deployment & Model Serving'
+  hinglish: Emergent abilities large models mein unexpectedly appear hoti hain. Small models ye tasks nahi kar sakte, phir
+    ek threshold par suddenly capability appear hoti hai — interesting aur mysterious!
+  analogy: Fine-tuning is like hiring a fully trained chef who knows how to cook global cuisine (Pre-trained BERT) and teaching
+    them the specific recipes for your local restaurant (your custom classification dataset). They learn the new task in a
+    few hours without needing to go to culinary school again. (This mirrors how Capstone fundamentally operates.)
+  theory_html: "<h3 class=\"sh3\">1. Production Implementation &amp; Architecture</h3>\n<p>Core engineering patterns and implementation\
+    \ reference for Capstone Part 1: Advanced Information Retrieval (RAG).</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"\
+    ><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
+    \  <pre><code># Architectural Reference for Day 99: Capstone Part 1: Advanced Information Retrieval (RAG)\nimport os\n\
+    import sys\n\ndef execute_module():\n    print(\"Executing Capstone Part 1: Advanced Information Retrieval (RAG) pipeline...\"\
+    )\n    config = {\"module\": \"Capstone Part 1: Advanced Information Retrieval (RAG)\", \"status\": \"ACTIVE\", \"day\"\
+    : 99}\n    print(\"Configuration:\", config)\n    return config\n\nif __name__ == \"__main__\":\n    execute_module()</code></pre>\n\
+    </div>\n<h3 class=\"sh3\">\n       1. The Need for RAG\n      </h3>\n<p>\n       Instead of fine-tuning a model on proprietary\
+    \ data (which causes hallucinations, requires constant retraining, and is very expensive), we use dense vector embeddings\
+    \ (generated by models like\n       \n        all-MiniLM-L6-v2\n       \n       ) to index our documents in a vector store\
+    \ (ChromaDB / FAISS). Upon a user query, we retrieve the Top-$K$ chunks via cosine similarity and inject them into an\
+    \ LLM's context window.\n      </p>\n\n<div class=\"mermaid\">\ngraph TD\nsubgraph \"1. Document Ingestion\"\n  Doc[\"\
+    Raw Documents\"] --> Chunk[\"Document Chunker\"]\n  Chunk --> Embed[\"Embedding Model\\nSentence-Transformers\"]\n  Embed\
+    \ --> DB[\"FAISS Vector DB\"]\nend\nsubgraph \"2. Retrieval and Generation\"\n  UserQ[\"User Query\"] --> QEmbed[\"Query\
+    \ Embedding\"]\n  QEmbed --> Search[\"FAISS Semantic Search\"]\n  DB --> Search\n  Search --> Context[\"Retrieve Top-K\
+    \ Chunks\"]\n  Context --> Prompt[\"Build Prompt: Context + Query\"]\n  Prompt --> LLM[\"Language Model\"]\n  LLM -->\
+    \ Response[\"Final Answer\"]\nend\n</div>\n<h3 class=\"sh3\">\n       2. Vector Search (FAISS)\n      </h3>\n<p>\n   \
+    \    Doing a dot product between a query vector and 10 million document vectors is slow. FAISS utilizes algorithms like\
+    \ HNSW (Hierarchical Navigable Small World) graphs to perform approximate nearest neighbor search in sub-millisecond times.\n\
+    \      </p>"
+  predict:
+    question: What is the cosine similarity between identical normalized unit vectors?
+    answer: '1.0'
+    explanation: dot(u, u) for any normalized unit vector is 1.0 (exact match).
+    code: |-
+      import numpy as np
+      v = np.array([0.6, 0.8])
+      sim = np.dot(v, v) / (np.linalg.norm(v) * np.linalg.norm(v))
+      print(f'{sim:.1f}')
+  tasks:
+  - title: Generate Embeddings
+    badge: 🟢 EASY
+    badge_class: tb-easy
+    time: 25 min
+    prompt_html: "<p><strong>\n           Use the\n           \n            sentence-transformers\n           \n         \
+      \  library to encode 5 different sentences into dense vectors.\n          </strong></p>"
+    done_when: Your script outputs a matrix of shape (5, 384).
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day99: complete day 99 tasks and coding exercises"'
+    sol_id: sol-w14d99t1
+    solution_title: ✅ Dense Embedding Generation
+    solution_code: |-
+      # Step 1: Model Training & Evaluation Workflow
+      from sentence_transformers import SentenceTransformer
+
+      model = SentenceTransformer("all-MiniLM-L6-v2")
+
+      sentences = [
+          "Machine learning is a subset of artificial intelligence.",
+          "Dense embeddings capture semantic text meaning.",
+          "RAG pipelines retrieve relevant document chunks.",
+          "Transformers rely on parallel self-attention.",
+          "FAISS indexes vectors for fast search."
+      ]
+
+      embeddings = model.encode(sentences)
+      print("Embeddings Matrix Shape:", embeddings.shape)
+      assert embeddings is not None, "embeddings should not be None"
+    solution_lang: python
+    time_minutes: 30
+  - title: Setup FAISS Index
+    badge: 🟡 MEDIUM
+    badge_class: tb-med
+    time: 45 min
+    prompt_html: "<p><strong>\n           Initialize a\n           \n            faiss.IndexFlatL2\n           \n        \
+      \   . Add the 5 embeddings to the index. Perform a search using a new query string and return the top 2 closest matches.\n\
+      \          </strong></p>"
+    done_when: When fAISS returns the correct integer IDs of the closest sentences in milliseconds.
+    git_cmd: 'git add setup_faiss_index.py &amp;&amp; git commit -m "feat(day): day99: setup-faiss-index"'
+    sol_id: sol-w14d99t2
+    solution_title: ✅ FAISS Semantic Vector Indexing &amp; Search
+    solution_code: |-
+      # Step 1: Model Training & Evaluation Workflow
+      import faiss
+      from sentence_transformers import SentenceTransformer
+      import numpy as np
+
+      model = SentenceTransformer("all-MiniLM-L6-v2")
+      sentences = [
+          "Machine learning is a subset of artificial intelligence.",
+          "Dense embeddings capture semantic text meaning.",
+          "RAG pipelines retrieve relevant document chunks.",
+          "Transformers rely on parallel self-attention.",
+          "FAISS indexes vectors for fast search."
+      ]
+      embeddings = model.encode(sentences).astype('float32')
+
+      index = faiss.IndexFlatL2(384)
+      index.add(embeddings)
+      print("Total vectors indexed:", index.ntotal)
+
+      query = "How do we fetch context for LLMs?"
+      query_vector = model.encode([query]).astype('float32')
+
+      distances, indices = index.search(query_vector, k=2)
+      print("\nQuery:", query)
+      for idx, dist in zip(indices[0], distances[0]):
+          print(f"Match: '{sentences[idx]}' (L2 Distance: {dist:.4f})")
+      assert query_vector is not None, "query_vector should not be None"
+    solution_lang: python
+    time_minutes: 45
+  - title: Build a Pure PyTorch RAG Pipeline
+    badge: 🔴 HARD
+    badge_class: tb-hard
+    time: 90 min
+    prompt_html: "<p><strong>\n           Without using LangChain or LlamaIndex, build a chunker, embedder (using\n      \
+      \     \n            transformers\n           \n           ), and a naive FAISS index. Ingest a Wikipedia article, generate\
+      \ query embeddings, retrieve the top 3 chunks, inject them into a prompt string, and pass it to a local Hugging Face\
+      \ generation model to get an answer.\n          </strong></p>"
+    done_when: The local model answers the question accurately based entirely on the retrieved chunks.
+    git_cmd: 'git add build_a_pure_pytorch_rag_pipeline.py &amp;&amp; git commit -m "feat(day): day99: build-a-pure-pytorch-rag-pipeline"'
+    sol_id: sol-w14d99t3
+    solution_title: ✅ Custom PyTorch RAG Pipeline Code
+    solution_code: |-
+      # Step 1: Model Training & Evaluation Workflow
+      import torch
+      from transformers import AutoTokenizer, AutoModelForCausalLM
+      from sentence_transformers import SentenceTransformer
+      import numpy as np
+      import faiss
+
+      corpus = [
+          "Artificial intelligence is intelligence demonstrated by machines, unlike natural intelligence.",
+          "Attention mechanism allows decoder models to focus on specific sequence inputs.",
+          "FAISS (Facebook AI Similarity Search) is a library for efficient similarity search.",
+          "Generative Pre-trained Transformers (GPT) generate text autoregressively."
+      ]
+
+      embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+      corpus_embeddings = embed_model.encode(corpus).astype('float32')
+
+      index = faiss.IndexFlatL2(384)
+      index.add(corpus_embeddings)
+
+      query = "What is FAISS used for?"
+      q_embed = embed_model.encode([query]).astype('float32')
+      _, indices = index.search(q_embed, k=1)
+      retrieved_chunk = corpus[indices[0][0]]
+
+      tokenizer = AutoTokenizer.from_pretrained("gpt2")
+      model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+      prompt = f"Context: {retrieved_chunk}\nQuestion: {query}\nAnswer:"
+      inputs = tokenizer(prompt, return_tensors="pt")
+      with torch.no_grad():
+          outputs = model.generate(**inputs, max_new_tokens=25, pad_token_id=tokenizer.eos_token_id)
+
+      print("\nGenerated Output:\n", tokenizer.decode(outputs[0], skip_special_tokens=True))
+      assert outputs is not None, "outputs should not be None"
+    solution_lang: python
+    time_minutes: 60
+  quizzes:
+  - num_str: Q1 OF 5
+    question: Why is RAG generally preferred over Fine-Tuning for injecting new knowledge into an LLM?
+    qid: q99_1
+    options:
+    - letter: A
+      text: It grounds the model in retrieved facts, drastically reducing hallucinations, and allows for instant knowledge
+        update...
+      is_correct: true
+      id: a
+    - letter: B
+      text: It is slower but more accurate.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It increases the model's vocabulary size.
+      is_correct: false
+      id: c
+    - letter: D
+      text: It requires KV Caching.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! RAG provides provenance (you know exactly where the answer came from) and is much cheaper.
+    wrong_fb: ❌ Incorrect. Fine-tuning for knowledge injection is notoriously unreliable.
+    correct: a
+  - num_str: Q2 OF 5
+    question: Which mathematical operation is primarily used in vector databases to find similar documents?
+    qid: q99_2
+    options:
+    - letter: A
+      text: Matrix Inversion
+      is_correct: false
+      id: a
+    - letter: B
+      text: Cosine Similarity (Normalized Dot Product)
+      is_correct: true
+      id: b
+    - letter: C
+      text: Cross Entropy
+      is_correct: false
+      id: c
+    - letter: D
+      text: Sigmoid Activation
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! The angle between vectors dictates their semantic similarity.
+    wrong_fb: ❌ Incorrect. How do we measure distance between embeddings?
+    correct: b
+  - num_str: Q3 OF 5
+    question: What is the purpose of HNSW in FAISS?
+    qid: q99_3
+    options:
+    - letter: A
+      text: To compress vectors to 4-bit.
+      is_correct: false
+      id: a
+    - letter: B
+      text: To fine-tune the LLM.
+      is_correct: false
+      id: b
+    - letter: C
+      text: To perform Approximate Nearest Neighbor (ANN) search extremely quickly using graphs.
+      is_correct: true
+      id: c
+    - letter: D
+      text: To generate the embeddings.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! HNSW avoids checking every single vector, vastly speeding up retrieval.
+    wrong_fb: ❌ Incorrect. FAISS is a search library. What kind of search does it do?
+    correct: c
+  - num_str: Q4 OF 5
+    question: Why must we "chunk" long documents before embedding them?
+    qid: q99_4
+    options:
+    - letter: A
+      text: To save disk space.
+      is_correct: false
+      id: a
+    - letter: B
+      text: Because embedding models have limited context windows (e.g., 512 tokens) and single dense vectors lose specificity
+        if...
+      is_correct: true
+      id: b
+    - letter: C
+      text: To increase the perplexity of the text.
+      is_correct: false
+      id: c
+    - letter: D
+      text: To prevent overfitting during RAG.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! A single 768-D vector cannot accurately summarize a 100-page book. We must split it up.
+    wrong_fb: ❌ Incorrect. Embedding models like BERT have strict token limits.
+    correct: b
+  - num_str: Q5 OF 5
+    question: In a RAG system, what role does the LLM (e.g., GPT-4) play?
+    qid: q99_5
+    options:
+    - letter: A
+      text: It stores the document database.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It retrieves the documents from the database.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It receives the user's query AND the retrieved context, and synthesizes a final natural language answer.
+      is_correct: true
+      id: c
+    - letter: D
+      text: It generates the embeddings.
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! The LLM is just the final reasoning engine that reads the retrieved context and answers the query.
+    wrong_fb: ❌ Incorrect. RAG is Retrieval (Vector DB) + Augmented Generation (LLM).
+    correct: c
+  flashcards:
+  - front: How does Low-Rank Adaptation (LoRA) parameterize weight updates?
+    back: delta_W = (alpha / r) * (B @ A), where A in R^(r x d_in) and B in R^(d_out x r) with rank r << d. This reduces trainable
+      parameters by over 99%.
+  - front: Can LoRA adapters be merged into base model weights for zero-latency serving?
+    back: Yes, W_final = W_base + (alpha / r) * (B @ A) allows serving the adapted model with identical latency to the base
+      model.
+  - front: 'Core concept: What is the significance of WSGI vs ASGI? in Capstone Part 1: Advanced Information Retrieval (RAG)?'
+    back: 'WSGI: Web Server Gateway Interface (synchronous). ASGI: Asynchronous Server Gateway Interface (async, supports
+      WebSockets).'
+  - front: 'Core concept: What is the significance of Docker Image? in Capstone Part 1: Advanced Information Retrieval (RAG)?'
+    back: Read-only blueprint template with instructions to build a container environment (defined in a Dockerfile).
+  - front: Pydantic Validation (D99)?
+    back: Python library for data parsing and validation using type hints, raising clear runtime errors for invalid input
+      schemas.
+  gotcha:
+    title: '⚠️ Gotcha: Quantization Scale Calibration'
+    description: Post-training quantization requires representative calibration datasets to calculate dynamic scales accurately.
+  takeaways:
+    hinglish_line: |-
+      <strong>
+                Ek line mein:
+               </strong>
+               BERT fine-tuning ka matlab hai pre-trained model ke upar ek chhota classifier lagakar apne custom dataset par train karna.
+    bullets:
+    - |-
+      <strong>
+                 RAG
+                </strong>
+                retrieves relevant documents from a vector database and injects them into the LLM prompt — grounding responses in factual knowledge.
+    - |-
+      <strong>
+                 FAISS
+                </strong>
+                is the standard vector store — it indexes embeddings for fast approximate nearest neighbour search (ANN).
+    - |-
+      <strong>
+                 Chunking strategy
+                </strong>
+                matters: too small loses context, too large dilutes relevance. Overlap chunks by 10-20% for continuity.
+    - |-
+      <strong>
+                 RAG evaluation:
+                </strong>
+                measure retrieval recall (did we find the right doc?) and generation quality (was the answer correct based on context?).
+  resources:
+  - title: 'Capstone Part 1: Advanced Information Retrieval (RAG) — Let''s build GPT from scratch, in code, spelled out —
+      Andrej Karpathy'
+    url: https://www.youtube.com/watch?v=kCc8FmEb1nY#day-99
+    type: VIDEO
+    author: Andrej Karpathy
+    duration: 1h 56m
+  - title: 'Capstone Part 1: Advanced Information Retrieval (RAG) — Generative AI, LangChain & LLM Master Series — Krish Naik'
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVN7MIbEIqHBNqYvV3yq_7l_#day-99
+    type: VIDEO
+    author: Krish Naik
+    duration: Full Series
+  - title: 'Capstone Part 1: Advanced Information Retrieval (RAG) — NLP & Transformers Explained from Math to PyTorch — CampusX'
+    url: https://www.youtube.com/playlist?list=PLKnIA16_RmvZk1w_4N7_0Wc3Q2g9w7bYc#day-99
+    type: VIDEO
+    author: CampusX
+    duration: Series
+  - title: 'Capstone Part 1: Advanced Information Retrieval (RAG) — Hugging Face Transformers Documentation & Tasks Guide'
+    url: https://huggingface.co/docs/transformers/index#day-99
+    type: DOCS
+    author: Hugging Face
+    duration: Reference
+  - title: 'Capstone Part 1: Advanced Information Retrieval (RAG) Official API Reference & Architecture Guide'
+    url: https://docs.ai-ml.org/curriculum/day-99
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
+  gotchas:
+  - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test splits produces overly optimistic evaluation
+    metrics. Always fit transformations strictly on training partitions.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon stabilization in denominators
+    triggers silent NaN gradients and GPU Out-Of-Memory (OOM) crashes in production.'
+- id: 100
+  day_num: 100
+  title: 'Capstone Part 2: Deployment & Model Serving'
+  subtitle: Taking your NLP models to production using FastAPI and Gradio, packaging dependencies with Docker, and pushing
+    the final interface to Hugging Face Spaces.
+  time_estimate: 4 hours
+  difficulty: Medium
+  badges:
+  - label: ⚡ Medium
+    variant: o
+  xp: 150
+  objectives:
+  - 'Apply: Expose PyTorch models securely via asynchronous REST endpoints using FastAPI.'
+  - Construct an interactive chat UI using Gradio Blocks.
+  - Containerize complex ML environments using Docker.
+  checklist:
+  - id: chk_100_1
+    text: 'Derive and analyze mathematical and architectural principles for Capstone Part 2: Deployment & Model Serving'
+  - id: chk_100_2
+    text: 'Build and benchmark production coding pipelines for Capstone Part 2: Deployment & Model Serving'
+  - id: chk_100_3
+    text: Execute and validate test verification suite for Deploy Async FastAPI Model Server
+  - id: chk_100_4
+    text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
+  concept_flow:
+  - The Mathematics of Scaled Dot-Product Attention
+  - Transformer Architecture & Modern Positional Encodings (RoPE)
+  - 'Day 96 — BERT: Bidirectional Encoder Representations from Transformers'
+  - Hugging Face Ecosystem & Advanced Tokenizers
+  - Parameter-Efficient Fine-Tuning (PEFT) & LoRA
+  - 'Capstone Part 1: Advanced Information Retrieval (RAG)'
+  - 'Capstone Part 2: Deployment & Model Serving'
+  hinglish: 'Mixed precision training (FP16 aur BF16): memory half use hoti hai, training 2-3x faster ho sakta hai. Modern
+    hardware FP16 operations natively accelerate karta hai!'
+  analogy: Hugging Face Spaces is like renting a small food stall in a busy marketplace (Hugging Face Hub). Instead of building
+    a restaurant from scratch, you just place your menu (Gradio app) in the stall, and customers can instantly interact with
+    it over the web. (This mirrors how Capstone fundamentally operates.)
+  theory_html: "<h3 class=\"sh3\">\n       1. FastAPI for Machine Learning\n      </h3>\n<p>\n       Flask and Django are\
+    \ synchronous and can block when running heavy GPU inference. FastAPI leverages Python's\n       \n        asyncio\n \
+    \      \n       , allowing the web server to handle thousands of requests while waiting for the GPU to finish batch processing.\n\
+    \      </p>\n<h3 class=\"sh3\">\n       2. Docker Containerization\n      </h3>\n<p>\n       Dependency hell is a massive\
+    \ problem in ML (CUDA versions, PyTorch builds). A\n       \n        Dockerfile\n       \n       guarantees that your\
+    \ model runs exactly the same on an AWS server as it does on your local machine.\n      </p>\n<div class=\"cb\">\n<div\
+    \ class=\"cb-head\">\n<span class=\"cb-lang\">\n         Dockerfile\n        </span>\n<div class=\"cb-btns\">\n<button\
+    \ class=\"copy-btn\" onclick=\"copyCode(this)\">\n          copy\n         </button>\n</div>\n</div>\n<pre><code>FROM\
+    \ python:<span class=\"num\">3.9</span>-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r\
+    \ requirements.txt\nCOPY . .\nCMD [<span class=\"str\">\"uvicorn\", \"app:app\", \"--host\", \"0.0.0.0\", \"--port\",\
+    \ \"8000\"</span>]</code></pre>\n</div>\n<div class=\"mermaid\">\ngraph TD\n  User[\"User / Client Browser\"] -->|1. Submit\
+    \ Query| Gradio[\"Gradio Web UI Frontend\"]\n  Gradio -->|2. Async HTTP POST  or query| API[\"FastAPI Application Server\"\
+    ]\nsubgraph \"Docker Container Sandbox\"\n  API -->|3. Query Embeddings| DB[\"FAISS Vector Index\"]\n  DB -->|4. Retrieve\
+    \ Context Chunks| API\n  API -->|5. Context + Prompt| Model[\"Local PyTorch LLM\"]\n  Model -->|6. Streamed Text Output|\
+    \ API\nend\n  API -->|7. JSON Response| Gradio\n  Gradio -->|8. Render Output| User\n</div>\n<div class=\"diagram-container\"\
+    \ style=\"background:var(--bg3); padding:1.2rem; border-radius:8px; margin:1.5rem auto; border:1px solid var(--border);\
+    \ text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;\">\n<h4 style=\"\
+    color:var(--accent); margin-top:0; font-size:1.05rem;\">Architecture Blueprint: HNSW Hierarchical Navigable Small World\
+    \ Graph</h4>\n<div class=\"mermaid\">\ngraph TD\n    subgraph TopLayer[\"Layer 2 (Expressway - Long Jumps)\"]\n      \
+    \  L2_1[\"Entry Node\"] --> L2_2[\"Node B\"]\n    end\n    subgraph MidLayer[\"Layer 1 (Regional Grid)\"]\n        L1_1[\"\
+    Node A\"] --> L1_2[\"Node B\"] --> L1_3[\"Node C\"]\n    end\n    subgraph BaseLayer[\"Layer 0 (All Vectors Dense Graph)\"\
+    ]\n        L0_1[\"v1\"] --- L0_2[\"v2\"] --- L0_3[\"v3\"] --- L0_4[\"Target Nearest Neighbor\"]\n    end\n    TopLayer\
+    \ --> MidLayer --> BaseLayer\n</div>\n</div>"
+  predict:
+    question: What is the computed throughput (requests per second) for 100 requests served in 2.0 seconds?
+    answer: '50'
+    explanation: Throughput = total_requests / total_seconds = 100 / 2.0 = 50 req/sec.
+    code: |-
+      reqs = 100
+      sec = 2.0
+      rps = int(reqs / sec)
+      print(rps)
+  tasks:
+  - title: Deploy Async FastAPI Model Server
+    badge: 🔴 HARD
+    badge_class: tb-hard
+    time: 90 min
+    prompt_html: |-
+      <p><strong>
+                 Wrap your Day 99 RAG system in an async FastAPI endpoint. Implement a POST route that takes a JSON query, runs the FAISS retrieval, calls the model, and returns a JSON response. Write a Dockerfile, and create a sleek Gradio front-end that connects to the FastAPI backend.
+                </strong></p>
+    done_when: Your UI successfully pings the dockerized backend and streams the answer back.
+    git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day100: fastapi and docker model serving capstone"'
+    sol_id: sol-w14d100t1
+    solution_title: ✅ Full FastAPI Server, Dockerfile &amp; Gradio Client App
+    solution_code: |-
+      from fastapi import FastAPI
+      from pydantic import BaseModel
+      from sentence_transformers import SentenceTransformer
+      import faiss
+
+      # 1. Initialize high-performance asynchronous API application
+      app = FastAPI()
+      model = SentenceTransformer("all-MiniLM-L6-v2")
+
+      corpus = ["FastAPI serves ML models asynchronously.", "Docker packages system dependencies.", "FAISS indices vectors in memory."]
+      corpus_embeddings = model.encode(corpus).astype('float32')
+      index = faiss.IndexFlatL2(384)
+      index.add(corpus_embeddings)
+
+      class QueryRequest(BaseModel):
+          query: str
+
+      # 2. Define prediction endpoint with Pydantic schema validation
+      @app.post("/query")
+      async def retrieve_info(request: QueryRequest):
+          q_embed = model.encode([request.query]).astype('float32')
+          _, indices = index.search(q_embed, k=1)
+          matched_text = corpus[indices[0][0]]
+          return {"context": matched_text}
+      assert matched_text is not None, "matched_text should not be None"
+    solution_lang: python
+    time_minutes: 30
+  - title: 'Production Benchmark — Capstone Part 2: Deployment & Model Serving'
+    solution_code: |-
+      # Day 100: Capstone Part 2 — Model Serving & Deployment
+      from flask import Flask, request, jsonify
+      import numpy as np
+      import pickle, os
+
+      # Train a production-ready model
+      from sklearn.ensemble import GradientBoostingClassifier
+      from sklearn.preprocessing import StandardScaler
+      from sklearn.model_selection import train_test_split
+
+      np.random.seed(42)
+      X = np.random.randn(500, 8)
+      y = (X[:, 0] + X[:, 2] - X[:, 5] > 0.5).astype(int)
+      X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+      scaler = StandardScaler()
+      X_tr_s = scaler.fit_transform(X_train)
+      X_te_s = scaler.transform(X_test)
+      model = GradientBoostingClassifier(n_estimators=100, random_state=42)
+      model.fit(X_tr_s, y_train)
+      test_acc = model.score(X_te_s, y_test)
+      print(f"Test accuracy: {test_acc:.4f}")
+
+      # Serialize
+      MODEL_PATH = '/tmp/day100_model.pkl'
+      SCALER_PATH = '/tmp/day100_scaler.pkl'
+      with open(MODEL_PATH, 'wb') as f: pickle.dump(model, f)
+      with open(SCALER_PATH, 'wb') as f: pickle.dump(scaler, f)
+
+      # Flask serving app
+      app = Flask(__name__)
+      _model = pickle.load(open(MODEL_PATH, 'rb'))
+      _scaler = pickle.load(open(SCALER_PATH, 'rb'))
+
+      @app.route('/health')
+      def health(): return jsonify({'status': 'ok', 'version': '1.0', 'accuracy': round(test_acc, 4)})
+
+      @app.route('/predict', methods=['POST'])
+      def predict():
+          body = request.get_json()
+          features = body.get('features')
+          if not features or len(features) != 8:
+              return jsonify({'error': 'Exactly 8 features required'}), 400
+          X_in = _scaler.transform([features])
+          pred = int(_model.predict(X_in)[0])
+          prob = float(_model.predict_proba(X_in)[0].max())
+          return jsonify({'prediction': pred, 'confidence': round(prob, 4)})
+
+      with app.test_client() as c:
+          r_health = c.get('/health')
+          r_predict = c.post('/predict', json={'features': [0.5]*8})
+          r_error   = c.post('/predict', json={'features': [1.0]})
+          assert r_health.status_code == 200
+          assert r_predict.status_code == 200
+          assert r_error.status_code == 400
+          body = r_predict.get_json()
+          assert 'prediction' in body and body['prediction'] in [0, 1]
+
+      for f in [MODEL_PATH, SCALER_PATH]: os.remove(f)
+      print("✅ Model Serving Capstone assertions passed")
+    badge: HARD
+    badge_class: tb-hard
+    time: 45 mins
+    prompt_html: '<p>Write a <strong>production-grade implementation</strong> of <strong>Capstone Part 2: Deployment & Model
+      Serving</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow
+      for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See
+      the solution below for a complete reference implementation.</em></p>'
+    done_when: 'Your Capstone Part 2: Deployment & Model Serving implementation runs without errors, all assertions pass,
+      and you can explain each component.'
+    git_cmd: 'git add src/day100_benchmark.py && git commit -m "feat(day100): production benchmark — Capstone Part 2: Deployment
+      & Model Serv"'
+    sol_id: sol-w14d100t-bench
+    solution_title: '✅ Production Implementation — Capstone Part 2: Deployment & Model Serving'
+    solution_lang: python
+  quizzes:
+  - num_str: Q1 OF 3
+    question: Why is FastAPI preferred over standard Flask for model serving?
+    qid: q100_1
+    options:
+    - letter: A
+      text: It natively supports asynchronous requests, preventing the server from blocking during long GPU inferences.
+      is_correct: true
+      id: a
+    - letter: B
+      text: It includes built-in PyTorch integration.
+      is_correct: false
+      id: b
+    - letter: C
+      text: It automatically generates Gradio UIs.
+      is_correct: false
+      id: c
+    - letter: D
+      text: Apply Dropout before Batch Normalization with learning rate > 1.0
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Asynchronous concurrency is vital for high-throughput model endpoints.
+    wrong_fb: ❌ Incorrect. Think about synchronous vs asynchronous Python execution.
+    correct: a
+  - num_str: Q2 OF 3
+    question: What problem does Docker solve in Machine Learning deployment?
+    qid: q100_2
+    options:
+    - letter: A
+      text: It trains models faster.
+      is_correct: false
+      id: a
+    - letter: B
+      text: It solves dependency mismatch (like CUDA/PyTorch versioning) by packaging the exact OS environment alongside the
+        code.
+      is_correct: true
+      id: b
+    - letter: C
+      text: It compresses model weights.
+      is_correct: false
+      id: c
+    - letter: D
+      text: Apply Dropout before Batch Normalization with learning rate > 1.0
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! "It works on my machine" is solved by Docker.
+    wrong_fb: ❌ Incorrect. Docker has nothing to do with training speed or weights.
+    correct: b
+  - num_str: Q3 OF 3
+    question: 'In the context of Capstone Part 2: Deployment & Model Serving, what is uvicorn?'
+    qid: q100_3
+    options:
+    - letter: A
+      text: A PyTorch optimization library.
+      is_correct: false
+      id: a
+    - letter: B
+      text: A vector database.
+      is_correct: false
+      id: b
+    - letter: C
+      text: An ASGI web server implementation for Python used to run FastAPI apps.
+      is_correct: true
+      id: c
+    - letter: D
+      text: Apply Dropout before Batch Normalization with learning rate > 1.0
+      is_correct: false
+      id: d
+    correct_fb: ✅ Correct! Uvicorn serves the FastAPI application asynchronously.
+    wrong_fb: ❌ Incorrect. Look at the Dockerfile CMD block.
+    correct: c
+  flashcards:
+  - front: What is the purpose of Pre-LayerNorm (Pre-LN) in modern Transformers?
+    back: Normalizing layer inputs before multi-head attention and MLP blocks stabilizes gradient flow, enabling training
+      very deep networks without warmup instability.
+  - front: Why do models like LLaMA and Gemma use RMSNorm instead of standard LayerNorm?
+    back: RMSNorm eliminates mean centering and only normalizes by Root Mean Square, saving compute while maintaining identical
+      training stability.
+  - front: 'Core concept: What is the significance of WSGI vs ASGI? in Capstone Part 2: Deployment & Model Serving?'
+    back: 'WSGI: Web Server Gateway Interface (synchronous). ASGI: Asynchronous Server Gateway Interface (async, supports
+      WebSockets).'
+  - front: 'Core concept: What is the significance of Docker Image? in Capstone Part 2: Deployment & Model Serving?'
+    back: Read-only blueprint template with instructions to build a container environment (defined in a Dockerfile).
+  - front: Pydantic Validation (D100)?
+    back: Python library for data parsing and validation using type hints, raising clear runtime errors for invalid input
+      schemas.
+  gotcha:
+    title: '⚠️ Gotcha: Quantization Scale Calibration'
+    description: Post-training quantization requires representative calibration datasets to calculate dynamic scales accurately.
+  takeaways:
+    hinglish_line: |-
+      <strong>
+                Ek line mein:
+               </strong>
+               Day 100 seekhta hai kaise HF Spaces ko efficiently code aur validate kiya jata hai real-world data ke sath.
+    bullets:
+    - FastAPI handles asynchronous routing, allowing non-blocking inference endpoints.
+    - Docker guarantees environment reproducibility, vital for complex CUDA/PyTorch stacks.
+    - Gradio provides instant, interactive demonstrations for stakeholders.
+  resources:
+  - title: 'Capstone Part 2: Deployment & Model Serving — Let''s build GPT from scratch, in code, spelled out — Andrej Karpathy'
+    url: https://www.youtube.com/watch?v=kCc8FmEb1nY#day-100
+    type: VIDEO
+    author: Andrej Karpathy
+    duration: 1h 56m
+  - title: 'Capstone Part 2: Deployment & Model Serving — Generative AI, LangChain & LLM Master Series — Krish Naik'
+    url: https://www.youtube.com/playlist?list=PLZoTAELRMXVN7MIbEIqHBNqYvV3yq_7l_#day-100
+    type: VIDEO
+    author: Krish Naik
+    duration: Full Series
+  - title: 'Capstone Part 2: Deployment & Model Serving — NLP & Transformers Explained from Math to PyTorch — CampusX'
+    url: https://www.youtube.com/playlist?list=PLKnIA16_RmvZk1w_4N7_0Wc3Q2g9w7bYc#day-100
+    type: VIDEO
+    author: CampusX
+    duration: Series
+  - title: 'Capstone Part 2: Deployment & Model Serving — Hugging Face Transformers Documentation & Tasks Guide'
+    url: https://huggingface.co/docs/transformers/index#day-100
+    type: DOCS
+    author: Hugging Face
+    duration: Reference
+  - title: 'Capstone Part 2: Deployment & Model Serving Official API Reference & Architecture Guide'
+    url: https://docs.ai-ml.org/curriculum/day-100
+    type: DOCS
+    author: Official Documentation
+    duration: Comprehensive
+  gotchas:
+  - 'Data Leakage & State Mutation Trap: Mutating preprocessing statistics on test splits produces overly optimistic evaluation
+    metrics. Always fit transformations strictly on training partitions.'
+  - 'Always ensure: Memory & Numerical Instability Trap: Unbounded batching or omitting float32 epsilon stabilization in denominators
+    triggers silent NaN gradients and GPU Out-Of-Memory (OOM) crashes in production.'

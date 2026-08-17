@@ -40,32 +40,20 @@ days:
   analogy: 'Kubernetes Core Concepts is like an automated container terminal at a mega-seaport: robotic cranes load, unload,
     and stack shipping containers (Pods) on demand based on shipping schedules.'
   theory_html: |-
-    <h3 class="sh3">1. Kubernetes Architecture for AI Engineers</h3>
+    <h3 class="sh3">1. Kubernetes Control Plane for Distributed AI</h3>
     <p>
-    Kubernetes coordinates distributed GPU computing across worker nodes via the Control Plane:
+    Running high-concurrency LLM inference and distributed training requires orchestrating containerized GPU workloads across physical compute nodes:
     </p>
-    <ul>
-      <li><strong>kube-apiserver:</strong> The central REST API gateway handling declarative YAML state requests.</li>
-      <li><strong>etcd:</strong> Highly available distributed key-value store holding the entire cluster state.</li>
-      <li><strong>kube-scheduler:</strong> Assigns pending Pods to worker nodes based on resource requests, GPU availability, and node affinities.</li>
-      <li><strong>kubelet:</strong> Agent running on each worker node that ensures containers described in PodSpecs are running and healthy.</li>
-      <li><strong>NVIDIA Device Plugin:</strong> Exposes GPU hardware accelerators to the kubelet as allocatable node resources (<code>nvidia.com/gpu</code>).</li>
-    </ul>
     <div class="mermaid">
     graph TD
-      subgraph Control Plane
-        API["kube-apiserver"] <--> etcd["etcd (Cluster State)"]
-        API <--> Sched["kube-scheduler"]
-        API <--> CM["kube-controller-manager"]
-      end
-      subgraph GPU Worker Node
-        Kubelet["kubelet"] <--> API
-        Kubelet --> Containerd["containerd Runtime"]
-        Containerd --> Pod1["Pod: vLLM (1x NVIDIA A100)"]
-        Containerd --> Pod2["Pod: Triton (1x NVIDIA L4)"]
-      end
+        User["MLOps Engineer / CI/CD"] -->|kubectl / Helm| APIServer["kube-apiserver (Control Plane)"]
+        APIServer --> etcd["etcd Key-Value Store"]
+        APIServer --> Scheduler["kube-scheduler (GPU Resource Matching)"]
+        Scheduler --> Worker1["Worker Node 1 (8x NVIDIA H100)"]
+        Scheduler --> Worker2["Worker Node 2 (8x NVIDIA H100)"]
+        Worker1 --> Pod1["vLLM Serving Pod (limits: nvidia.com/gpu: 4)"]
     </div>
-    <div class="diagram-cap">Kubernetes Control Plane and GPU Worker Node Interaction Architecture.</div>
+    <div class="diagram-cap">Figure 178.1: Kubernetes GPU Workload Orchestration and Control Plane Architecture.</div>
   predict:
     question: What is the standard Kubernetes resource key used to request 1 NVIDIA GPU in a Pod manifest?
     answer: nvidia.com/gpu
@@ -332,45 +320,15 @@ days:
   analogy: 'Deploying vLLM on Kubernetes is like an automated container terminal at a mega-seaport: robotic cranes load, unload,
     and stack shipping containers (Pods) on demand based on shipping schedules.'
   theory_html: |-
-    <h3 class="sh3">1. Deploying vLLM on Kubernetes with GPU Allocations</h3>
+    <h3 class="sh3">1. Production vLLM StatefulSet & Shared Memory</h3>
     <p>
-    Running high-throughput LLM inference in production Kubernetes clusters requires explicit GPU resource requests, shared memory volume mounts (<code>/dev/shm</code> for PyTorch distributed IPC), and robust readiness probes.
+    Deploy vLLM on Kubernetes with:
     </p>
-    <div class="cb">
-    <div class="cb-head"><span class="cb-lang">yaml — vllm-gpu-deployment.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-    <pre><code>apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: vllm-llama3-serving
-    spec:
-      replicas: 2
-      selector:
-        matchLabels:
-          app: vllm-model
-      template:
-        metadata:
-          labels:
-            app: vllm-model
-        spec:
-          containers:
-          - name: vllm
-            image: vllm/vllm-openai:latest
-            args: ["--model", "meta-llama/Meta-Llama-3-8B-Instruct", "--gpu-memory-utilization", "0.90"]
-            ports:
-            - containerPort: 8000
-            resources:
-              limits:
-                nvidia.com/gpu: "1"
-                memory: "32Gi"
-                cpu: "8"
-            volumeMounts:
-            - mountPath: /dev/shm
-              name: dshm
-          volumes:
-          - name: dshm
-            emptyDir:
-              medium: Memory</code></pre>
-    </div>
+    <ul>
+      <li><code>nvidia.com/gpu</code> resource requests matching limits for Guaranteed QoS.</li>
+      <li><code>/dev/shm</code> mounted as an <code>emptyDir</code> with <code>medium: Memory</code> to prevent PyTorch distributed data loader deadlocks.</li>
+      <li>Liveness and Readiness probes monitoring the <code>/health</code> HTTP endpoint.</li>
+    </ul>
   predict:
     question: What volume medium is configured in Kubernetes for /dev/shm to prevent PyTorch DataLoader IPC deadlocks?
     answer: Memory
@@ -681,18 +639,13 @@ days:
   analogy: 'Horizontal Pod Autoscaling is like a structural pillar in an industrial suspension bridge: engineered to withstand
     peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Horizontal Pod Autoscaling (HPA) for LLM Serving</h3>
+    <h3 class="sh3">1. Custom Metric Autoscaling with Prometheus</h3>
     <p>
-    Standard CPU/Memory metrics are inadequate for autoscaling LLM deployments because GPU inference runs at 100% VRAM utilization even during low traffic. The <strong>Kubernetes HPA</strong> must scale on custom metrics scraped from Prometheus, such as <code>vllm:num_requests_waiting</code> or <code>vllm:gpu_cache_usage_factor</code>.
+    Generic CPU/Memory metrics fail for LLM autoscaling because GPUs sit at 100% compute even when requests are queuing.
     </p>
-    <div class="mermaid">
-    graph LR
-      vLLM["vLLM Model Pods (/metrics)"] -->|Scrape every 15s| Prom["Prometheus Operator"]
-      Prom --> Adapter["Prometheus Adapter (Custom Metrics API)"]
-      Adapter --> HPA["Horizontal Pod Autoscaler"]
-      HPA -->|Scale Replicas (2 -> 6)| Deployment["vLLM Deployment"]
-    </div>
-    <div class="diagram-cap">Custom-Metric Horizontal Pod Autoscaling Architecture for vLLM Clusters.</div>
+    <p>
+    <strong>Prometheus Adapter Custom Metric HPA:</strong> Autoscale GPU pods based on <code>vllm:num_requests_waiting</code> or <code>vllm:avg_prompt_throughput_tok_per_s</code>.
+    </p>
   predict:
     question: "Why is\n       \n        stabilizationWindowSeconds\n       \n       for scaleDown useful for LLM services?"
     answer: |-
@@ -1020,22 +973,10 @@ days:
   analogy: 'Helm Charts for ML Stacks is like a structural pillar in an industrial suspension bridge: engineered to withstand
     peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Helm Charts for Standardized ML Deployments</h3>
+    <h3 class="sh3">1. Parameterized Infrastructure with Helm</h3>
     <p>
-    Managing multiple raw YAML manifests across development, staging, and production environments is repetitive and error-prone. <strong>Helm</strong> acts as the package manager for Kubernetes, templating deployment manifests with environment-specific <code>values.yaml</code> configurations.
+    Helm charts parameterize Kubernetes deployments, services, ConfigMaps, and ingress rules across dev, staging, and production environments with simple <code>values.yaml</code> overrides.
     </p>
-    <div class="mermaid">
-    graph TD
-      Chart["Helm Chart Templates
-    (deployment.yaml, service.yaml, hpa.yaml)"] --> Engine["Helm Template Engine"]
-      ValsDev["values-dev.yaml
-    (CPU only, 1 replica)"] --> Engine
-      ValsProd["values-prod.yaml
-    (A100 GPU, 4 replicas, HPA)"] --> Engine
-      Engine --> Manifests["Rendered Kubernetes Manifests"]
-      Manifests --> K8s["Target Kubernetes Cluster"]
-    </div>
-    <div class="diagram-cap">Helm Templating Pipeline: Transforming Parameterized Values into Environment Manifests.</div>
   predict:
     question: What default file in a Helm chart contains user-configurable deployment parameters?
     answer: values.yaml
@@ -1332,20 +1273,16 @@ days:
   analogy: 'GitHub Actions CI/CD for ML is like a structural pillar in an industrial suspension bridge: engineered to withstand
     peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. GitHub Actions CI/CD for Machine Learning</h3>
+    <h3 class="sh3">1. GitOps Automated Quality Gates</h3>
     <p>
-    Automated CI/CD for ML guarantees that every Git pull request undergoes static analysis (linting), unit testing, data schema validation, model regression checks, container image building, and canary staging rollout.
+    Every pull request triggers:
     </p>
-    <div class="mermaid">
-    graph LR
-      PR["Git Pull Request"] --> Lint["Job 1: Lint & Format (Ruff / Black)"]
-      Lint --> Unit["Job 2: Unit Tests (pytest)"]
-      Unit --> DataVal["Job 3: Schema Validation (Great Expectations)"]
-      DataVal --> Regress["Job 4: Model Accuracy Regression Gate"]
-      Regress --> Build["Job 5: Docker Build & Push to ECR"]
-      Build --> Deploy["Job 6: Helm Upgrade Staging Cluster"]
-    </div>
-    <div class="diagram-cap">Comprehensive 6-Stage GitHub Actions CI/CD Pipeline for Enterprise ML Repositories.</div>
+    <ol>
+      <li>Linting (<code>flake8</code> / <code>black</code>).</li>
+      <li>Unit testing (<code>pytest</code>).</li>
+      <li>Model evaluation against golden regression datasets.</li>
+      <li>Automated Docker image build and push to container registries.</li>
+    </ol>
   predict:
     question: What GitHub Actions event triggers the automated CI/CD model testing pipeline?
     answer: push
@@ -1602,19 +1539,10 @@ days:
   analogy: 'Model Performance Regression Tests is like a structural pillar in an industrial suspension bridge: engineered
     to withstand peak load stress while maintaining flexibility.'
   theory_html: |-
-    <h3 class="sh3">1. Automated Model Performance Regression Testing</h3>
+    <h3 class="sh3">1. Golden Test Slices & Regression Gates</h3>
     <p>
-    In continuous deployment pipelines, new model candidates must prove they do not regress on critical edge cases or drop overall accuracy before merging into production. Automated regression test suites compare candidate model metrics against baseline production benchmarks with strict tolerance thresholds ($\Delta < 1.0\%$).
+    Evaluate candidate models against frozen golden test slices to guarantee zero regressions on critical safety, formatting, or domain-specific accuracy benchmarks.
     </p>
-    <div class="mermaid">
-    graph TD
-      Candidate["Candidate Model (PR #142)"] --> Benchmark["Run Golden Evaluation Test Suite"]
-      Baseline["Baseline Model (Production @champion)"] --> Benchmark
-      Benchmark --> Compare{"Candidate Metric >= Baseline - 0.01?"}
-      Compare -->|Yes| Pass["CI Check Passed (Green)"]
-      Compare -->|No| Fail["CI Check Failed (Block Merge & Report Regressed Slices)"]
-    </div>
-    <div class="diagram-cap">Automated Model Regression Testing Gate in Continuous Integration.</div>
   predict:
     question: What boolean result is returned when a new model's latency exceeds the SLA regression threshold of 100ms?
     answer: 'False'
@@ -1881,20 +1809,10 @@ days:
   analogy: 'Capstone: Production K8s LLM Deployment is like an automated container terminal at a mega-seaport: robotic cranes
     load, unload, and stack shipping containers (Pods) on demand based on shipping schedules.'
   theory_html: |-
-    <h3 class="sh3">1. Capstone: Production Kubernetes LLM Infrastructure</h3>
+    <h3 class="sh3">1. Kubernetes Production AI Capstone</h3>
     <p>
-    Bringing together all elements of enterprise AI infrastructure: Helm chart packaging, vLLM serving on NVIDIA GPUs, Prometheus custom metrics, Horizontal Pod Autoscaler, and GitHub Actions CI/CD deployment automation.
+    The Week 25 Capstone deploys a complete production LLM serving cluster on Kubernetes using Helm charts, Prometheus custom metric HPA, and automated GitOps CI/CD.
     </p>
-    <div class="mermaid">
-    graph TD
-      Git["Git Push / Release Tag"] --> CI["GitHub Actions CI/CD"]
-      CI --> Helm["Helm Upgrade"]
-      Helm --> Cluster["Kubernetes Production Cluster"]
-      Cluster --> HPA["HPA (Autoscaling on Waiting Queue)"]
-      HPA --> Pods["vLLM GPU Pod Replicas"]
-      Pods --> Monitor["Prometheus & Grafana Observability"]
-    </div>
-    <div class="diagram-cap">Production End-to-End Kubernetes LLM Deployment and Autoscaling Architecture.</div>
   predict:
     question: "What does\n       \n        --wait --timeout 10m\n       \n       do in the helm upgrade command?"
     answer: 'Calculated Desired Pod Replicas: 5'
