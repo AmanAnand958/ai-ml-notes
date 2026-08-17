@@ -207,7 +207,7 @@
         <!-- THEORY SECTION -->
         <div id="day-136-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. The Information Retrieval Spectrum: Dense vs. Sparse</h3>
+          <h3 class="sh3">1. The Dual Nature of Information Retrieval: Dense vs. Sparse</h3>
 <p>
 Modern enterprise information retrieval operates across two distinct search paradigms, each with fundamental mathematical and operational trade-offs:
 </p>
@@ -215,6 +215,7 @@ Modern enterprise information retrieval operates across two distinct search para
   <li><strong>Dense Semantic Retrieval (Bi-Encoders):</strong> Models like <code>text-embedding-3-large</code>, <code>bge-large-en-v1.5</code>, or <code>e5-mistral-7b-instruct</code> project arbitrary natural language passages into dense, continuous embedding spaces $\mathbb{R}^d$ ($d \in [768, 3072]$). Similarity is computed via vector dot product or cosine distance. Dense retrieval captures synonyms, conceptual abstractions, and cross-lingual semantics ("cardiac arrest" matches "heart attack"). However, dense retrieval routinely suffers from <strong>semantic drift on exact identifiers</strong>, model hallucination on out-of-vocabulary acronyms, part numbers (e.g. <code>SKU-8921-X</code>), and precise error codes (e.g. <code>0x80070005</code>).</li>
   <li><strong>Sparse Lexical Retrieval (BM25 & Inverted Indexes):</strong> Okapi BM25 scores document relevance based on term frequency ($TF$), inverse document frequency ($IDF$), and document length normalization. BM25 guarantees deterministic precision on exact keyword tokens, rare technical terms, and proper nouns. However, BM25 fails completely on semantic paraphrases, vocabulary mismatch, and multi-word semantic intent.</li>
 </ul>
+
 <div class="mermaid">
 graph TD
     Query["User Query: 'Troubleshoot error 0x80070005 in Azure VM'"] --> Fork{"Query Dispatcher"}
@@ -364,6 +365,23 @@ Where:
     </tr>
   </tbody>
 </table>
+
+<h3 class="sh3">7. In-Memory Inverted Index Construction</h3>
+<p>
+An inverted index maps every unique token $t$ to a posting list $\mathcal{P}(t) = \{(d_1, f_1), (d_2, f_2), \dots\}$ containing document IDs and token frequencies. Fast lexical querying intersects posting lists across query terms in $O(\sum |\mathcal{P}(q_i)|)$ time.
+</p>
+
+<h3 class="sh3">8. Dense vs Hybrid Latency Budget Allocation</h3>
+<p>
+To satisfy a strict <strong>100ms end-to-end SLA</strong> for conversational search:
+</p>
+<ul>
+  <li><strong>Query Tokenization & Embedding:</strong> 12ms (via high-throughput ONNX runtime).</li>
+  <li><strong>Parallel Dense + Sparse Search:</strong> 15ms.</li>
+  <li><strong>RRF Ranking Fusion:</strong> &lt;1ms.</li>
+  <li><strong>Cross-Encoder Stage-2 Rerank:</strong> 30ms (NVIDIA TensorRT-LLM on A10G).</li>
+  <li><strong>LLM First Token Generation (TTFT):</strong> 40ms.</li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -816,18 +834,29 @@ print("✓ Hybrid search pipeline verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-137-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          
+          <h3 class="sh3">1. The Two-Stage Information Retrieval Architecture</h3>
+<p>
+In production enterprise search over corpora containing millions of documents, evaluating full transformer cross-attention for every document at query time is computationally impossible ($O(N \cdot L^2)$ computational complexity).
+</p>
+<p>
+Industrial search systems resolve this through a <strong>two-stage retrieval funnel</strong>:
+</p>
+<ol>
+  <li><strong>Stage 1 (Bi-Encoder Candidate Generation):</strong> Computes query embedding $ec{q} = f_	heta(q)$ and document embedding $ec{d} = f_	heta(d)$ independently. At query time, vector index lookups (HNSW / IVF) compute cosine similarity $ec{q} \cdot ec{d}$ over 1,000,000+ passages in &lt;10ms, retrieving the top 50–100 candidates.</li>
+  <li><strong>Stage 2 (Cross-Encoder Re-Ranking):</strong> Feeds the query and passage jointly into a single transformer model as $[	ext{CLS}] \circ q \circ [	ext{SEP}] \circ p \circ [	ext{SEP}]$. Every query token attends directly to every passage token across all layers, capturing fine-grained contextual relationships (negation, numerical constraints, entity matching).</li>
+</ol>
+
 <div style="margin: 1.5rem 0; text-align: center;">
 <svg aria-label="Bi-Encoder vs Cross-Encoder Architecture Comparison" height="280" viewBox="0 0 740 280" width="740" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);">
   <defs>
-    <linearGradient id="bi-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bi-grad-19" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1e1e2e"/>
       <stop offset="100%" stop-color="#11111b"/>
     </linearGradient>
   </defs>
 
   <!-- Left: Bi-Encoder -->
-  <rect x="10" y="10" width="345" height="260" rx="10" fill="url(#bi-grad)" stroke="#45475a" stroke-width="1.5"/>
+  <rect x="10" y="10" width="345" height="260" rx="10" fill="url(#bi-grad-19)" stroke="#45475a" stroke-width="1.5"/>
   <text x="25" y="35" fill="#89b4fa" font-size="13" font-weight="bold">Stage 1: Bi-Encoder (Dense Vectors)</text>
   
   <rect x="30" y="55" width="135" height="40" rx="6" fill="#313244" stroke="#89b4fa"/>
@@ -854,7 +883,7 @@ print("✓ Hybrid search pipeline verified.")</pre>
   <text x="30" y="258" fill="#a6adc8" font-size="9">Fast ANN (HNSW) | Zero cross-attention</text>
 
   <!-- Right: Cross-Encoder -->
-  <rect x="375" y="10" width="355" height="260" rx="10" fill="url(#bi-grad)" stroke="#f38ba8" stroke-width="1.5"/>
+  <rect x="375" y="10" width="355" height="260" rx="10" fill="url(#bi-grad-19)" stroke="#f38ba8" stroke-width="1.5"/>
   <text x="390" y="35" fill="#f38ba8" font-size="13" font-weight="bold">Stage 2: Cross-Encoder (Joint Attention)</text>
 
   <rect x="395" y="55" width="315" height="45" rx="6" fill="#313244" stroke="#f38ba8"/>
@@ -874,41 +903,18 @@ print("✓ Hybrid search pipeline verified.")</pre>
 <div class="diagram-cap">Figure 137.2: Architectural Comparison: Bi-Encoder Independent Projection vs Cross-Encoder Full Cross-Attention.</div>
 </div>
 
-<h3 class="sh3">1. The Two-Stage Information Retrieval Architecture</h3>
-<p>
-In production enterprise search over corpora containing millions of documents, evaluating full transformer cross-attention for every document at query time is computationally impossible ($O(N \cdot L^2)$ computational complexity).
-</p>
-<p>
-Industrial search systems resolve this through a <strong>two-stage retrieval funnel</strong>:
-</p>
-<ol>
-  <li><strong>Stage 1 (Bi-Encoder Candidate Generation):</strong> Computes query embedding $ec{q} = f_	heta(q)$ and document embedding $ec{d} = f_	heta(d)$ independently. At query time, vector index lookups (HNSW / IVF) compute cosine similarity $ec{q} \cdot ec{d}$ over 1,000,000+ passages in &lt;10ms, retrieving the top 50–100 candidates.</li>
-  <li><strong>Stage 2 (Cross-Encoder Re-Ranking):</strong> Feeds the query and passage jointly into a single transformer model as $[	ext{CLS}] \circ q \circ [	ext{SEP}] \circ p \circ [	ext{SEP}]$. Every query token attends directly to every passage token across all layers, capturing fine-grained contextual relationships (negation, numerical constraints, entity matching).</li>
-</ol>
-<div class="mermaid">
-graph LR
-    UserQuery["Query"] --> BiEncoder["Stage 1: Bi-Encoder (HNSW Index)
-Scales to 10M+ documents
-Latency: 10ms"]
-    BiEncoder -->|Top 50-100 Candidates| CrossEncoder["Stage 2: Cross-Encoder (Full Self-Attention)
-Scores (query, passage) pairs jointly
-Latency: 35ms"]
-    CrossEncoder -->|Top 3-5 Relevant Chunks| ContextWindow["LLM Prompt Context Window"]
-</div>
-<div class="diagram-cap">Figure 137.1: Two-Stage Retrieval Pipeline combining Bi-Encoder scale with Cross-Encoder precision.</div>
-
 <h3 class="sh3">2. Mathematical Formulation: Full Self-Attention Scoring</h3>
 <p>
 In a Bi-Encoder, the interaction between query and document is a late interaction reduced to a single dot product:
 </p>
 <div class="math-block">
-S_{	ext{bi}}(q, d) = \langle \mathbf{u}(q), \mathbf{v}(d) angle = \sum_{i=1}^D u_i v_i
+$$S_{	ext{bi}}(q, d) = \langle \mathbf{u}(q), \mathbf{v}(d) angle = \sum_{i=1}^D u_i v_i$$
 </div>
 <p>
 In a Cross-Encoder, the input sequence is concatenated and fed through $L$ transformer self-attention layers:
 </p>
 <div class="math-block">
-\mathbf{H}^{(l)} = 	ext{Softmax}\left( rac{\mathbf{Q}^{(l)} {\mathbf{K}^{(l)}}^T}{\sqrt{d_k}} ight) \mathbf{V}^{(l)}
+$$\mathbf{H}^{(l)} = 	ext{Softmax}\left( rac{\mathbf{Q}^{(l)} {\mathbf{K}^{(l)}}^T}{\sqrt{d_k}} ight) \mathbf{V}^{(l)}$$
 </div>
 <p>
 Because every query token $q_i$ attends to every document token $d_j$ across all layers $l \in [1, L]$, the cross-encoder captures complex semantic dependencies (such as qualifying adjectives, temporal constraints, and conditional clauses) that are completely lost in a single pooled embedding vector.
@@ -929,9 +935,6 @@ Because every query token $q_i$ attends to every document token $d_j$ across all
         self.batch_size = batch_size
 
     <span class="kw">def</span> <span class="fn">compute_relevance</span>(self, query: str, passage: str) -> float:
-        <span class="str">"""
-        Simulates cross-encoder logit scoring with sigmoid calibration.
-        """</span>
         q_tokens = set(query.lower().split())
         p_tokens = passage.lower().split()
         
@@ -962,6 +965,22 @@ To keep total end-to-end RAG response latency under $150	ext{ms}$:
   <li><strong>Pool Size $K = 50$:</strong> Cross-encoder latency $pprox 25	ext{--}35	ext{ms}$ on an NVIDIA T4 / A10G GPU. Recovers $>95\%$ of top-relevant passages. (Recommended default).</li>
   <li><strong>Pool Size $K = 200$:</strong> Cross-encoder latency jumps to $pprox 120	ext{--}150	ext{ms}$, risking p99 timeout violations on concurrent traffic.</li>
 </ul>
+
+<h3 class="sh3">5. Score Calibration and Probability Thresholding</h3>
+<p>
+Raw cross-encoder outputs are uncalibrated logits $z \in (-\infty, \infty)$. To make scores interpretable for hard relevance cutoffs (e.g. discarding chunks if relevance &lt; 0.35), calibrate logits using Temperature-scaled Sigmoid:
+</p>
+<div class="math-block">
+$$\hat{p} = \sigma\left(rac{z}{T}ight) = rac{1}{1 + e^{-z / T}}$$
+</div>
+
+<h3 class="sh3">6. Cross-Encoder Distillation to Bi-Encoders</h3>
+<p>
+Cross-encoders are often used as teacher models to train lightweight bi-encoders via knowledge distillation (Margin MSE loss):
+</p>
+<div class="math-block">
+$$\mathcal{L}_{	ext{distill}} = \left| (S_{	ext{bi}}(q, d^+) - S_{	ext{bi}}(q, d^-)) - (S_{	ext{cross}}(q, d^+) - S_{	ext{cross}}(q, d^-)) ight|^2$$
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1506,6 +1525,22 @@ Parent-Child indexing solves the granularity dilemma cleanly by separating the <
 
         <span class="kw">return</span> {<span class="str">'parents'</span>: parents, <span class="str">'children'</span>: children}</code></pre>
 </div>
+
+<h3 class="sh3">4. Semantic Chunking Mathematical Formulation</h3>
+<p>
+Semantic chunking calculates the cosine distance between consecutive sentence embeddings $s_i$ and $s_{i+1}$:
+</p>
+<div class="math-block">
+$$d_i = 1 - rac{ec{e}(s_i) \cdot ec{e}(s_{i+1})}{\|ec{e}(s_i)\| \|ec{e}(s_{i+1})\|}$$
+</div>
+<p>
+A chunk boundary is inserted wherever $d_i > \mu_d + k \cdot \sigma_d$, identifying natural thematic shifts in text narrative.
+</p>
+
+<h3 class="sh3">5. Document Structure Preservation (AST Markdown Splitting)</h3>
+<p>
+Naive text splitting cuts through Markdown tables, code fences (<code>```python ... ```</code>), and nested lists, corrupting syntax. Document-aware splitters parse the document into an Abstract Syntax Tree (AST), preserving table integrity and header hierarchies.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1987,6 +2022,14 @@ Production vector databases (Qdrant, Pinecone, Milvus) employ <strong>Approximat
     </tr>
   </tbody>
 </table>
+
+<h3 class="sh3">3. HNSW Mathematical Graph Traversal Mechanics</h3>
+<p>
+HNSW constructs a hierarchical set of layers $l \in [0, L_{\max}]$. Probability of an element belonging to layer $l$ decays exponentially: $P(l) = e^{-l \cdot m_L}$ where $m_L = rac{1}{\ln(M)}$.
+</p>
+<p>
+Search begins at the entry point of the top layer $L_{\max}$, executing greedy routing until reaching a local minimum, then transitions to layer $l-1$ until converging on Layer 0 with beam size <code>efSearch</code>.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2497,6 +2540,7 @@ Standard vector similarity retrieval is designed for <strong>local point lookups
 <p>
 Because vector embeddings match against isolated chunks, no single chunk contains the macro-level answer. <strong>GraphRAG</strong> (developed by Microsoft Research) bridges this gap by extracting a knowledge graph of entities and relationships from the text, running community detection, and pre-generating hierarchical community summaries.
 </p>
+
 <div class="mermaid">
 graph TD
     RawDocs["Corpus Documents"] --> LLMExtract["LLM Extraction Pipeline
@@ -3096,6 +3140,11 @@ $$\hat{d} = M(q), \quad ec{v}_{	ext{query}} = 	ext{Embed}(\hat{d})$$
 <p>
 Because $\hat{d}$ resides directly in the <em>document embedding manifold</em> (sharing document vocabulary, grammar, and structural tone), $ec{v}_{	ext{query}}$ achieves significantly higher cosine similarity with actual relevant documents than the short query vector $	ext{Embed}(q)$.
 </p>
+
+<h3 class="sh3">3. Step-Back Prompting for Multi-Hop Principles</h3>
+<p>
+When answering questions that require high-level physics or financial formulas, Step-Back Prompting abstracts the specific query to its foundational theoretical laws first (e.g. <em>"If ideal gas temperature doubles at constant volume, what happens to pressure?"</em> abstracts to <em>"State Gay-Lussac's Law and its mathematical formula"</em>).
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3541,10 +3590,12 @@ graph TD
 </div>
 <div class="diagram-cap">Figure 142.1: End-to-End Enterprise Production RAG Blueprint.</div>
 
-<h3 class="sh3">2. Production Operational Checklist</h3>
+<h3 class="sh3">2. Production Operational SLA Targets</h3>
 <ul>
-  <li><strong>Sub-50ms Retrieval SLA:</strong> Use HNSW + SQ8 vector indexes paired with batch cross-encoder reranking ($K=50$).</li>
-  <li><strong>Continuous Evaluation Gates:</strong> Automated CI/CD assertion testing Faithfulness $\ge 0.90$ and Answer Relevance $\ge 0.85$ on golden test sets before promoting code.</li>
+  <li><strong>Cache Hit Latency:</strong> &lt;5ms (Redis semantic vector cache).</li>
+  <li><strong>Hybrid Search + Reranking:</strong> &lt;45ms.</li>
+  <li><strong>First Token Time-To-First-Token (TTFT):</strong> &lt;60ms.</li>
+  <li><strong>Continuous Evaluation Gates:</strong> Automated CI/CD assertion testing Faithfulness $\ge 0.90$ and Answer Relevance $\ge 0.85$ on golden test sets.</li>
 </ul>
         </div>
 

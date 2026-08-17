@@ -40,61 +40,49 @@ days:
   analogy: 'PagedAttention is like operating system virtual memory paging: instead of requiring a massive contiguous parking
     lot for a 50-car freight train, it breaks the train into separate cars and parks them in whatever open parking spots are
     available across the city.'
-  theory_html: "\n<div style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"PagedAttention Virtual Block Table\
-    \ Mapping\" height=\"260\" viewBox=\"0 0 720 260\" width=\"720\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width:\
-    \ 100%; height: auto; font-family: var(--font-mono, monospace);\">\n  <defs>\n    <linearGradient id=\"paged-bg\" x1=\"\
-    0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n      <stop offset=\"0%\" stop-color=\"#09090b\"/>\n      <stop offset=\"100%\"\
-    \ stop-color=\"#18181b\"/>\n    </linearGradient>\n  </defs>\n\n  <rect x=\"10\" y=\"10\" width=\"700\" height=\"240\"\
-    \ rx=\"10\" fill=\"url(#paged-bg)\" stroke=\"#27272a\" stroke-width=\"2\"/>\n  <text x=\"25\" y=\"35\" fill=\"#22c55e\"\
-    \ font-size=\"13\" font-weight=\"bold\">PagedAttention: Virtual Memory Block Mapping (Zero Fragmentation)</text>\n\n \
-    \ <!-- Logical Sequence Blocks -->\n  <rect x=\"30\" y=\"60\" width=\"180\" height=\"170\" rx=\"8\" fill=\"#18181b\" stroke=\"\
-    #3f3f46\"/>\n  <text x=\"45\" y=\"85\" fill=\"#a1a1aa\" font-size=\"11\" font-weight=\"bold\">Logical Sequence</text>\n\
-    \  \n  <rect x=\"40\" y=\"95\" width=\"160\" height=\"35\" rx=\"4\" fill=\"#27272a\" stroke=\"#60a5fa\"/>\n  <text x=\"\
-    50\" y=\"117\" fill=\"#60a5fa\" font-size=\"10.5\">Block 0 (Tokens 0-15)</text>\n\n  <rect x=\"40\" y=\"135\" width=\"\
-    160\" height=\"35\" rx=\"4\" fill=\"#27272a\" stroke=\"#f472b6\"/>\n  <text x=\"50\" y=\"157\" fill=\"#f472b6\" font-size=\"\
-    10.5\">Block 1 (Tokens 16-31)</text>\n\n  <rect x=\"40\" y=\"175\" width=\"160\" height=\"35\" rx=\"4\" fill=\"#27272a\"\
-    \ stroke=\"#facc15\"/>\n  <text x=\"50\" y=\"197\" fill=\"#facc15\" font-size=\"10.5\">Block 2 (Tokens 32-47)</text>\n\
-    \n  <!-- Page Table (Mapping Directory) -->\n  <rect x=\"250\" y=\"60\" width=\"180\" height=\"170\" rx=\"8\" fill=\"\
-    #18181b\" stroke=\"#22c55e\" stroke-width=\"1.5\"/>\n  <text x=\"270\" y=\"85\" fill=\"#4ade80\" font-size=\"11\" font-weight=\"\
-    bold\">Block Table (Directory)</text>\n  <text x=\"265\" y=\"115\" fill=\"#f8fafc\" font-size=\"10.5\">Logical 0 → Physical\
-    \ 7</text>\n  <text x=\"265\" y=\"155\" fill=\"#f8fafc\" font-size=\"10.5\">Logical 1 → Physical 23</text>\n  <text x=\"\
-    265\" y=\"195\" fill=\"#f8fafc\" font-size=\"10.5\">Logical 2 → Physical 12</text>\n\n  <!-- Arrows from logical to table\
-    \ -->\n  <path d=\"M 200 112 L 250 112\" stroke=\"#60a5fa\" stroke-width=\"2\"/>\n  <path d=\"M 200 152 L 250 152\" stroke=\"\
-    #f472b6\" stroke-width=\"2\"/>\n  <path d=\"M 200 192 L 250 192\" stroke=\"#facc15\" stroke-width=\"2\"/>\n\n  <!-- Physical\
-    \ Non-Contiguous GPU Memory -->\n  <rect x=\"470\" y=\"60\" width=\"220\" height=\"170\" rx=\"8\" fill=\"#18181b\" stroke=\"\
-    #3f3f46\"/>\n  <text x=\"490\" y=\"85\" fill=\"#a1a1aa\" font-size=\"11\" font-weight=\"bold\">Physical GPU VRAM Pages</text>\n\
-    \n  <rect x=\"480\" y=\"95\" width=\"200\" height=\"30\" rx=\"4\" fill=\"#1e293b\" stroke=\"#60a5fa\"/>\n  <text x=\"\
-    490\" y=\"115\" fill=\"#60a5fa\" font-size=\"10\">Phys Block 7: Tokens 0-15</text>\n\n  <rect x=\"480\" y=\"130\" width=\"\
-    200\" height=\"30\" rx=\"4\" fill=\"#1e293b\" stroke=\"#3f3f46\"/>\n  <text x=\"490\" y=\"150\" fill=\"#71717a\" font-size=\"\
-    9.5\">Phys Block 8..22: Other Requests</text>\n\n  <rect x=\"480\" y=\"165\" width=\"200\" height=\"30\" rx=\"4\" fill=\"\
-    #1e293b\" stroke=\"#f472b6\"/>\n  <text x=\"490\" y=\"185\" fill=\"#f472b6\" font-size=\"10\">Phys Block 23: Tokens 16-31</text>\n\
-    </svg>\n<div class=\"diagram-cap\">Figure 150.2: PagedAttention Virtual Memory Block Mapping: Physical non-contiguous\
-    \ memory allocation eliminating GPU KV cache fragmentation.</div>\n</div>\n\n<h3 class=\"sh3\">1. GPU VRAM Memory Anatomy\
-    \ in LLM Serving</h3>\n<p>\nServing large language models in production requires managing three distinct memory components:\n\
-    </p>\n<ol>\n  <li><strong>Model Weights ($M_{\\text{weights}}$):</strong> Fixed footprint ($P \\times \\text{bytes\\_per\\\
-    _param}$). A 70B parameter model in FP16 requires $70 \\times 2\\text{GB} = 140\\text{GB}$ VRAM.</li>\n  <li><strong>Activation\
-    \ Memory:</strong> Intermediate tensor activations during forward passes.</li>\n  <li><strong>Key-Value (KV) Cache ($M_{\\\
-    text{KV}}$):</strong> Dynamically grows with batch size and context length. For multi-head attention:\n    <div class=\"\
-    math-block\">\n    $$M_{\\text{KV}} = 2 \\times n_{\\text{layers}} \\times n_{\\text{heads}} \\times d_{\\text{head}}\
-    \ \\times \\text{bytes} \\times B \\times S$$\n    </div>\n  </li>\n</ol>\n<p>\nIn legacy serving engines (e.g. Hugging\
-    \ Face TGI 1.0), KV cache tensors were pre-allocated contiguously for the maximum sequence length (e.g. $S = 4096$). This\
-    \ led to massive <strong>internal memory fragmentation</strong> ($60\\text{--}80\\%$ of GPU VRAM wasted on unused reserved\
-    \ slots) and limited concurrency.\n</p>\n\n<h3 class=\"sh3\">2. PagedAttention Architecture: Virtual Memory for KV Cache</h3>\n\
-    <p>\nDeveloped by Kwon et al. (UC Berkeley / vLLM), <strong>PagedAttention</strong> draws inspiration from operating system\
-    \ virtual memory paging:\n</p>\n<div class=\"mermaid\">\ngraph TD\n    LogicalTokens[\"Logical Sequence Tokens (0 to 63)\"\
-    ] --> PageTable[\"Block Table / Page Directory\\nMaps Logical Blocks -> Physical Blocks\"]\n    PageTable --> Block0[\"\
-    Physical Block 7 (SRAM/HBM: Tokens 0-15)\"]\n    PageTable --> Block1[\"Physical Block 23 (Non-contiguous: Tokens 16-31)\"\
-    ]\n    PageTable --> Block2[\"Physical Block 12 (Non-contiguous: Tokens 32-47)\"]\n    PageTable --> Block3[\"Physical\
-    \ Block 89 (Non-contiguous: Tokens 48-63)\"]\n</div>\n<div class=\"diagram-cap\">Figure 150.1: PagedAttention virtual\
-    \ block tables allocating non-contiguous physical GPU VRAM pages.</div>\n<p>\nBy partitioning the KV cache into fixed-size\
-    \ physical blocks (e.g. 16 or 32 tokens per block), vLLM achieves:\n</p>\n<ul>\n  <li><strong>Near-Zero Memory Waste:</strong>\
-    \ Reduces VRAM fragmentation to &lt;4%, allowing <strong>2x - 4x larger concurrent batch sizes</strong>.</li>\n  <li><strong>Copy-on-Write\
-    \ Memory Sharing:</strong> Enables parallel speculative decoding and tree search without duplicating prompt KV cache in\
-    \ memory.</li>\n</ul>\n\n<h3 class=\"sh3\">3. Continuous Batching (Iteration-Level Scheduling)</h3>\n<p>\nTraditional\
-    \ batching groups requests together until the entire batch finishes generating. Because sequence lengths vary widely,\
-    \ short requests are forced to wait for long requests to complete (the <em>tail latency problem</em>). <strong>Continuous\
-    \ Batching (Orca / vLLM)</strong> dynamically evicts completed sequences and schedules newly arriving requests at each\
-    \ token iteration step, boosting serving throughput by <strong>5x - 10x</strong>.\n</p>"
+  theory_html: |-
+    <h3 class="sh3">1. GPU VRAM Memory Anatomy in LLM Serving</h3>
+    <p>
+    Serving large language models in production requires managing three distinct memory components:
+    </p>
+    <ol>
+      <li><strong>Model Weights ($M_{\text{weights}}$):</strong> Fixed footprint ($P \times \text{bytes\_per\_param}$). A 70B parameter model in FP16 requires $70 \times 2\text{GB} = 140\text{GB}$ VRAM.</li>
+      <li><strong>Activation Memory:</strong> Intermediate tensor activations during forward passes.</li>
+      <li><strong>Key-Value (KV) Cache ($M_{\text{KV}}$):</strong> Dynamically grows with batch size and context length. For multi-head attention:
+        <div class="math-block">
+        $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{bytes} \times B \times S$$
+        </div>
+      </li>
+    </ol>
+    <p>
+    In legacy serving engines (e.g. Hugging Face TGI 1.0), KV cache tensors were pre-allocated contiguously for the maximum sequence length (e.g. $S = 4096$). This led to massive <strong>internal memory fragmentation</strong> ($60\text{--}80\%$ of GPU VRAM wasted on unused reserved slots) and limited concurrency.
+    </p>
+
+    <h3 class="sh3">2. PagedAttention Architecture: Virtual Memory for KV Cache</h3>
+    <p>
+    Developed by Kwon et al. (UC Berkeley / vLLM), <strong>PagedAttention</strong> draws inspiration from operating system virtual memory paging:
+    </p>
+    <div class="mermaid">
+    graph TD
+        LogicalTokens["Logical Sequence Tokens (0 to 63)"] --> PageTable["Block Table / Page Directory\nMaps Logical Blocks -> Physical Blocks"]
+        PageTable --> Block0["Physical Block 7 (SRAM/HBM: Tokens 0-15)"]
+        PageTable --> Block1["Physical Block 23 (Non-contiguous: Tokens 16-31)"]
+        PageTable --> Block2["Physical Block 12 (Non-contiguous: Tokens 32-47)"]
+        PageTable --> Block3["Physical Block 89 (Non-contiguous: Tokens 48-63)"]
+    </div>
+    <div class="diagram-cap">Figure 150.1: PagedAttention virtual block tables allocating non-contiguous physical GPU VRAM pages.</div>
+    <p>
+    By partitioning the KV cache into fixed-size physical blocks (e.g. 16 or 32 tokens per block), vLLM achieves:
+    </p>
+    <ul>
+      <li><strong>Near-Zero Memory Waste:</strong> Reduces VRAM fragmentation to &lt;4%, allowing <strong>2x - 4x larger concurrent batch sizes</strong>.</li>
+      <li><strong>Copy-on-Write Memory Sharing:</strong> Enables parallel speculative decoding and tree search without duplicating prompt KV cache in memory.</li>
+    </ul>
+
+    <h3 class="sh3">3. Continuous Batching (Iteration-Level Scheduling)</h3>
+    <p>
+    Traditional batching groups requests together until the entire batch finishes generating. Because sequence lengths vary widely, short requests are forced to wait for long requests to complete (the <em>tail latency problem</em>). <strong>Continuous Batching (Orca / vLLM)</strong> dynamically evicts completed sequences and schedules newly arriving requests at each token iteration step, boosting serving throughput by <strong>5x - 10x</strong>.
+    </p>
   predict:
     question: What integer gigabytes of VRAM are required for the KV cache of a batch size 16 request on LLaMA-3-8B (32 layers,
       32 heads, dim 128, seq_len 4096, FP16)?

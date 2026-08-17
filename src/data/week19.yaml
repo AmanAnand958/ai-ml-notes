@@ -41,9 +41,9 @@ days:
   analogy: 'Hybrid Search is like hiring two specialized detectives: one is an archivist who matches exact serial numbers
     and license plates (BM25), while the other is an investigator who understands human motives and context (Dense Embeddings).
     RRF is the chief inspector who synthesizes their top leads.'
-  theory_html: "<h3 class=\"sh3\">1. The Information Retrieval Spectrum: Dense vs. Sparse</h3>\n<p>\nModern enterprise information\
-    \ retrieval operates across two distinct search paradigms, each with fundamental mathematical and operational trade-offs:\n\
-    </p>\n<ul>\n  <li><strong>Dense Semantic Retrieval (Bi-Encoders):</strong> Models like <code>text-embedding-3-large</code>,\
+  theory_html: "<h3 class=\"sh3\">1. The Dual Nature of Information Retrieval: Dense vs. Sparse</h3>\n<p>\nModern enterprise\
+    \ information retrieval operates across two distinct search paradigms, each with fundamental mathematical and operational\
+    \ trade-offs:\n</p>\n<ul>\n  <li><strong>Dense Semantic Retrieval (Bi-Encoders):</strong> Models like <code>text-embedding-3-large</code>,\
     \ <code>bge-large-en-v1.5</code>, or <code>e5-mistral-7b-instruct</code> project arbitrary natural language passages into\
     \ dense, continuous embedding spaces $\\mathbb{R}^d$ ($d \\in [768, 3072]$). Similarity is computed via vector dot product\
     \ or cosine distance. Dense retrieval captures synonyms, conceptual abstractions, and cross-lingual semantics (\"cardiac\
@@ -53,9 +53,9 @@ days:
     \ Indexes):</strong> Okapi BM25 scores document relevance based on term frequency ($TF$), inverse document frequency ($IDF$),\
     \ and document length normalization. BM25 guarantees deterministic precision on exact keyword tokens, rare technical terms,\
     \ and proper nouns. However, BM25 fails completely on semantic paraphrases, vocabulary mismatch, and multi-word semantic\
-    \ intent.</li>\n</ul>\n<div class=\"mermaid\">\ngraph TD\n    Query[\"User Query: 'Troubleshoot error 0x80070005 in Azure\
-    \ VM'\"] --> Fork{\"Query Dispatcher\"}\n    Fork -->|Dense Bi-Encoder| DenseSearch[\"Dense Vector Index (HNSW / Cosine\
-    \ Similarity)\"]\n    Fork -->|Sparse Tokenizer / BM25| SparseSearch[\"Sparse Lexical Index (Inverted Index / BM25)\"\
+    \ intent.</li>\n</ul>\n\n<div class=\"mermaid\">\ngraph TD\n    Query[\"User Query: 'Troubleshoot error 0x80070005 in\
+    \ Azure VM'\"] --> Fork{\"Query Dispatcher\"}\n    Fork -->|Dense Bi-Encoder| DenseSearch[\"Dense Vector Index (HNSW /\
+    \ Cosine Similarity)\"]\n    Fork -->|Sparse Tokenizer / BM25| SparseSearch[\"Sparse Lexical Index (Inverted Index / BM25)\"\
     ]\n    DenseSearch -->|Ranked List D (Top 50)| RRF[\"Reciprocal Rank Fusion (RRF) Engine\nscore = sum( 1 / (60 + rank_i)\
     \ )\"]\n    SparseSearch -->|Ranked List S (Top 50)| RRF\n    RRF --> TopK[\"Fused & Deduplicated Candidates (Top 20)\"\
     ]\n    TopK --> Reranker[\"Cross-Encoder Reranker (BGE-Reranker-Large)\"]\n    Reranker --> FinalContext[\"Final Top-5\
@@ -126,7 +126,15 @@ days:
     \ solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Hybrid + RRF + Cross-Encoder</strong></td>\n     \
     \ <td style=\"padding:8px;\"><strong>97.8%</strong></td>\n      <td style=\"padding:8px;\"><strong>0.88</strong></td>\n\
     \      <td style=\"padding:8px;\">45ms</td>\n      <td style=\"padding:8px;\">GPU compute required for Stage-2 reranker\
-    \ model.</td>\n    </tr>\n  </tbody>\n</table>"
+    \ model.</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">7. In-Memory Inverted Index Construction</h3>\n<p>\n\
+    An inverted index maps every unique token $t$ to a posting list $\\mathcal{P}(t) = \\{(d_1, f_1), (d_2, f_2), \\dots\\\
+    }$ containing document IDs and token frequencies. Fast lexical querying intersects posting lists across query terms in\
+    \ $O(\\sum |\\mathcal{P}(q_i)|)$ time.\n</p>\n\n<h3 class=\"sh3\">8. Dense vs Hybrid Latency Budget Allocation</h3>\n\
+    <p>\nTo satisfy a strict <strong>100ms end-to-end SLA</strong> for conversational search:\n</p>\n<ul>\n  <li><strong>Query\
+    \ Tokenization & Embedding:</strong> 12ms (via high-throughput ONNX runtime).</li>\n  <li><strong>Parallel Dense + Sparse\
+    \ Search:</strong> 15ms.</li>\n  <li><strong>RRF Ranking Fusion:</strong> &lt;1ms.</li>\n  <li><strong>Cross-Encoder Stage-2\
+    \ Rerank:</strong> 30ms (NVIDIA TensorRT-LLM on A10G).</li>\n  <li><strong>LLM First Token Generation (TTFT):</strong>\
+    \ 40ms.</li>\n</ul>"
   predict:
     question: What is the top-ranked document ID returned by this Reciprocal Rank Fusion calculation with k=60?
     answer: doc_B
@@ -417,30 +425,40 @@ days:
   analogy: Bi-encoders are like a bouncer checking IDs at a door (fast, low computation, filters thousands of people in seconds).
     Cross-encoders are like an FBI interrogator sitting down with the top 5 finalists (deep, exhaustive cross-examination
     of every word).
-  theory_html: "\n<div style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"Bi-Encoder vs Cross-Encoder Architecture\
+  theory_html: "<h3 class=\"sh3\">1. The Two-Stage Information Retrieval Architecture</h3>\n<p>\nIn production enterprise\
+    \ search over corpora containing millions of documents, evaluating full transformer cross-attention for every document\
+    \ at query time is computationally impossible ($O(N \\cdot L^2)$ computational complexity).\n</p>\n<p>\nIndustrial search\
+    \ systems resolve this through a <strong>two-stage retrieval funnel</strong>:\n</p>\n<ol>\n  <li><strong>Stage 1 (Bi-Encoder\
+    \ Candidate Generation):</strong> Computes query embedding $\vec{q} = f_\theta(q)$ and document embedding $\vec{d} = f_\t\
+    heta(d)$ independently. At query time, vector index lookups (HNSW / IVF) compute cosine similarity $\vec{q} \\cdot \v\
+    ec{d}$ over 1,000,000+ passages in &lt;10ms, retrieving the top 50–100 candidates.</li>\n  <li><strong>Stage 2 (Cross-Encoder\
+    \ Re-Ranking):</strong> Feeds the query and passage jointly into a single transformer model as $[\text{CLS}] \\circ q\
+    \ \\circ [\text{SEP}] \\circ p \\circ [\text{SEP}]$. Every query token attends directly to every passage token across\
+    \ all layers, capturing fine-grained contextual relationships (negation, numerical constraints, entity matching).</li>\n\
+    </ol>\n\n<div style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"Bi-Encoder vs Cross-Encoder Architecture\
     \ Comparison\" height=\"280\" viewBox=\"0 0 740 280\" width=\"740\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width:\
-    \ 100%; height: auto; font-family: var(--font-mono, monospace);\">\n  <defs>\n    <linearGradient id=\"bi-grad\" x1=\"\
+    \ 100%; height: auto; font-family: var(--font-mono, monospace);\">\n  <defs>\n    <linearGradient id=\"bi-grad-19\" x1=\"\
     0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n      <stop offset=\"0%\" stop-color=\"#1e1e2e\"/>\n      <stop offset=\"100%\"\
     \ stop-color=\"#11111b\"/>\n    </linearGradient>\n  </defs>\n\n  <!-- Left: Bi-Encoder -->\n  <rect x=\"10\" y=\"10\"\
-    \ width=\"345\" height=\"260\" rx=\"10\" fill=\"url(#bi-grad)\" stroke=\"#45475a\" stroke-width=\"1.5\"/>\n  <text x=\"\
-    25\" y=\"35\" fill=\"#89b4fa\" font-size=\"13\" font-weight=\"bold\">Stage 1: Bi-Encoder (Dense Vectors)</text>\n  \n\
-    \  <rect x=\"30\" y=\"55\" width=\"135\" height=\"40\" rx=\"6\" fill=\"#313244\" stroke=\"#89b4fa\"/>\n  <text x=\"45\"\
-    \ y=\"80\" fill=\"#cdd6f4\" font-size=\"11\">Query q</text>\n  <rect x=\"190\" y=\"55\" width=\"145\" height=\"40\" rx=\"\
-    6\" fill=\"#313244\" stroke=\"#a6e3a1\"/>\n  <text x=\"205\" y=\"80\" fill=\"#cdd6f4\" font-size=\"11\">Document d</text>\n\
-    \n  <text x=\"80\" y=\"120\" fill=\"#f38ba8\" font-size=\"18\">↓</text>\n  <text x=\"245\" y=\"120\" fill=\"#f38ba8\"\
-    \ font-size=\"18\">↓</text>\n\n  <rect x=\"30\" y=\"135\" width=\"135\" height=\"45\" rx=\"6\" fill=\"#181825\" stroke=\"\
-    #cba6f7\"/>\n  <text x=\"45\" y=\"155\" fill=\"#cba6f7\" font-size=\"10\">BERT Encoder f_θ</text>\n  <text x=\"55\" y=\"\
-    170\" fill=\"#9399b2\" font-size=\"9\">vec(u) in R^1024</text>\n\n  <rect x=\"190\" y=\"135\" width=\"145\" height=\"\
-    45\" rx=\"6\" fill=\"#181825\" stroke=\"#cba6f7\"/>\n  <text x=\"205\" y=\"155\" fill=\"#cba6f7\" font-size=\"10\">BERT\
-    \ Encoder f_θ</text>\n  <text x=\"215\" y=\"170\" fill=\"#9399b2\" font-size=\"9\">vec(v) in R^1024</text>\n\n  <path\
-    \ d=\"M 97 180 L 172 215\" stroke=\"#fab387\" stroke-width=\"1.5\"/>\n  <path d=\"M 262 180 L 172 215\" stroke=\"#fab387\"\
-    \ stroke-width=\"1.5\"/>\n\n  <rect x=\"105\" y=\"215\" width=\"135\" height=\"35\" rx=\"6\" fill=\"#fab387\"/>\n  <text\
-    \ x=\"115\" y=\"237\" fill=\"#11111b\" font-size=\"11\" font-weight=\"bold\">Dot Product: u · v</text>\n  <text x=\"30\"\
-    \ y=\"258\" fill=\"#a6adc8\" font-size=\"9\">Fast ANN (HNSW) | Zero cross-attention</text>\n\n  <!-- Right: Cross-Encoder\
-    \ -->\n  <rect x=\"375\" y=\"10\" width=\"355\" height=\"260\" rx=\"10\" fill=\"url(#bi-grad)\" stroke=\"#f38ba8\" stroke-width=\"\
-    1.5\"/>\n  <text x=\"390\" y=\"35\" fill=\"#f38ba8\" font-size=\"13\" font-weight=\"bold\">Stage 2: Cross-Encoder (Joint\
-    \ Attention)</text>\n\n  <rect x=\"395\" y=\"55\" width=\"315\" height=\"45\" rx=\"6\" fill=\"#313244\" stroke=\"#f38ba8\"\
-    />\n  <text x=\"410\" y=\"82\" fill=\"#cdd6f4\" font-size=\"11\">[CLS] + Query Tokens + [SEP] + Document Tokens</text>\n\
+    \ width=\"345\" height=\"260\" rx=\"10\" fill=\"url(#bi-grad-19)\" stroke=\"#45475a\" stroke-width=\"1.5\"/>\n  <text\
+    \ x=\"25\" y=\"35\" fill=\"#89b4fa\" font-size=\"13\" font-weight=\"bold\">Stage 1: Bi-Encoder (Dense Vectors)</text>\n\
+    \  \n  <rect x=\"30\" y=\"55\" width=\"135\" height=\"40\" rx=\"6\" fill=\"#313244\" stroke=\"#89b4fa\"/>\n  <text x=\"\
+    45\" y=\"80\" fill=\"#cdd6f4\" font-size=\"11\">Query q</text>\n  <rect x=\"190\" y=\"55\" width=\"145\" height=\"40\"\
+    \ rx=\"6\" fill=\"#313244\" stroke=\"#a6e3a1\"/>\n  <text x=\"205\" y=\"80\" fill=\"#cdd6f4\" font-size=\"11\">Document\
+    \ d</text>\n\n  <text x=\"80\" y=\"120\" fill=\"#f38ba8\" font-size=\"18\">↓</text>\n  <text x=\"245\" y=\"120\" fill=\"\
+    #f38ba8\" font-size=\"18\">↓</text>\n\n  <rect x=\"30\" y=\"135\" width=\"135\" height=\"45\" rx=\"6\" fill=\"#181825\"\
+    \ stroke=\"#cba6f7\"/>\n  <text x=\"45\" y=\"155\" fill=\"#cba6f7\" font-size=\"10\">BERT Encoder f_θ</text>\n  <text\
+    \ x=\"55\" y=\"170\" fill=\"#9399b2\" font-size=\"9\">vec(u) in R^1024</text>\n\n  <rect x=\"190\" y=\"135\" width=\"\
+    145\" height=\"45\" rx=\"6\" fill=\"#181825\" stroke=\"#cba6f7\"/>\n  <text x=\"205\" y=\"155\" fill=\"#cba6f7\" font-size=\"\
+    10\">BERT Encoder f_θ</text>\n  <text x=\"215\" y=\"170\" fill=\"#9399b2\" font-size=\"9\">vec(v) in R^1024</text>\n\n\
+    \  <path d=\"M 97 180 L 172 215\" stroke=\"#fab387\" stroke-width=\"1.5\"/>\n  <path d=\"M 262 180 L 172 215\" stroke=\"\
+    #fab387\" stroke-width=\"1.5\"/>\n\n  <rect x=\"105\" y=\"215\" width=\"135\" height=\"35\" rx=\"6\" fill=\"#fab387\"\
+    />\n  <text x=\"115\" y=\"237\" fill=\"#11111b\" font-size=\"11\" font-weight=\"bold\">Dot Product: u · v</text>\n  <text\
+    \ x=\"30\" y=\"258\" fill=\"#a6adc8\" font-size=\"9\">Fast ANN (HNSW) | Zero cross-attention</text>\n\n  <!-- Right: Cross-Encoder\
+    \ -->\n  <rect x=\"375\" y=\"10\" width=\"355\" height=\"260\" rx=\"10\" fill=\"url(#bi-grad-19)\" stroke=\"#f38ba8\"\
+    \ stroke-width=\"1.5\"/>\n  <text x=\"390\" y=\"35\" fill=\"#f38ba8\" font-size=\"13\" font-weight=\"bold\">Stage 2: Cross-Encoder\
+    \ (Joint Attention)</text>\n\n  <rect x=\"395\" y=\"55\" width=\"315\" height=\"45\" rx=\"6\" fill=\"#313244\" stroke=\"\
+    #f38ba8\"/>\n  <text x=\"410\" y=\"82\" fill=\"#cdd6f4\" font-size=\"11\">[CLS] + Query Tokens + [SEP] + Document Tokens</text>\n\
     \n  <text x=\"545\" y=\"125\" fill=\"#f38ba8\" font-size=\"18\">↓</text>\n\n  <rect x=\"395\" y=\"135\" width=\"315\"\
     \ height=\"55\" rx=\"6\" fill=\"#181825\" stroke=\"#f9e2af\" stroke-width=\"1.5\"/>\n  <text x=\"430\" y=\"158\" fill=\"\
     #f9e2af\" font-size=\"11\" font-weight=\"bold\">Full Multi-Layer Cross Self-Attention</text>\n  <text x=\"415\" y=\"178\"\
@@ -448,30 +466,16 @@ days:
     \ y=\"208\" fill=\"#f38ba8\" font-size=\"18\">↓</text>\n\n  <rect x=\"445\" y=\"215\" width=\"215\" height=\"35\" rx=\"\
     6\" fill=\"#a6e3a1\"/>\n  <text x=\"460\" y=\"237\" fill=\"#11111b\" font-size=\"11\" font-weight=\"bold\">Calibrated\
     \ Relevance Score σ(W h_CLS)</text>\n</svg>\n<div class=\"diagram-cap\">Figure 137.2: Architectural Comparison: Bi-Encoder\
-    \ Independent Projection vs Cross-Encoder Full Cross-Attention.</div>\n</div>\n\n<h3 class=\"sh3\">1. The Two-Stage Information\
-    \ Retrieval Architecture</h3>\n<p>\nIn production enterprise search over corpora containing millions of documents, evaluating\
-    \ full transformer cross-attention for every document at query time is computationally impossible ($O(N \\cdot L^2)$ computational\
-    \ complexity).\n</p>\n<p>\nIndustrial search systems resolve this through a <strong>two-stage retrieval funnel</strong>:\n\
-    </p>\n<ol>\n  <li><strong>Stage 1 (Bi-Encoder Candidate Generation):</strong> Computes query embedding $\vec{q} = f_\t\
-    heta(q)$ and document embedding $\vec{d} = f_\theta(d)$ independently. At query time, vector index lookups (HNSW / IVF)\
-    \ compute cosine similarity $\vec{q} \\cdot \vec{d}$ over 1,000,000+ passages in &lt;10ms, retrieving the top 50–100 candidates.</li>\n\
-    \  <li><strong>Stage 2 (Cross-Encoder Re-Ranking):</strong> Feeds the query and passage jointly into a single transformer\
-    \ model as $[\text{CLS}] \\circ q \\circ [\text{SEP}] \\circ p \\circ [\text{SEP}]$. Every query token attends directly\
-    \ to every passage token across all layers, capturing fine-grained contextual relationships (negation, numerical constraints,\
-    \ entity matching).</li>\n</ol>\n<div class=\"mermaid\">\ngraph LR\n    UserQuery[\"Query\"] --> BiEncoder[\"Stage 1:\
-    \ Bi-Encoder (HNSW Index)\nScales to 10M+ documents\nLatency: 10ms\"]\n    BiEncoder -->|Top 50-100 Candidates| CrossEncoder[\"\
-    Stage 2: Cross-Encoder (Full Self-Attention)\nScores (query, passage) pairs jointly\nLatency: 35ms\"]\n    CrossEncoder\
-    \ -->|Top 3-5 Relevant Chunks| ContextWindow[\"LLM Prompt Context Window\"]\n</div>\n<div class=\"diagram-cap\">Figure\
-    \ 137.1: Two-Stage Retrieval Pipeline combining Bi-Encoder scale with Cross-Encoder precision.</div>\n\n<h3 class=\"sh3\"\
-    >2. Mathematical Formulation: Full Self-Attention Scoring</h3>\n<p>\nIn a Bi-Encoder, the interaction between query and\
-    \ document is a late interaction reduced to a single dot product:\n</p>\n<div class=\"math-block\">\nS_{\text{bi}}(q,\
-    \ d) = \\langle \\mathbf{u}(q), \\mathbf{v}(d) \rangle = \\sum_{i=1}^D u_i v_i\n</div>\n<p>\nIn a Cross-Encoder, the input\
-    \ sequence is concatenated and fed through $L$ transformer self-attention layers:\n</p>\n<div class=\"math-block\">\n\\\
-    mathbf{H}^{(l)} = \text{Softmax}\\left( \frac{\\mathbf{Q}^{(l)} {\\mathbf{K}^{(l)}}^T}{\\sqrt{d_k}} \right) \\mathbf{V}^{(l)}\n\
-    </div>\n<p>\nBecause every query token $q_i$ attends to every document token $d_j$ across all layers $l \\in [1, L]$,\
-    \ the cross-encoder captures complex semantic dependencies (such as qualifying adjectives, temporal constraints, and conditional\
-    \ clauses) that are completely lost in a single pooled embedding vector.\n</p>\n\n<h3 class=\"sh3\">3. Production Python\
-    \ Implementation: Batch Reranking Engine</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
+    \ Independent Projection vs Cross-Encoder Full Cross-Attention.</div>\n</div>\n\n<h3 class=\"sh3\">2. Mathematical Formulation:\
+    \ Full Self-Attention Scoring</h3>\n<p>\nIn a Bi-Encoder, the interaction between query and document is a late interaction\
+    \ reduced to a single dot product:\n</p>\n<div class=\"math-block\">\n$$S_{\text{bi}}(q, d) = \\langle \\mathbf{u}(q),\
+    \ \\mathbf{v}(d) \rangle = \\sum_{i=1}^D u_i v_i$$\n</div>\n<p>\nIn a Cross-Encoder, the input sequence is concatenated\
+    \ and fed through $L$ transformer self-attention layers:\n</p>\n<div class=\"math-block\">\n$$\\mathbf{H}^{(l)} = \text{Softmax}\\\
+    left( \frac{\\mathbf{Q}^{(l)} {\\mathbf{K}^{(l)}}^T}{\\sqrt{d_k}} \right) \\mathbf{V}^{(l)}$$\n</div>\n<p>\nBecause every\
+    \ query token $q_i$ attends to every document token $d_j$ across all layers $l \\in [1, L]$, the cross-encoder captures\
+    \ complex semantic dependencies (such as qualifying adjectives, temporal constraints, and conditional clauses) that are\
+    \ completely lost in a single pooled embedding vector.\n</p>\n\n<h3 class=\"sh3\">3. Production Python Implementation:\
+    \ Batch Reranking Engine</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div\
     \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code><span\
     \ class=\"kw\">from</span> typing <span class=\"kw\">import</span> List, Dict, Any\n<span class=\"kw\">import</span> math\n\
     \n<span class=\"kw\">class</span> <span class=\"fn\">CrossEncoderReranker</span>:\n    <span class=\"str\">\"\"\"\n  \
@@ -479,25 +483,31 @@ days:
     \ <span class=\"fn\">__init__</span>(self, model_name: str = <span class=\"str\">\"BAAI/bge-reranker-large\"</span>, batch_size:\
     \ int = <span class=\"num\">32</span>):\n        self.model_name = model_name\n        self.batch_size = batch_size\n\n\
     \    <span class=\"kw\">def</span> <span class=\"fn\">compute_relevance</span>(self, query: str, passage: str) -> float:\n\
-    \        <span class=\"str\">\"\"\"\n        Simulates cross-encoder logit scoring with sigmoid calibration.\n       \
-    \ \"\"\"</span>\n        q_tokens = set(query.lower().split())\n        p_tokens = passage.lower().split()\n        \n\
-    \        <span class=\"cm\"># Compute lexical and contextual overlap</span>\n        overlap = sum(<span class=\"num\"\
-    >2.0</span> <span class=\"kw\">if</span> t <span class=\"kw\">in</span> q_tokens <span class=\"kw\">else</span> <span\
-    \ class=\"num\">0.0</span> <span class=\"kw\">for</span> t <span class=\"kw\">in</span> p_tokens)\n        logit = (overlap\
-    \ / (len(p_tokens) + <span class=\"num\">1.0</span>)) * <span class=\"num\">4.0</span> - <span class=\"num\">1.5</span>\n\
-    \        \n        <span class=\"cm\"># Calibrated Sigmoid probability</span>\n        probability = <span class=\"num\"\
-    >1.0</span> / (<span class=\"num\">1.0</span> + math.exp(-logit))\n        <span class=\"kw\">return</span> round(probability,\
-    \ <span class=\"num\">5</span>)\n\n    <span class=\"kw\">def</span> <span class=\"fn\">rerank</span>(self, query: str,\
-    \ candidates: List[Dict[str, Any]], top_k: int = <span class=\"num\">5</span>) -> List[Dict[str, Any]]:\n        scored\
-    \ = []\n        <span class=\"kw\">for</span> doc <span class=\"kw\">in</span> candidates:\n            item = dict(doc)\n\
-    \            item[<span class=\"str\">'rerank_score'</span>] = self.compute_relevance(query, doc.get(<span class=\"str\"\
-    >'text'</span>, <span class=\"str\">''</span>))\n            scored.append(item)\n            \n        scored.sort(key=<span\
-    \ class=\"kw\">lambda</span> x: x[<span class=\"str\">'rerank_score'</span>], reverse=<span class=\"kw\">True</span>)\n\
-    \        <span class=\"kw\">return</span> scored[:top_k]</code></pre>\n</div>\n\n<h3 class=\"sh3\">4. Candidate Pool Sizing\
-    \ SLA Analysis</h3>\n<p>\nTo keep total end-to-end RAG response latency under $150\text{ms}$:\n</p>\n<ul>\n  <li><strong>Pool\
-    \ Size $K = 50$:</strong> Cross-encoder latency $\approx 25\text{--}35\text{ms}$ on an NVIDIA T4 / A10G GPU. Recovers\
-    \ $>95\\%$ of top-relevant passages. (Recommended default).</li>\n  <li><strong>Pool Size $K = 200$:</strong> Cross-encoder\
-    \ latency jumps to $\approx 120\text{--}150\text{ms}$, risking p99 timeout violations on concurrent traffic.</li>\n</ul>"
+    \        q_tokens = set(query.lower().split())\n        p_tokens = passage.lower().split()\n        \n        <span class=\"\
+    cm\"># Compute lexical and contextual overlap</span>\n        overlap = sum(<span class=\"num\">2.0</span> <span class=\"\
+    kw\">if</span> t <span class=\"kw\">in</span> q_tokens <span class=\"kw\">else</span> <span class=\"num\">0.0</span> <span\
+    \ class=\"kw\">for</span> t <span class=\"kw\">in</span> p_tokens)\n        logit = (overlap / (len(p_tokens) + <span\
+    \ class=\"num\">1.0</span>)) * <span class=\"num\">4.0</span> - <span class=\"num\">1.5</span>\n        \n        <span\
+    \ class=\"cm\"># Calibrated Sigmoid probability</span>\n        probability = <span class=\"num\">1.0</span> / (<span\
+    \ class=\"num\">1.0</span> + math.exp(-logit))\n        <span class=\"kw\">return</span> round(probability, <span class=\"\
+    num\">5</span>)\n\n    <span class=\"kw\">def</span> <span class=\"fn\">rerank</span>(self, query: str, candidates: List[Dict[str,\
+    \ Any]], top_k: int = <span class=\"num\">5</span>) -> List[Dict[str, Any]]:\n        scored = []\n        <span class=\"\
+    kw\">for</span> doc <span class=\"kw\">in</span> candidates:\n            item = dict(doc)\n            item[<span class=\"\
+    str\">'rerank_score'</span>] = self.compute_relevance(query, doc.get(<span class=\"str\">'text'</span>, <span class=\"\
+    str\">''</span>))\n            scored.append(item)\n            \n        scored.sort(key=<span class=\"kw\">lambda</span>\
+    \ x: x[<span class=\"str\">'rerank_score'</span>], reverse=<span class=\"kw\">True</span>)\n        <span class=\"kw\"\
+    >return</span> scored[:top_k]</code></pre>\n</div>\n\n<h3 class=\"sh3\">4. Candidate Pool Sizing SLA Analysis</h3>\n<p>\n\
+    To keep total end-to-end RAG response latency under $150\text{ms}$:\n</p>\n<ul>\n  <li><strong>Pool Size $K = 50$:</strong>\
+    \ Cross-encoder latency $\approx 25\text{--}35\text{ms}$ on an NVIDIA T4 / A10G GPU. Recovers $>95\\%$ of top-relevant\
+    \ passages. (Recommended default).</li>\n  <li><strong>Pool Size $K = 200$:</strong> Cross-encoder latency jumps to $\a\
+    pprox 120\text{--}150\text{ms}$, risking p99 timeout violations on concurrent traffic.</li>\n</ul>\n\n<h3 class=\"sh3\"\
+    >5. Score Calibration and Probability Thresholding</h3>\n<p>\nRaw cross-encoder outputs are uncalibrated logits $z \\\
+    in (-\\infty, \\infty)$. To make scores interpretable for hard relevance cutoffs (e.g. discarding chunks if relevance\
+    \ &lt; 0.35), calibrate logits using Temperature-scaled Sigmoid:\n</p>\n<div class=\"math-block\">\n$$\\hat{p} = \\sigma\\\
+    left(\frac{z}{T}\right) = \frac{1}{1 + e^{-z / T}}$$\n</div>\n\n<h3 class=\"sh3\">6. Cross-Encoder Distillation to Bi-Encoders</h3>\n\
+    <p>\nCross-encoders are often used as teacher models to train lightweight bi-encoders via knowledge distillation (Margin\
+    \ MSE loss):\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\text{distill}} = \\left| (S_{\text{bi}}(q, d^+) - S_{\t\
+    ext{bi}}(q, d^-)) - (S_{\text{cross}}(q, d^+) - S_{\text{cross}}(q, d^-)) \right|^2$$\n</div>"
   predict:
     question: What integer number of candidate documents remain after the two-stage retrieve-and-rerank filter?
     answer: '3'
@@ -810,7 +820,14 @@ days:
     \                    <span class=\"str\">'child_id'</span>: str(uuid.uuid4()),\n                    <span class=\"str\"\
     >'parent_id'</span>: parent_id,\n                    <span class=\"str\">'text'</span>: <span class=\"str\">\" \"</span>.join(c_words)\n\
     \                })\n\n        <span class=\"kw\">return</span> {<span class=\"str\">'parents'</span>: parents, <span\
-    \ class=\"str\">'children'</span>: children}</code></pre>\n</div>"
+    \ class=\"str\">'children'</span>: children}</code></pre>\n</div>\n\n<h3 class=\"sh3\">4. Semantic Chunking Mathematical\
+    \ Formulation</h3>\n<p>\nSemantic chunking calculates the cosine distance between consecutive sentence embeddings $s_i$\
+    \ and $s_{i+1}$:\n</p>\n<div class=\"math-block\">\n$$d_i = 1 - \frac{\vec{e}(s_i) \\cdot \vec{e}(s_{i+1})}{\\|\vec{e}(s_i)\\\
+    | \\|\vec{e}(s_{i+1})\\|}$$\n</div>\n<p>\nA chunk boundary is inserted wherever $d_i > \\mu_d + k \\cdot \\sigma_d$, identifying\
+    \ natural thematic shifts in text narrative.\n</p>\n\n<h3 class=\"sh3\">5. Document Structure Preservation (AST Markdown\
+    \ Splitting)</h3>\n<p>\nNaive text splitting cuts through Markdown tables, code fences (<code>```python ... ```</code>),\
+    \ and nested lists, corrupting syntax. Document-aware splitters parse the document into an Abstract Syntax Tree (AST),\
+    \ preserving table integrity and header hierarchies.\n</p>"
   predict:
     question: What integer number of chunks are created by this recursive boundary chunker on a 300-character string with
       chunk_size=100 and overlap=20?
@@ -1101,7 +1118,12 @@ days:
     \ edges)</td>\n      <td style=\"padding:8px;\">Moderate</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\"\
     >\n      <td style=\"padding:8px;\"><strong>HNSW + Scalar Quantization (SQ8)</strong></td>\n      <td style=\"padding:8px;\"\
     >$O(\\log N)$</td>\n      <td style=\"padding:8px;\">97 - 99%</td>\n      <td style=\"padding:8px;\"><strong>0.35x (65%\
-    \ RAM reduction)</strong></td>\n      <td style=\"padding:8px;\">Moderate</td>\n    </tr>\n  </tbody>\n</table>"
+    \ RAM reduction)</strong></td>\n      <td style=\"padding:8px;\">Moderate</td>\n    </tr>\n  </tbody>\n</table>\n\n<h3\
+    \ class=\"sh3\">3. HNSW Mathematical Graph Traversal Mechanics</h3>\n<p>\nHNSW constructs a hierarchical set of layers\
+    \ $l \\in [0, L_{\\max}]$. Probability of an element belonging to layer $l$ decays exponentially: $P(l) = e^{-l \\cdot\
+    \ m_L}$ where $m_L = \frac{1}{\\ln(M)}$.\n</p>\n<p>\nSearch begins at the entry point of the top layer $L_{\\max}$, executing\
+    \ greedy routing until reaching a local minimum, then transitions to layer $l-1$ until converging on Layer 0 with beam\
+    \ size <code>efSearch</code>.\n</p>"
   predict:
     question: What is the theoretical search time complexity exponent factor for HNSW graph queries over N vectors?
     answer: O(log N)
@@ -1436,7 +1458,7 @@ days:
     \ in the authentication service relate to the incidents reported by the payment gateway?\"</em></li>\n</ul>\n<p>\nBecause\
     \ vector embeddings match against isolated chunks, no single chunk contains the macro-level answer. <strong>GraphRAG</strong>\
     \ (developed by Microsoft Research) bridges this gap by extracting a knowledge graph of entities and relationships from\
-    \ the text, running community detection, and pre-generating hierarchical community summaries.\n</p>\n<div class=\"mermaid\"\
+    \ the text, running community detection, and pre-generating hierarchical community summaries.\n</p>\n\n<div class=\"mermaid\"\
     >\ngraph TD\n    RawDocs[\"Corpus Documents\"] --> LLMExtract[\"LLM Extraction Pipeline\nExtract: Entities (Nodes), Claims,\
     \ & Relations (Edges)\"]\n    LLMExtract --> KnowledgeGraph[\"Knowledge Graph G = (V, E)\"]\n    KnowledgeGraph --> Leiden[\"\
     Leiden Community Detection Algorithm\nHierarchical Graph Partitioning (Levels C0, C1, C2)\"]\n    Leiden --> CommSummaries[\"\
@@ -1826,7 +1848,11 @@ days:
     \ document:\n</p>\n<div class=\"math-block\">\n$$\\hat{d} = M(q), \\quad \vec{v}_{\text{query}} = \text{Embed}(\\hat{d})$$\n\
     </div>\n<p>\nBecause $\\hat{d}$ resides directly in the <em>document embedding manifold</em> (sharing document vocabulary,\
     \ grammar, and structural tone), $\vec{v}_{\text{query}}$ achieves significantly higher cosine similarity with actual\
-    \ relevant documents than the short query vector $\text{Embed}(q)$.\n</p>"
+    \ relevant documents than the short query vector $\text{Embed}(q)$.\n</p>\n\n<h3 class=\"sh3\">3. Step-Back Prompting\
+    \ for Multi-Hop Principles</h3>\n<p>\nWhen answering questions that require high-level physics or financial formulas,\
+    \ Step-Back Prompting abstracts the specific query to its foundational theoretical laws first (e.g. <em>\"If ideal gas\
+    \ temperature doubles at constant volume, what happens to pressure?\"</em> abstracts to <em>\"State Gay-Lussac's Law and\
+    \ its mathematical formula\"</em>).\n</p>"
   predict:
     question: How many total queries (original + expansions) are dispatched to the vector database by this Multi-Query generator?
     answer: '4'
@@ -2099,10 +2125,12 @@ days:
     </div>
     <div class="diagram-cap">Figure 142.1: End-to-End Enterprise Production RAG Blueprint.</div>
 
-    <h3 class="sh3">2. Production Operational Checklist</h3>
+    <h3 class="sh3">2. Production Operational SLA Targets</h3>
     <ul>
-      <li><strong>Sub-50ms Retrieval SLA:</strong> Use HNSW + SQ8 vector indexes paired with batch cross-encoder reranking ($K=50$).</li>
-      <li><strong>Continuous Evaluation Gates:</strong> Automated CI/CD assertion testing Faithfulness $\ge 0.90$ and Answer Relevance $\ge 0.85$ on golden test sets before promoting code.</li>
+      <li><strong>Cache Hit Latency:</strong> &lt;5ms (Redis semantic vector cache).</li>
+      <li><strong>Hybrid Search + Reranking:</strong> &lt;45ms.</li>
+      <li><strong>First Token Time-To-First-Token (TTFT):</strong> &lt;60ms.</li>
+      <li><strong>Continuous Evaluation Gates:</strong> Automated CI/CD assertion testing Faithfulness $\ge 0.90$ and Answer Relevance $\ge 0.85$ on golden test sets.</li>
     </ul>
   predict:
     question: What string decision is output by the Self-Corrective RAG grader when retrieved document relevance score is

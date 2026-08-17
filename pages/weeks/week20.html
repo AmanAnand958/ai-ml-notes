@@ -254,11 +254,6 @@ graph LR
       <td style="padding:8px;">Higher ($O(N)$ prompt accumulation per tool iteration).</td>
       <td style="padding:8px;">Lower (Structured linear execution).</td>
     </tr>
-    <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>Best Use Case</strong></td>
-      <td style="padding:8px;">Exploratory debugging, web browsing, dynamic troubleshooting.</td>
-      <td style="padding:8px;">Deterministic multi-part reporting, batch data ETL.</td>
-    </tr>
   </tbody>
 </table>
 
@@ -278,34 +273,29 @@ graph LR
 
     <span class="kw">def</span> <span class="fn">execute_loop</span>(self, user_goal: str) -> Dict[str, Any]:
         trace: List[Dict[str, str]] = []
-        scratchpad = f<span class="str">"Goal: {user_goal}\n"</span>
-
         <span class="kw">for</span> step <span class="kw">in</span> range(<span class="num">1</span>, self.max_steps + <span class="num">1</span>):
-            <span class="cm"># 1. Thought Generation (Simulated LLM response)</span>
-            thought = f<span class="str">"Step {step}: Need to verify data for query: '{user_goal}'"</span>
-            
-            <span class="cm"># 2. Action Selection</span>
+            thought = f<span class="str">"Step {step}: Analyzing requirements for '{user_goal}'"</span>
             tool_name = <span class="str">"calculator"</span> <span class="kw">if</span> <span class="str">"calc"</span> <span class="kw">in</span> user_goal.lower() <span class="kw">else</span> <span class="str">"search"</span>
-            action_input = user_goal
             
-            <span class="cm"># 3. Environment Execution</span>
             <span class="kw">if</span> tool_name <span class="kw">in</span> self.tools:
-                obs = self.tools[tool_name](action_input)
+                obs = self.tools[tool_name](user_goal)
             <span class="kw">else</span>:
                 obs = f<span class="str">"Error: Tool '{tool_name}' not found."</span>
 
             trace.append({<span class="str">"thought"</span>: thought, <span class="str">"action"</span>: tool_name, <span class="str">"observation"</span>: str(obs)})
-            
-            <span class="cm"># Convergence condition</span>
-            <span class="kw">if</span> step >= <span class="num">2</span>:
-                <span class="kw">break</span>
+            <span class="kw">if</span> step >= <span class="num">2</span>: <span class="kw">break</span>
 
-        <span class="kw">return</span> {
-            <span class="str">"final_answer"</span>: f<span class="str">"Verified grounded resolution for '{user_goal}'"</span>,
-            <span class="str">"steps_taken"</span>: len(trace),
-            <span class="str">"trace"</span>: trace
-        }</code></pre>
+        <span class="kw">return</span> {<span class="str">"final_answer"</span>: f<span class="str">"Resolved: {user_goal}"</span>, <span class="str">"steps"</span>: len(trace), <span class="str">"trace"</span>: trace}</code></pre>
 </div>
+
+<h3 class="sh3">4. Managing Infinite Tool Loops & Max Steps</h3>
+<p>
+Agents can fall into infinite cyclic failure loops when a tool returns an unexpected error format. To guarantee termination in production:
+</p>
+<ul>
+  <li>Enforce strict <code>max_iterations = 8</code> step bounds.</li>
+  <li>Inject error reflection prompts after repeated failures: <em>"Tool X returned error Y twice. Try alternative strategy Z."</em></li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1247,64 +1237,7 @@ print("✓ Instructor structured output verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-145-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          
-<div style="margin: 1.5rem 0; text-align: center;">
-<svg aria-label="LangGraph Cyclic StateGraph Architecture" height="240" viewBox="0 0 700 240" width="700" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);">
-  <defs>
-    <linearGradient id="lg-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#1e1b4b"/>
-    </linearGradient>
-  </defs>
-
-  <rect x="10" y="10" width="680" height="220" rx="12" fill="url(#lg-bg)" stroke="#6366f1" stroke-width="2"/>
-  <text x="30" y="35" fill="#a5b4fc" font-size="13" font-weight="bold">LangGraph Stateful Cyclic Execution State Machine</text>
-
-  <!-- Start Node -->
-  <circle cx="50" cy="110" r="18" fill="#10b981"/>
-  <text x="35" y="115" fill="#ffffff" font-size="10" font-weight="bold">START</text>
-
-  <!-- Arrow to Planner -->
-  <path d="M 68 110 L 110 110" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
-
-  <!-- Planner Node -->
-  <rect x="110" y="80" width="130" height="60" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
-  <text x="135" y="105" fill="#38bdf8" font-size="11" font-weight="bold">Planner Node</text>
-  <text x="125" y="125" fill="#94a3b8" font-size="9.5">Generate Sub-goals</text>
-
-  <!-- Arrow to Tool Node -->
-  <path d="M 240 110 L 290 110" stroke="#94a3b8" stroke-width="2"/>
-
-  <!-- Tool Node -->
-  <rect x="290" y="80" width="130" height="60" rx="8" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
-  <text x="315" y="105" fill="#f59e0b" font-size="11" font-weight="bold">Tool Node</text>
-  <text x="305" y="125" fill="#94a3b8" font-size="9.5">Execute APIs/Sandbox</text>
-
-  <!-- Arrow to Evaluator -->
-  <path d="M 420 110 L 470 110" stroke="#94a3b8" stroke-width="2"/>
-
-  <!-- Evaluator Node -->
-  <rect x="470" y="80" width="130" height="60" rx="8" fill="#1e293b" stroke="#ec4899" stroke-width="2"/>
-  <text x="488" y="105" fill="#ec4899" font-size="11" font-weight="bold">Evaluator Node</text>
-  <text x="482" y="125" fill="#94a3b8" font-size="9.5">Validate Criteria</text>
-
-  <!-- Loop back edge (Cyclic Error Recovery) -->
-  <path d="M 535 80 C 535 30, 175 30, 175 80" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5"/>
-  <text x="310" y="45" fill="#f87171" font-size="10" font-weight="bold">Retry Loop / Error Correction</text>
-
-  <!-- Arrow to End -->
-  <path d="M 600 110 L 640 110" stroke="#10b981" stroke-width="2"/>
-  <circle cx="658" cy="110" r="18" fill="#10b981"/>
-  <text x="648" y="115" fill="#ffffff" font-size="10" font-weight="bold">END</text>
-
-  <!-- PostgreSQL Checkpointer Banner -->
-  <rect x="180" y="175" width="340" height="35" rx="6" fill="#0284c7"/>
-  <text x="200" y="197" fill="#ffffff" font-size="11" font-weight="bold">PostgreSQL Checkpointer (State Snapshot on Each Hop)</text>
-</svg>
-<div class="diagram-cap">Figure 145.2: LangGraph State Machine with Cyclic Error Recovery and State Snapshot Persistence.</div>
-</div>
-
-<h3 class="sh3">1. Why StateGraphs? Moving Beyond Linear Chains</h3>
+          <h3 class="sh3">1. Why StateGraphs? Moving Beyond Linear Chains</h3>
 <p>
 Traditional orchestration frameworks (e.g. early LangChain linear chains) modeled workflows as strict <strong>Directed Acyclic Graphs (DAGs)</strong> where execution moves strictly forward in one direction ($A \to B \to C$).
 </p>
