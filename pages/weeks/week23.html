@@ -373,6 +373,12 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">AWS SageMaker Control Plane vs Data Plane Architecture</h3>
+<p>
+SageMaker strictly separates management from computation:
+- <strong>Control Plane:</strong> Manages endpoint configurations, auto-scaling policies, and IAM execution roles.
+- <strong>Data Plane:</strong> High-performance NVMe-backed EC2 instances running Triton / TorchServe containers inside isolated VPC security groups.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -465,7 +471,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Custom Training Script...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = SageMakerPyTorchEstimator()
+        assert instance is not None, "SageMakerPyTorchEstimator instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -561,7 +568,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 2: Implement AWS SageMaker — Training & Endpoints...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(describe_sagemaker_endpoint), "describe_sagemaker_endpoint must be defined and callable"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -729,7 +736,7 @@ if __name__ == '__main__':
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: SageMaker Spot Instance SIGTERM Handling</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">When AWS reclaims a spot instance during SageMaker Managed Spot Training, it sends a SIGTERM signal exactly 2 minutes before termination. Your training loop must catch SIGTERM and flush model checkpoints to S3 immediately. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">When AWS reclaims a spot instance during SageMaker Managed Spot Training, it sends a SIGTERM signal exactly 2 minutes before termination. Your training loop must catch SIGTERM and flush model checkpoints to S3 immediately..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -992,6 +999,10 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">SageMaker Distributed Training & Spot Instance Checkpointing</h3>
+<p>
+Training large-scale deep learning models on AWS Spot GPU instances reduces compute costs by up to $70\%$. To survive sudden spot interruptions (2-minute warning notices), training loops must implement automated S3 state checkpointing: saving model weights, optimizer states, learning rate schedulers, and dataloader batch pointers to persistent S3 buckets.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1078,7 +1089,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Gemini via Vertex SDK...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = GCPVertexAIGeminiClient()
+        assert instance is not None, "GCPVertexAIGeminiClient instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -1179,7 +1191,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 2: Implement GCP Vertex AI...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(verify_vertex_ai_job), "verify_vertex_ai_job must be defined and callable"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -1347,7 +1359,7 @@ if __name__ == '__main__':
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Heavy Dependency Re-Installation in KFP Components</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">Installing heavy packages (torch, transformers) inside KFP component decorators at runtime causes 5-minute startup delays for every step. Pre-build custom base Docker images with dependencies pre-installed. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Installing heavy packages (torch, transformers) inside KFP component decorators at runtime causes 5-minute startup delays for every step. Pre-build custom base Docker images with dependencies pre-installed..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -1609,6 +1621,10 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">SageMaker Multi-Model Endpoints (MME) Memory Management</h3>
+<p>
+Multi-Model Endpoints allow hosting hundreds of fine-tuned models on a single GPU cluster. SageMaker dynamically loads target model weights into GPU VRAM on first request and evicts least-recently-used (LRU) model weights when memory pressure approaches threshold limits.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1695,7 +1711,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Deploy Serverless Container on AWS Lambda...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(lambda_handler), "lambda_handler must be defined and callable"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -1947,7 +1963,7 @@ print("✅ Lambda handler assertions passed")</pre>
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Lambda Container Cold Starts from Large Model Weights</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">Loading a 2GB model from cold disk into memory during a Lambda cold start will breach the API Gateway 29-second timeout limit. Quantize models to INT8/ONNX and load weights globally outside the request handler function. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Loading a 2GB model from cold disk into memory during a Lambda cold start will breach the API Gateway 29-second timeout limit. Quantize models to INT8/ONNX and load weights globally outside the request handler function..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -2187,6 +2203,10 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">Serverless AI Inference on AWS Lambda with ONNX Runtime</h3>
+<p>
+Deploying lightweight models (<100M parameters) on serverless AWS Lambda eliminates idle cluster costs. Compiling models to ONNX Runtime with quantization enables sub-50ms cold starts within Lambda's 10GB container image limit.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2273,7 +2293,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: LangChain with Azure · MEDIUM...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = AzureOpenAILangChainConfig()
+        assert instance is not None, "AzureOpenAILangChainConfig instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -2367,7 +2388,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 2: Implement Azure OpenAI Service...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(make_azure_openai_request), "make_azure_openai_request must be defined and callable"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -2535,7 +2556,7 @@ if __name__ == '__main__':
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Provisioned Throughput Unit (PTU) Cost Commitments</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">PTUs reserve dedicated GPU capacity with monthly minimum commitments. For variable, spiky workloads, standard Pay-As-You-Go with Azure OpenAI rate limit tiering is significantly more cost-effective than idle PTUs. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">PTUs reserve dedicated GPU capacity with monthly minimum commitments. For variable, spiky workloads, standard Pay-As-You-Go with Azure OpenAI rate limit tiering is significantly more cost-effective than idle PTUs..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -2880,7 +2901,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Token Counter...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(calculate_token_costs), "calculate_token_costs must be a callable function"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -3142,7 +3163,7 @@ print("✓ Model cascading cost optimizer verified.")</pre>
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Cascade Threshold Oscillation</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">Setting the cascade confidence threshold too aggressively routes hard edge-case queries to small models, degrading user experience. Continuously validate the router classifier against labeled golden test sets. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Setting the cascade confidence threshold too aggressively routes hard edge-case queries to small models, degrading user experience. Continuously validate the router classifier against labeled golden test sets..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -3397,6 +3418,13 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">Cloud AI Infrastructure FinOps & Cost Optimization Matrix</h3>
+<p>
+Optimizing cloud ML infrastructure requires aligning workload types with pricing models:
+- <strong>Reserved Instances / Savings Plans:</strong> 1-3 year commitments for steady-state baseline inference clusters (saving 40-60%).
+- <strong>Spot Instances:</strong> Fault-tolerant hyperparameter searches and distributed pre-training jobs.
+- <strong>On-Demand:</strong> Interactive exploratory research and unpredictable spike capacity.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3480,7 +3508,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: KMS Secret Rotation & Secure Configuration Setup...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(rotate_secret), "rotate_secret must be defined and callable"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -3739,7 +3767,7 @@ print("✅ All assertions passed")</pre>
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Git History Credential Leaks</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">Deleting an API key in a subsequent Git commit does not remove it from Git commit history. If credentials are committed, consider them compromised immediately: revoke the key and scrub history with git-filter-repo. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Deleting an API key in a subsequent Git commit does not remove it from Git commit history. If credentials are committed, consider them compromised immediately: revoke the key and scrub history with git-filter-repo..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -3977,6 +4005,12 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">Cloud Migration & Enterprise Disaster Recovery (DR) Strategy</h3>
+<p>
+Multi-region cloud ML deployments maintain active-passive or active-active configurations:
+- <strong>Cross-Region S3 Bucket Replication:</strong> Replicates model artifacts and feature stores between <code>us-east-1</code> and <code>eu-central-1</code> in $<15$ minutes.
+- <strong>Route 53 Latency Routing:</strong> Directs inference traffic to the geographically closest healthy SageMaker endpoint.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -4059,7 +4093,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Full Deployment · MEDIUM...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = CloudMLOpsDeploymentPipeline()
+        assert instance is not None, "CloudMLOpsDeploymentPipeline instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -4324,7 +4359,7 @@ print("✓ AWS ECS Fargate RAG deployment blueprint verified.")</pre>
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: ECS Task Definition Memory Sizing</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">If your ECS task memory limit is set below the combined footprint of PyTorch, Transformers, and vector caches, ECS will silently kill the container with exit code 137 (OOMKilled). Allocate at least 4GB RAM per task replica. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">If your ECS task memory limit is set below the combined footprint of PyTorch, Transformers, and vector caches, ECS will silently kill the container with exit code 137 (OOMKilled). Allocate at least 4GB RAM per task replica..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -4395,7 +4430,7 @@ print("✓ AWS ECS Fargate RAG deployment blueprint verified.")</pre>
         <div class="theory">
           <h2 class="sh2">🛠️ Master Toolkit: Cloud AI Infrastructure & FinOps</h2>
 <p>
-Automated cloud deployment blueprints for enterprise model serving and cost management.
+Automated cloud deployment blueprints for enterprise model serving, serverless inference, and cost governance.
 </p>
 
 <h3 class="sh3">1. AWS SageMaker Boto3 Endpoint Deployment Script</h3>
@@ -4437,6 +4472,58 @@ def create_sagemaker_realtime_endpoint(
     sm_client.create_endpoint(EndpointName=endpoint_name, EndpointConfigName=config_name)
     print(f"✓ SageMaker endpoint '{endpoint_name}' creation initiated.")</code></pre>
 </div>
+
+<h3 class="sh3">2. Serverless AWS Lambda ONNX Inference Handler</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — lambda_onnx_handler.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>import json
+import numpy as np
+
+def lambda_handler(event, context):
+    """Serverless inference handler executing ONNX Runtime model."""
+    try:
+        body = json.loads(event.get("body", "{}"))
+        input_data = np.array(body.get("inputs", []), dtype=np.float32)
+        
+        # Fast memory-mapped ONNX inference
+        output = input_data * 1.5 + 0.2 # Placeholder execution graph
+        
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"predictions": output.tolist(), "latency_ms": 14.2})
+        }
+    except Exception as err:
+        return {"statusCode": 500, "body": json.dumps({"error": str(err)})}</code></pre>
+</div>
+
+<h3 class="sh3">3. Cloud FinOps Cost Optimization Decision Matrix</h3>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left;">
+      <th style="padding:8px;">Inference Pattern</th>
+      <th style="padding:8px;">Optimal AWS Resource</th>
+      <th style="padding:8px;">Cost Savings vs On-Demand</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Unpredictable Bursts</strong></td>
+      <td style="padding:8px;">AWS Lambda Serverless Inference</td>
+      <td style="padding:8px;">Up to 70% (Zero idle cost)</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Steady 24/7 Traffic</strong></td>
+      <td style="padding:8px;">SageMaker Savings Plans (3-Yr)</td>
+      <td style="padding:8px;">50% — 64% Discount</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;"><strong>Batch Offline Scoring</strong></td>
+      <td style="padding:8px;">SageMaker Transform on Spot GPU</td>
+      <td style="padding:8px;">70% — 85% Discount</td>
+    </tr>
+  </tbody>
+</table>
         </div>
         <button class="complete-btn" id="btn-day-toolkit" onclick="completeDay('toolkit')">
           Mark Toolkit Complete (+500 XP)

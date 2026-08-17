@@ -328,6 +328,13 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">Kubernetes Cluster Architecture for Machine Learning</h3>
+<p>
+A production ML Kubernetes cluster isolates workloads into distinct node pools:
+- <strong>CPU System Node Pool:</strong> Runs Ingress controllers, Prometheus, and Grafana (c6i.2xlarge).
+- <strong>GPU Inference Node Pool:</strong> Runs vLLM and TensorRT-LLM pods on spot/on-demand instances (g5.2xlarge).
+- <strong>GPU Training Node Pool:</strong> Runs multi-node DDP jobs on InfiniBand-connected clusters (p4d.24xlarge).
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -430,7 +437,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Deploy to minikube...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = MinikubeVLLMDeployer()
+        assert instance is not None, "MinikubeVLLMDeployer instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -700,7 +708,7 @@ if __name__ == '__main__':
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: PyTorch DataLoader Crash without /dev/shm</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">By default, Docker and Kubernetes assign only 64MB to /dev/shm. Multi-worker PyTorch DataLoaders will crash with SIGBUS errors. Always mount an emptyDir with medium: Memory to /dev/shm. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">By default, Docker and Kubernetes assign only 64MB to /dev/shm. Multi-worker PyTorch DataLoaders will crash with SIGBUS errors. Always mount an emptyDir with medium: Memory to /dev/shm..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -969,6 +977,10 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">Kubernetes NVIDIA GPU Scheduling & Topology Awareness</h3>
+<p>
+Kubernetes schedules GPU workloads via the NVIDIA GPU Operator and Device Plugin. For multi-GPU workloads (Tensor Parallelism), the scheduler must enforce NUMA node and NVLink topology affinity, ensuring communicating GPUs reside on the same PCIe switch to prevent inter-GPU communication bottlenecks.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1057,7 +1069,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Test the vLLM K8s Endpoint · MEDIUM...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = K8svLLMBenchmarker()
+        assert instance is not None, "K8svLLMBenchmarker instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -1332,7 +1345,7 @@ print("✅ vLLM K8s deployment spec assertions passed")</pre>
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Pod Eviction from Burstable QoS Sizing</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">Setting GPU resource limits higher than requests creates a Burstable QoS class, allowing Kubernetes to evict your serving pod during node memory pressure. Always set requests equal to limits for GPU pods. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Setting GPU resource limits higher than requests creates a Burstable QoS class, allowing Kubernetes to evict your serving pod during node memory pressure. Always set requests equal to limits for GPU pods..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -1695,7 +1708,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Apply HPA...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(generate_hpa_yaml), "generate_hpa_yaml must be defined and callable"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -1971,7 +1984,7 @@ print("✅ HPA assertions passed")</pre>
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Metric Scraping Lag Causing Delayed Scale-Up</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">If Prometheus scrape intervals are set to 60 seconds, sudden traffic spikes will overwhelm vLLM queue buffers before the HPA detects the metric threshold. Set scrape intervals to 5–10 seconds for serving metrics. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">If Prometheus scrape intervals are set to 60 seconds, sudden traffic spikes will overwhelm vLLM queue buffers before the HPA detects the metric threshold. Set scrape intervals to 5–10 seconds for serving metrics..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -2575,7 +2588,7 @@ print("✅ Helm chart assertions passed")</pre>
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Hardcoding Environment Values in Chart Templates</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">Hardcoding container images or replica counts directly inside Helm templates breaks reusability across dev, staging, and production. Always parameterize environment-specific settings in values.yaml. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">Hardcoding container images or replica counts directly inside Helm templates breaks reusability across dev, staging, and production. Always parameterize environment-specific settings in values.yaml..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -2829,6 +2842,10 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">Distributed Data Parallel (DDP) Ring-AllReduce Mechanics</h3>
+<p>
+In PyTorch Distributed Data Parallel (DDP), each GPU maintains an identical copy of model weights and processes a slice of the global batch. During the backward pass, gradients are synchronized across nodes using the Ring-AllReduce algorithm, transferring $2 	imes rac{N-1}{N} 	imes |W|$ bytes with bandwidth independent of node count $N$.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2911,7 +2928,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Add Eval Gate...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = GitHubActionsEvalGate()
+        assert instance is not None, "GitHubActionsEvalGate instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -3005,7 +3023,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 2: Implement GitHub Actions CI/CD for ML...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(run_ci_cd_pipeline_simulation), "run_ci_cd_pipeline_simulation must be defined and callable"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -3413,6 +3431,10 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">Distributed Ray Clustering on Kubernetes (KubeRay)</h3>
+<p>
+KubeRay orchestrates elastic compute clusters for distributed hyperparameter tuning (Ray Tune) and high-throughput model serving (Ray Serve), dynamically spawning worker pods on spot GPU instances and tearing them down upon job completion.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3496,7 +3518,7 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Implement Model Performance Regression Tests...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        assert callable(assert_no_performance_regression), "assert_no_performance_regression must be defined and callable"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -3560,7 +3582,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Build a Golden Dataset...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = GoldenDatasetGenerator()
+        assert instance is not None, "GoldenDatasetGenerator instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -3728,7 +3751,7 @@ if __name__ == '__main__':
         <!-- GOTCHAS -->
         <div class="gotcha-box">
           <strong>⚠️ Gotcha: Golden Test Dataset Contamination</strong>
-          <p style="margin-top:0.4rem; margin-bottom:0;">If golden regression test sets leak into synthetic data generation pipelines, candidate models will achieve artificially high 100% scores due to memorization. Keep regression datasets physically isolated and strictly read-only. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).</p>
+          <p style="margin-top:0.4rem; margin-bottom:0;">If golden regression test sets leak into synthetic data generation pipelines, candidate models will achieve artificially high 100% scores due to memorization. Keep regression datasets physically isolated and strictly read-only..</p>
         </div>
 
         <!-- KEY TAKEAWAYS -->
@@ -3963,6 +3986,13 @@ if __name__ == '__main__':
     assert resp["status"] == "SUCCESS", "Engine verification failed"
 </code></pre>
 </div>
+<h3 class="sh3">Enterprise Kubernetes ML Platform Engineering Review</h3>
+<p>
+Production Kubernetes AI platforms must enforce strict resource quotas:
+- <strong>ResourceQuotas & LimitRanges:</strong> Prevents a single tenant from starving cluster GPU allocations.
+- <strong>PodDisruptionBudgets (PDB):</strong> Guarantees minimum available inference replicas during cluster node upgrades.
+- <strong>NetworkPolicies:</strong> Restricts inter-pod traffic to authorized microservice namespaces.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -4056,7 +4086,8 @@ if __name__ == '__main__':
     print(f"Executing self-test suite for: Task 1: Full Pipeline · MEDIUM...")
     try:
         # Automated runtime integrity check
-        assert True, "Verification failed"
+        instance = EnterpriseAIKubernetesPipeline()
+        assert instance is not None, "EnterpriseAIKubernetesPipeline instantiation failed"
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
@@ -4471,7 +4502,7 @@ print("✅ Load test assertions passed")</pre>
         <div class="theory">
           <h2 class="sh2">🛠️ Master Toolkit: Kubernetes & GPU Infrastructure</h2>
 <p>
-Kubernetes manifests and Helm configurations for enterprise multi-node GPU clusters.
+Kubernetes manifests, Helm chart configurations, and autoscaling definitions for enterprise multi-node GPU clusters.
 </p>
 
 <h3 class="sh3">1. Kubernetes NVIDIA GPU Pod Resource Specification</h3>
@@ -4503,6 +4534,85 @@ spec:
     emptyDir:
       medium: Memory
       sizeLimit: 32Gi</code></pre>
+</div>
+
+<h3 class="sh3">2. Prometheus Custom Metric Horizontal Pod Autoscaler (HPA)</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">yaml — vllm-hpa.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: vllm-queue-autoscaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vllm-inference-deployment
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: vllm:avg_waiting_requests_per_pod
+      target:
+        type: Value
+        averageValue: "5"</code></pre>
+</div>
+
+<h3 class="sh3">3. Helm Chart Values for Tensor Parallel Serving</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">yaml — values-tensor-parallel.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code># Helm values configuration for distributed 70B LLM serving
+model:
+  name: "meta-llama/Meta-Llama-3-70B-Instruct"
+  tensorParallelSize: 4
+  maxModelLen: 8192
+  gpuMemoryUtilization: 0.94
+
+resources:
+  requests:
+    nvidia.com/gpu: 4
+    memory: "128Gi"
+  limits:
+    nvidia.com/gpu: 4
+    memory: "128Gi"</code></pre>
+</div>
+<h3 class="sh3">4. KubeRay Elastic Worker Group Resource Manifest</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">yaml — ray-cluster-gpu.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: ray-inference-cluster
+spec:
+  rayVersion: '2.9.0'
+  headGroupSpec:
+    rayStartParams:
+      dashboard-host: '0.0.0.0'
+    template:
+      spec:
+        containers:
+        - name: ray-head
+          image: rayproject/ray-ml:latest
+          resources:
+            limits:
+              cpu: "8"
+              memory: "32Gi"
+  workerGroupSpecs:
+  - groupName: gpu-group
+    replicas: 2
+    minReplicas: 1
+    maxReplicas: 8
+    template:
+      spec:
+        containers:
+        - name: ray-worker
+          image: rayproject/ray-ml:latest
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              memory: "64Gi"</code></pre>
 </div>
         </div>
         <button class="complete-btn" id="btn-day-toolkit" onclick="completeDay('toolkit')">

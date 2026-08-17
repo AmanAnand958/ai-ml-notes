@@ -488,9 +488,9 @@ days:
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: KV Cache Eviction Panics on GPU Saturation'
-    description: 'When GPU memory utilization is set too close to 1.0 (e.g. gpu_memory_utilization=0.98), activation memory
+    description: When GPU memory utilization is set too close to 1.0 (e.g. gpu_memory_utilization=0.98), activation memory
       spikes during long prompt prefills will cause CUDA Out-of-Memory crashes. Keep utilization bounded between 0.85 and
-      0.90. (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).'
+      0.90..
   takeaways:
     hinglish_line: |-
       <strong>
@@ -610,7 +610,12 @@ days:
     Execution failed in {self.service_name}: {err}\")\n            return {\"status\": \"ERROR\", \"error_message\": str(err)}\n\
     \nif __name__ == '__main__':\n    engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\":\
     \ 42, \"user_id\": \"usr_9981\"})\n    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\"\
-    , \"Engine verification failed\"\n</code></pre>\n</div>"
+    , \"Engine verification failed\"\n</code></pre>\n</div>\n<h3 class=\"sh3\">Post-Training Quantization (PTQ): AWQ vs GPTQ\
+    \ Mechanics</h3>\n<p>\nActivation-aware Weight Quantization (AWQ) identifies the 1% most salient weight channels by observing\
+    \ activation magnitudes during calibration. By scaling salient channels prior to uniform INT4 quantization, AWQ protects\
+    \ outlier feature channels from truncation error:\n</p>\n<div class=\"math-block\">\n$$W' = W \\cdot S^{-1}, \\quad X'\
+    \ = S \\cdot X, \\quad \text{where } S_j = \\max(|X_j|)^\alpha$$\n</div>\n<p>\nThis mathematical equivalence preserves\
+    \ perplexity on long-context reasoning tasks while cutting VRAM footprint from 16 GB to 4.5 GB for 7B models.\n</p>"
   predict:
     question: What speedup factor is achieved when speculative decoding accepts 3 draft tokens per single target model forward
       pass?
@@ -675,7 +680,8 @@ days:
           print(f"Executing self-test suite for: Task 1: vLLM Speculative Setup · MEDIUM...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              instance = vLLMSpeculativeDecodingEngine()
+              assert instance is not None, "vLLMSpeculativeDecodingEngine instantiation failed"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -915,9 +921,8 @@ days:
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Kernel Incompatibility on Older GPU Architectures'
-    description: 'FlashAttention-2 requires NVIDIA Ampere (A100), Ada Lovelace (RTX 4090), or Hopper (H100) GPUs with FP16/BF16
-      Tensor Cores. Attempting to run on older Turing (T4) or Volta GPUs without Triton fallbacks will fail. (Avoid anti-pattern:
-      always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).'
+    description: FlashAttention-2 requires NVIDIA Ampere (A100), Ada Lovelace (RTX 4090), or Hopper (H100) GPUs with FP16/BF16
+      Tensor Cores. Attempting to run on older Turing (T4) or Volta GPUs without Triton fallbacks will fail..
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1088,7 +1093,7 @@ days:
           print(f"Executing self-test suite for: Task 1: BitsAndBytes in Transformers...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              assert callable(configure_bitsandbytes_nf4), "configure_bitsandbytes_nf4 must be defined and callable"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -1278,9 +1283,8 @@ days:
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Zero-Point Misalignment in Symmetric vs Asymmetric Quantization'
-    description: 'Asymmetric quantization introduces a zero-point offset Z that requires additional integer subtraction during
-      matrix multiplication, reducing Tensor Core efficiency. Use symmetric quantization for faster inference kernels. (Avoid
-      anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).'
+    description: Asymmetric quantization introduces a zero-point offset Z that requires additional integer subtraction during
+      matrix multiplication, reducing Tensor Core efficiency. Use symmetric quantization for faster inference kernels..
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1494,7 +1498,7 @@ days:
           print(f"Executing self-test suite for: Task 1: Merging LoRA Weights...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              assert callable(merge_lora), "merge_lora must be defined and callable"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -1561,7 +1565,7 @@ days:
           print(f"Executing self-test suite for: Task 2: Implement QLoRA & PEFT...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              assert callable(simulate_nf4_quant), "simulate_nf4_quant must be defined and callable"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -1676,9 +1680,8 @@ days:
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Target Module Omission in LoRA Fine-Tuning'
-    description: 'Applying LoRA only to query/value projections (q_proj, v_proj) yields significantly worse fine-tuning convergence
-      than applying LoRA across all linear layers (q, k, v, o, gate, up, down_proj). Target all linear layers for best results.
-      (Avoid anti-pattern: always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).'
+    description: Applying LoRA only to query/value projections (q_proj, v_proj) yields significantly worse fine-tuning convergence
+      than applying LoRA across all linear layers (q, k, v, o, gate, up, down_proj). Target all linear layers for best results..
   takeaways:
     hinglish_line: |-
       <strong>
@@ -1792,7 +1795,13 @@ days:
     \ {err}\")\n            return {\"status\": \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n  \
     \  engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\": \"usr_9981\"})\n\
     \    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n\
-    </code></pre>\n</div>"
+    </code></pre>\n</div>\n<h3 class=\"sh3\">Direct Preference Optimization (DPO) Closed-Form Derivation</h3>\n<p>\nUnlike\
+    \ traditional RLHF with PPO (which requires training separate reward and value models), DPO leverages a closed-form substitution\
+    \ of the optimal policy $\\pi^*$ into the Bradley-Terry preference model:\n</p>\n<div class=\"math-block\">\n$$\\mathcal{L}_{\t\
+    ext{DPO}}(\\pi_\theta; \\pi_{\text{ref}}) = -\\mathbb{E}_{(x, y_w, y_l)} \\left[ \\log \\sigma \\left( \beta \\log \f\
+    rac{\\pi_\theta(y_w|x)}{\\pi_{\text{ref}}(y_w|x)} - \beta \\log \frac{\\pi_\theta(y_l|x)}{\\pi_{\text{ref}}(y_l|x)} \r\
+    ight) \right]$$\n</div>\n<p>\nThis eliminates the reward modeling phase, drastically reducing training instability and\
+    \ GPU memory requirements during alignment.\n</p>"
   predict:
     question: In Direct Preference Optimization (DPO), which response (chosen y_w or rejected y_l) has its relative log-likelihood
       maximized?
@@ -1852,7 +1861,7 @@ days:
           print(f"Executing self-test suite for: Task 1: DPO Formatting · MEDIUM...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              assert callable(format_dpo_preference_tuple), "format_dpo_preference_tuple must be defined and callable"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -1923,7 +1932,7 @@ days:
           print(f"Executing self-test suite for: Task 2: Implement DPO, ORPO & GRPO...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              assert callable(compute_dpo_loss), "compute_dpo_loss must be a callable function"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -2055,9 +2064,8 @@ days:
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Policy Collapse from Uncalibrated Beta in DPO'
-    description: 'Setting beta too low (e.g. beta < 0.01) in DPO loss allows the policy to drift uncontrollably away from
-      the reference model, causing repetitive text degeneration. Keep beta strictly between 0.1 and 0.5. (Avoid anti-pattern:
-      always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).'
+    description: Setting beta too low (e.g. beta < 0.01) in DPO loss allows the policy to drift uncontrollably away from the
+      reference model, causing repetitive text degeneration. Keep beta strictly between 0.1 and 0.5..
   takeaways:
     hinglish_line: |-
       <strong>
@@ -2165,7 +2173,13 @@ days:
     \ {err}\")\n            return {\"status\": \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n  \
     \  engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\": \"usr_9981\"})\n\
     \    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n\
-    </code></pre>\n</div>"
+    </code></pre>\n</div>\n<h3 class=\"sh3\">Speculative Decoding Verification & Rejection Sampling</h3>\n<p>\nSpeculative\
+    \ decoding pairs a lightweight draft model ($M_q$) with a high-capacity target model ($M_p$). The draft model rapidly\
+    \ generates $K$ candidate tokens autoregressively. In a single forward pass, the target model verifies all $K$ tokens\
+    \ in parallel using modified rejection sampling:\n</p>\n<div class=\"math-block\">\n$$P(\text{accept } x_{t}) = \\min\\\
+    left(1, \frac{p(x_t|x_{<t})}{q(x_t|x_{<t})}\right)$$\n</div>\n<p>\nBecause memory bandwidth is the primary bottleneck\
+    \ during autoregressive generation, parallel verification increases generation speed by $2\times\text{--}3\times$ without\
+    \ altering target distribution outputs.\n</p>"
   predict:
     question: Why do we use MinHash instead of calculating Cosine Similarity for every pair?
     answer: 'MinHash LSH Speedup over Pairwise: 1,250x faster'
@@ -2229,7 +2243,8 @@ days:
           print(f"Executing self-test suite for: Task 1: Magpie Approach...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              instance = MagpieSyntheticGenerator()
+              assert instance is not None, "MagpieSyntheticGenerator instantiation failed"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -2293,7 +2308,7 @@ days:
           print(f"Executing self-test suite for: Task 2: Implement Synthetic Data & Deduplication...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              assert callable(deduplicate_samples), "deduplicate_samples must be defined and callable"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -2406,9 +2421,8 @@ days:
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Shingle Size Selection in MinHash LSH'
-    description: 'Using character 3-grams for MinHash creates too many false-positive collisions across different technical
-      terms. Use word-level 5-grams (5-shingles) for robust document-level deduplication. (Avoid anti-pattern: always validate
-      with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).'
+    description: Using character 3-grams for MinHash creates too many false-positive collisions across different technical
+      terms. Use word-level 5-grams (5-shingles) for robust document-level deduplication..
   takeaways:
     hinglish_line: |-
       <strong>
@@ -2622,7 +2636,7 @@ days:
           print(f"Executing self-test suite for: Task 2: Implement Capstone: Deploying a Custom Fine-Tuned Model...")
           try:
               # Automated runtime integrity check
-              assert True, "Verification failed"
+              assert callable(verify_vllm_deployment_spec), "verify_vllm_deployment_spec must be defined and callable"
               print("✓ All validation test assertions passed successfully!")
           except Exception as err:
               print(f"❌ Test verification error: {err}")
@@ -2754,9 +2768,8 @@ days:
       and communication (ZeRO / DDP Ring-AllReduce).
   gotcha:
     title: '⚠️ Gotcha: Merging Adapter Weights in Wrong Precision'
-    description: 'Merging a FP16 LoRA adapter directly into a 4-bit quantized base model destroys weight precision. Always
-      merge LoRA weights into unquantized 16-bit base weights first, then quantize the merged model. (Avoid anti-pattern:
-      always validate with strict assertion checks e.g. `assert input_tensor.shape[-1] == expected_dim`).'
+    description: Merging a FP16 LoRA adapter directly into a 4-bit quantized base model destroys weight precision. Always
+      merge LoRA weights into unquantized 16-bit base weights first, then quantize the merged model..
   takeaways:
     hinglish_line: |-
       <strong>
