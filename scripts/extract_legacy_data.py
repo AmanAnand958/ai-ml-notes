@@ -152,10 +152,31 @@ def extract_week(fpath):
             for h in theory_div.find_all(['h2', 'h3'], class_='sh2'):
                 if 'Theory' in h.get_text():
                     h.decompose()
-            # Remove leading analogy or hinglish callout if they were placed inside theory_div
+            # Remove leading analogy or quick jumps if they were placed inside theory_div
             for dup in theory_div.find_all(['div'], class_=['analogy', 'quick-jumps']):
                 dup.decompose()
             theory_html = clean_html(theory_div)
+        
+        # Fallback: if theory_html is empty, collect siblings between day-header and predict-block / tasks
+        if not theory_html or len(theory_html.strip()) < 20:
+            theory_parts = []
+            collecting = False
+            for child in ds.children:
+                if getattr(child, 'name', None) == 'div' and 'day-header' in child.get('class', []):
+                    collecting = True
+                    continue
+                if getattr(child, 'name', None) in ['div', 'h2'] and ('predict-block' in child.get('class', []) or 'tasks-section' in child.get('class', []) or 'Tasks' in child.get_text()):
+                    collecting = False
+                    break
+                if collecting:
+                    # Skip elements already extracted into their own dedicated fields
+                    c_classes = child.get('class', []) if getattr(child, 'name', None) else []
+                    if any(cls in c_classes for cls in ['objectives', 'checklist', 'concept-map-flow', 'callout', 'ci', 'analogy', 'quick-jumps', 'day-header']):
+                        continue
+                    if getattr(child, 'name', None) == 'h2' and ('Theory' in child.get_text() or 'objectives' in str(child)):
+                        continue
+                    theory_parts.append(str(child))
+            theory_html = ''.join(theory_parts).strip()
 
         # Predict Block
         predict = None
