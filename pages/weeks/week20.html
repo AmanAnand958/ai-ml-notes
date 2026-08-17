@@ -1852,30 +1852,50 @@ print("✅ LangGraph StateGraph assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-146-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. The Principle of Specialized Single-Responsibility Agents</h3>
+          <h3 class="sh3">1. Multi-Agent Systems: Architectural Topologies</h3>
 <p>
-Equipping a single monolith agent with 30 disparate tools creates severe <strong>context dilution and tool hallucination</strong>. The agent struggles to select the correct tool signature from a massive prompt schema, mixes up arguments, and exhausts context limits.
-</p>
-<p>
-<strong>Multi-Agent Architectures</strong> partition complex domains across specialized, single-responsibility agents coordinated under formal communication protocols:
+Equipping a single monolith agent with dozens of disparate tools causes severe context dilution and tool hallucination. Partitioning responsibilities across specialized, single-responsibility agents dramatically increases reliability:
 </p>
 <ul>
-  <li><strong>Hierarchical Supervisor Topology:</strong> A central Supervisor Agent breaks down high-level user requests and delegates sub-tasks to specialized worker agents (e.g. Researcher, Coder, Auditor).</li>
-  <li><strong>Network / Swarm Topology:</strong> Decentralized peer-to-peer agents hand off conversation context dynamically based on task requirements.</li>
-  <li><strong>Actor-Critic / Debate Topology:</strong> A Generator Agent creates candidate solutions while a Critic Agent evaluates them against strict safety and performance rubrics.</li>
+  <li><strong>Hierarchical Supervisor Topology:</strong> A central router agent decomposes goals and delegates sub-tasks to specialized domain agents (Researcher, Coder, Reviewer).</li>
+  <li><strong>Peer-to-Peer Network / Swarm:</strong> Agents pass execution control directly to peer agents dynamically based on intermediate state.</li>
+  <li><strong>Actor-Critic / Debate Topology:</strong> A Generator Agent proposes candidate solutions while an Adversarial Auditor Agent tests them against security constraints.</li>
 </ul>
 
-<div class="mermaid">
-graph TD
-    Client["User Task: 'Build secure authentication API'"] --> Supervisor["Supervisor Agent (Router)"]
-    Supervisor -->|Sub-task 1: Research RFC specs| Researcher["Researcher Agent"]
-    Supervisor -->|Sub-task 2: Generate Python code| Coder["Coder Agent"]
-    Coder -->|Draft implementation| Auditor["Security Auditor Agent (Checks SQLi / JWT)"]
-    Auditor -->|Vulnerability Found| Coder
-    Auditor -->|Security Cleared| Supervisor
-    Supervisor --> FinalOutput["Final Verified Codebase"]
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — multi_agent_supervisor.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from typing import Dict, List, Any
+import json
+
+class WorkerAgent:
+    def __init__(self, name: str, role_prompt: str):
+        self.name = name
+        self.role_prompt = role_prompt
+
+    def execute(self, task: str) -> str:
+        # Simulates specialized agent execution
+        return f"[{self.name}] Completed: '{task}' according to role requirements."
+
+class MultiAgentSupervisor:
+    def __init__(self):
+        self.workers: Dict[str, WorkerAgent] = {
+            "researcher": WorkerAgent("Researcher", "Find technical specifications"),
+            "coder": WorkerAgent("Coder", "Write clean Python implementations"),
+            "auditor": WorkerAgent("Auditor", "Verify security and test coverage")
+        }
+
+    def process_goal(self, goal: str) -> Dict[str, Any]:
+        # 1. Supervisor delegates sub-tasks sequentially
+        research = self.workers["researcher"].execute(f"Research requirements for {goal}")
+        code = self.workers["coder"].execute(f"Write code using research: {research}")
+        audit = self.workers["auditor"].execute(f"Audit code safety: {code}")
+        
+        return {
+            "status": "APPROVED",
+            "final_artifact": code,
+            "audit_trail": [research, code, audit]
+        }</code></pre>
 </div>
-<div class="diagram-cap">Figure 146.1: Hierarchical Multi-Agent Supervisor Pattern with Specialized Worker and Auditor Agents.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2358,34 +2378,56 @@ print("✅ Multi-agent system assertions passed")</pre>
         <!-- THEORY SECTION -->
         <div id="day-147-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Episodic vs Working Memory in Autonomous Agents</h3>
+          <h3 class="sh3">1. Dual-Tier Memory Systems: Short-Term vs Episodic Vector Storage</h3>
 <p>
-Autonomous agents require distinct memory tiers:
+Autonomous agents require distinct memory systems to maintain coherent multi-session personas:
 </p>
 <ol>
-  <li><strong>Working Memory (Short-Term):</strong> The active prompt context window holding current conversational turns.</li>
-  <li><strong>Episodic Memory (Long-Term):</strong> Vector database holding historical interaction transcripts across multi-session timelines.</li>
+  <li><strong>Short-Term Working Memory:</strong> Active prompt context window holding current conversational turns.</li>
+  <li><strong>Long-Term Episodic Memory:</strong> Vector database holding historical interaction transcripts, queried via semantic similarity and temporal decay weighting.</li>
 </ol>
 
-<h3 class="sh3">2. Coreference Resolution Preprocessing</h3>
+<h3 class="sh3">2. Coreference Resolution & Temporal Decay Formulation</h3>
 <p>
-Storing raw conversational turns directly into a vector database causes retrieval failure due to unresolved pronouns. For example:
-</p>
-<ul>
-  <li><em>Raw Turn:</em> "Deploy it to the staging server tomorrow morning."</li>
-  <li><em>Resolved Turn:</em> "Deploy [the customer churn prediction API v1.2] to the [AWS ECS staging cluster] on [October 24, 2024]."</li>
-</ul>
-
-<h3 class="sh3">3. Exponential Temporal Decay Scoring</h3>
-<p>
-Older memories should naturally recede in relevance unless specifically reinforced:
+Raw conversational turns contain unresolved pronouns (<em>"Deploy it tomorrow"</em>). Before embedding into long-term memory, an LLM rewrites the utterance into a standalone factual assertion (<em>"Deploy the fraud detection microservice on October 24"</em>). Memory relevance is then scored as:
 </p>
 <div class="math-block">
-$$	ext{Relevance}(m) = \cos(ec{q}, ec{v}_m) 	imes e^{-\lambda \Delta t}$$
+$$	ext{MemoryScore}(m) = lpha \cdot 	ext{CosineSimilarity}(ec{q}, ec{v}_m) + eta \cdot e^{-\lambda \Delta t} + \gamma \cdot 	ext{ImportanceScore}(m)$$
 </div>
-<p>
-Where $\Delta t$ is the elapsed time in days and $\lambda$ is the decay half-life parameter.
-</p>
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — episodic_memory.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>import numpy as np
+import time
+
+class EpisodicMemoryStore:
+    def __init__(self, decay_rate: float = 0.05):
+        self.decay_rate = decay_rate
+        self.memories: List[dict] = []
+
+    def add_memory(self, resolved_text: str, vector: np.ndarray, importance: float):
+        self.memories.append({
+            "text": resolved_text,
+            "vector": vector / np.linalg.norm(vector),
+            "timestamp": time.time(),
+            "importance": importance
+        })
+
+    def query(self, query_vec: np.ndarray, top_k: int = 3) -> List[dict]:
+        query_norm = query_vec / np.linalg.norm(query_vec)
+        now = time.time()
+        
+        scored = []
+        for m in self.memories:
+            sim = np.dot(m["vector"], query_norm)
+            dt_hours = (now - m["timestamp"]) / 3600.0
+            decay = np.exp(-self.decay_rate * dt_hours)
+            total_score = (0.6 * sim) + (0.2 * decay) + (0.2 * m["importance"])
+            scored.append((total_score, m))
+            
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [item[1] for item in scored[:top_k]]</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->

@@ -809,81 +809,97 @@ print("✓ Kubernetes deployment specification verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-126-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. PaaS vs Managed K8s: Selecting Deployment Targets</h3>
+          <h3 class="sh3">1. PaaS vs Managed Kubernetes: Selection Rubric</h3>
 <p>
-For prototype ML applications, internal company tools, and hackathon projects, provisioning a full Kubernetes cluster (EKS/GKE) introduces unnecessary operational overhead ($150+/month base cluster fees, complex VPC networking, YAML boilerplate).
+Deploying Machine Learning models to cloud infrastructure requires evaluating the operational trade-offs between Platform-as-a-Service (Render, Railway, Fly.io) and managed container orchestrators (AWS EKS, GCP GKE):
 </p>
-<p>
-Modern <strong>Platform-as-a-Service (PaaS)</strong> providers (Render, Railway, Fly.io) provide git-push continuous deployment, automated SSL certificates, custom domains, and isolated Docker container execution for a fraction of the cost:
-</p>
-
 <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
   <thead>
     <tr style="border-bottom:2px solid var(--border); text-align:left;">
-      <th style="padding:8px;">Deployment Target</th>
-      <th style="padding:8px;">Setup Time</th>
-      <th style="padding:8px;">Monthly Base Cost</th>
-      <th style="padding:8px;">GPU Support</th>
-      <th style="padding:8px;">Ideal Use Case</th>
+      <th style="padding:8px;">Dimension</th>
+      <th style="padding:8px;">PaaS (Render / Railway)</th>
+      <th style="padding:8px;">Managed Kubernetes (EKS / GKE)</th>
     </tr>
   </thead>
   <tbody>
     <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>Render / Railway</strong></td>
-      <td style="padding:8px;">5 minutes</td>
-      <td style="padding:8px;">$5 - $20</td>
-      <td style="padding:8px;">CPU only / Limited</td>
-      <td style="padding:8px;">APIs, Tabular ML, ONNX, Portfolios</td>
+      <td style="padding:8px;"><strong>Setup Overhead</strong></td>
+      <td style="padding:8px;">5 minutes (Git push auto-deploy)</td>
+      <td style="padding:8px;">Days / Weeks (VPC, IAM, Ingress, Helm)</td>
     </tr>
     <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>AWS ECS Fargate</strong></td>
-      <td style="padding:8px;">1 hour</td>
-      <td style="padding:8px;">$30 - $60</td>
-      <td style="padding:8px;">No (Serverless)</td>
-      <td style="padding:8px;">Enterprise microservices</td>
+      <td style="padding:8px;"><strong>GPU Workload Support</strong></td>
+      <td style="padding:8px;">Limited / Expensive dedicated instances</td>
+      <td style="padding:8px;">Full native support for multi-GPU scheduling (A100, H100)</td>
     </tr>
     <tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;"><strong>AWS EKS / GKE</strong></td>
-      <td style="padding:8px;">Days</td>
-      <td style="padding:8px;">$150+</td>
-      <td style="padding:8px;">Full Multi-GPU</td>
-      <td style="padding:8px;">High-traffic LLM serving & training</td>
+      <td style="padding:8px;"><strong>Autoscaling Latency</strong></td>
+      <td style="padding:8px;">Coarse CPU-based container spinning (30-60s)</td>
+      <td style="padding:8px;">Fine-grained HPA based on custom vLLM queue depth (&lt;5s)</td>
     </tr>
   </tbody>
 </table>
 
-<h3 class="sh3">2. Declarative Infrastructure as Code: render.yaml</h3>
+<h3 class="sh3">2. Declarative Infrastructure-as-Code: render.yaml Specification</h3>
 <p>
-Render allows defining multi-service architectures (Web API + Redis Cache + Background Worker) in a version-controlled <code>render.yaml</code> blueprint:
+Modern engineering teams avoid manual dashboard configuration in favor of version-controlled declarative service blueprints:
 </p>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <div class="cb-head"><span class="cb-lang">yaml — render.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
   <pre><code>services:
   - type: web
-    name: customer-churn-api
+    name: production-ml-scoring-service
     env: python
     region: oregon
-    plan: starter
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2
+    plan: standard
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120"
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
-      - key: MODEL_PATH
-        value: models/churn_model.onnx
-      - key: ENVIRONMENT
-        value: production
-      - key: API_KEY
-        generateValue: true
-    healthCheckPath: /health</code></pre>
+      - key: PYTHON_VERSION
+        value: "3.11.8"
+      - key: MODEL_STORAGE_S3_URI
+        sync: false
+      - key: MAX_BATCH_SIZE
+        value: "64"</code></pre>
 </div>
 
-<h3 class="sh3">3. Managing Ephemeral Disk and Cold Starts</h3>
+<h3 class="sh3">3. Production Health Probes & Cold-Start Deserialization</h3>
 <p>
-PaaS instances are ephemeral: files saved to local disk are wiped whenever the service redeploys or restarts.
+When large models (e.g. 500MB Scikit-Learn ensembles or PyTorch weights) load during container boot, requests hitting the service before weights finish deserializing cause 502 Bad Gateway errors. Always decouple <strong>Liveness Probes</strong> (is the process alive?) from <strong>Readiness Probes</strong> (are model weights loaded into memory and ready for inference?):
 </p>
-<ul>
-  <li><strong>Do NOT save user uploads or model weights locally:</strong> Always stream uploaded datasets and predictions to Amazon S3 or Google Cloud Storage buckets.</li>
-  <li><strong>Mitigating Free-Tier Cold Starts:</strong> Free PaaS instances spin down after 15 minutes of inactivity. Set up a free 5-minute health check cron job (e.g. via GitHub Actions or Cron-Job.org) hitting <code>/health</code> to keep containers warm.</li>
-</ul>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — app/main.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from fastapi import FastAPI, Response, status
+import joblib, time
+
+app = FastAPI(title="Production ML Scoring API")
+
+class ModelContainer:
+    model = None
+    is_ready = False
+
+@app.on_event("startup")
+def load_artifacts():
+    # Deserializes model weights into global memory
+    time.sleep(2)  # Simulating weight loading
+    ModelContainer.model = joblib.load("models/champion_model.joblib")
+    ModelContainer.is_ready = True
+
+@app.get("/health/live")
+def liveness():
+    # Returns 200 immediately if process is responsive
+    return {"status": "ALIVE"}
+
+@app.get("/health/ready")
+def readiness(response: Response):
+    # Returns 503 until model is fully loaded in memory
+    if not ModelContainer.is_ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "LOADING_WEIGHTS"}
+    return {"status": "READY_FOR_INFERENCE"}</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2340,50 +2356,77 @@ print("✓ System architecture flowchart verified.")</pre>
         <!-- THEORY SECTION -->
         <div id="day-129-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Production Preprocessing & Training Pipelines</h3>
+          <h3 class="sh3">1. Production Preprocessing: The Scikit-Learn ColumnTransformer Pattern</h3>
 <p>
-A raw ML script that runs manual column transformations cannot be reliably deployed in production. Any preprocessing applied during training must be bundled inside an immutable, serialized Scikit-Learn <code>Pipeline</code> or ColumnTransformer:
+In enterprise ML pipelines, feature transformations must be atomic and serializable. Never execute ad-hoc Pandas data cleaning in separate scripts; encapsulate all imputation, scaling, and categorical encoding into a single Scikit-Learn <code>Pipeline</code>:
 </p>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code><span class="kw">from</span> sklearn.pipeline <span class="kw">import</span> Pipeline
-<span class="kw">from</span> sklearn.compose <span class="kw">import</span> ColumnTransformer
-<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> StandardScaler, OneHotEncoder
-<span class="kw">from</span> sklearn.impute <span class="kw">import</span> SimpleImputer
-<span class="kw">import</span> joblib
+  <div class="cb-head"><span class="cb-lang">python — src/pipeline.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>import pandas as pd
+import numpy as np
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import RobustScaler, OneHotEncoder
+from sklearn.ensemble import HistGradientBoostingClassifier
+import joblib
 
-numeric_pipeline = Pipeline([
-    (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'median'</span>)),
-    (<span class="str">'scaler'</span>, StandardScaler())
-])
+def create_end_to_end_pipeline(num_features: list, cat_features: list) -> Pipeline:
+    num_pipeline = Pipeline([
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', RobustScaler())
+    ])
 
-categorical_pipeline = Pipeline([
-    (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'most_frequent'</span>)),
-    (<span class="str">'ohe'</span>, OneHotEncoder(handle_unknown=<span class="str">'ignore'</span>, sparse_output=<span class="kw">False</span>))
-])
+    cat_pipeline = Pipeline([
+        ('imputer', SimpleImputer(strategy='constant', fill_value='UNKNOWN')),
+        ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+    ])
 
-preprocessor = ColumnTransformer([
-    (<span class="str">'num'</span>, numeric_pipeline, numeric_cols),
-    (<span class="str">'cat'</span>, categorical_pipeline, categorical_cols)
-])
+    preprocessor = ColumnTransformer(transformers=[
+        ('num', num_pipeline, num_features),
+        ('cat', cat_pipeline, cat_features)
+    ])
 
-full_pipeline = Pipeline([
-    (<span class="str">'preprocessor'</span>, preprocessor),
-    (<span class="str">'classifier'</span>, best_estimator)
-])
+    full_pipeline = Pipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', HistGradientBoostingClassifier(max_iter=200, random_state=42))
+    ])
 
-<span class="cm"># Save atomic pipeline</span>
-joblib.dump(full_pipeline, <span class="str">"models/production_pipeline.joblib"</span>)</code></pre>
+    return full_pipeline</code></pre>
 </div>
 
-<h3 class="sh3">2. Metric Evaluation Beyond Accuracy</h3>
+<h3 class="sh3">2. Bayesian Hyperparameter Optimization with Optuna</h3>
 <p>
-In imbalanced real-world datasets, raw accuracy is deeply misleading (a model predicting 100% negative achieves 99% accuracy on a 1% fraud dataset while catching 0 fraudsters).
+Grid search is computationally inefficient ($O(\prod |S_i|)$), while Random Search ignores trial history. <strong>Tree-structured Parzen Estimators (TPE)</strong> in Optuna construct a probabilistic model of the objective function:
 </p>
-<ul>
-  <li><strong>Precision-Recall AUC (PR-AUC):</strong> Evaluates performance on the minority positive class regardless of true negative count.</li>
-  <li><strong>Confusion Matrix Calibration:</strong> Set classification decision thresholds $	au$ based on business loss matrix: $	ext{Cost} = C_{	ext{FP}} \cdot 	ext{FP} + C_{	ext{FN}} \cdot 	ext{FN}$.</li>
-</ul>
+<div class="math-block">
+$$p(	heta \mid y) = egin{cases} \ell(	heta) & 	ext{if } y < y^* \ g(	heta) & 	ext{if } y \ge y^* \end{cases}$$
+</div>
+<p>
+Optuna samples candidate hyperparameter configurations that maximize the expected improvement ratio $rac{\ell(	heta)}{g(	heta)}$, finding optimal hyperparameters in <strong>10x fewer iterations</strong> than random search.
+</p>
+
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python — src/tune.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>import optuna
+from sklearn.model_selection import cross_val_score
+
+def objective(trial, X, y):
+    params = {
+        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
+        'max_leaf_nodes': trial.suggest_int('max_leaf_nodes', 15, 63),
+        'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100),
+        'l2_regularization': trial.suggest_float('l2_regularization', 1e-4, 10.0, log=True)
+    }
+    
+    model = HistGradientBoostingClassifier(**params, random_state=42)
+    scores = cross_val_score(model, X, y, cv=5, scoring='roc_auc', n_jobs=-1)
+    return scores.mean()
+
+# Execute 100 Bayesian optimization trials
+study = optuna.create_study(direction='maximize')
+# study.optimize(lambda trial: objective(trial, X_train, y_train), n_trials=100)</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2846,58 +2889,62 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
         <!-- THEORY SECTION -->
         <div id="day-130-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Packaging ML Models in FastAPI</h3>
+          <h3 class="sh3">1. FastAPI Asynchronous Architecture & Pydantic Contracts</h3>
 <p>
-FastAPI has become the standard framework for Python ML serving due to asynchronous event loop performance, native Pydantic schema validation, and automatic OpenAPI Swagger documentation:
+FastAPI leverages Python's <code>asyncio</code> event loop and Starlette core to handle thousands of concurrent requests with minimal overhead. Strict input/output validation contracts defined via Pydantic prevent malformed payloads from reaching model inference routines.
 </p>
+
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, HTTPException
-<span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel, Field
-<span class="kw">import</span> joblib, pandas <span class="kw">as</span> pd
+  <div class="cb-head"><span class="cb-lang">python — app/schemas.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from pydantic import BaseModel, Field, validator
+from typing import List
 
-app = FastAPI(title=<span class="str">"Customer Churn Prediction API"</span>, version=<span class="str">"1.0.0"</span>)
-model = joblib.load(<span class="str">"models/production_pipeline.joblib"</span>)
+class PredictionInput(BaseModel):
+    account_age_days: int = Field(..., ge=0, description="Age of user account in days")
+    transaction_amount_usd: float = Field(..., gt=0.0, description="Transaction value in USD")
+    country_code: str = Field(..., min_length=2, max_length=3)
+    is_foreign_ip: bool
 
-<span class="kw">class</span> <span class="fn">CustomerData</span>(BaseModel):
-    tenure_months: int = Field(..., ge=<span class="num">0</span>, le=<span class="num">120</span>, example=<span class="num">24</span>)
-    monthly_charges: float = Field(..., ge=<span class="num">0.0</span>, example=<span class="num">65.50</span>)
-    contract_type: str = Field(..., example=<span class="str">"Month-to-month"</span>)
+    @validator('country_code')
+    def uppercase_country(cls, v):
+        return v.upper()
 
-<span class="kw">class</span> <span class="fn">PredictionResponse</span>(BaseModel):
-    churn_prediction: int
-    churn_probability: float
-    model_version: str = <span class="str">"v1.2.0"</span>
-
-@app.post(<span class="str">"/predict"</span>, response_model=PredictionResponse)
-<span class="kw">async</span> <span class="kw">def</span> <span class="fn">predict_churn</span>(customer: CustomerData):
-    df = pd.DataFrame([customer.dict()])
-    prob = float(model.predict_proba(df)[<span class="num">0</span>][<span class="num">1</span>])
-    pred = int(prob >= <span class="num">0.50</span>)
-    <span class="kw">return</span> PredictionResponse(churn_prediction=pred, churn_probability=round(prob, <span class="num">4</span>))</code></pre>
+class PredictionOutput(BaseModel):
+    fraud_probability: float = Field(..., ge=0.0, le=1.0)
+    decision: str
+    model_version: str</code></pre>
 </div>
 
-<h3 class="sh3">2. Multi-Stage Dockerfile Optimization</h3>
+<h3 class="sh3">2. Non-Blocking Prediction Route with Process Pools</h3>
 <p>
-A naive Docker build produces bloated 2GB+ images containing gcc compilers, build tools, and cached wheels. Multi-stage builds separate the build environment from the minimal runtime container:
+CPU-bound inference (e.g. matrix multiplications in Scikit-Learn or PyTorch) blocks the asynchronous event loop if invoked directly inside an <code>async def</code> route. Offload computation to an execution pool using <code>run_in_threadpool</code>:
 </p>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">dockerfile</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Stage 1: Build Dependencies
-FROM python:3.11-slim AS builder
-WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+  <div class="cb-head"><span class="cb-lang">python — app/routes.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code>from fastapi import APIRouter
+from fastapi.concurrency import run_in_threadpool
+from app.schemas import PredictionInput, PredictionOutput
+import pandas as pd
 
-# Stage 2: Minimal Runtime Image
-FROM python:3.11-slim
-WORKDIR /app
-COPY --from=builder /root/.local /root/.local
-COPY . .
-ENV PATH=/root/.local/bin:$PATH
-EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]</code></pre>
+router = APIRouter()
+
+def sync_predict(pipeline, df: pd.DataFrame) -> float:
+    # CPU-bound Scikit-Learn inference
+    proba = pipeline.predict_proba(df)[0, 1]
+    return float(proba)
+
+@router.post("/predict", response_model=PredictionOutput)
+async def predict_fraud(payload: PredictionInput):
+    df = pd.DataFrame([payload.dict()])
+    # Execute CPU task without stalling async event loop
+    score = await run_in_threadpool(sync_predict, ModelContainer.model, df)
+    
+    decision = "FLAG_FRAUD" if score >= 0.75 else "APPROVE"
+    return PredictionOutput(
+        fraud_probability=round(score, 4),
+        decision=decision,
+        model_version="v1.2.0"
+    )</code></pre>
 </div>
         </div>
 
