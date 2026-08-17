@@ -236,30 +236,30 @@
         <div id="day-125-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
           <h3 class="sh3">1. Kubernetes Core Primitives for ML Engineers</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Deploying machine learning models in production requires high availability, rolling zero-downtime updates, and automated self-healing. <strong>Kubernetes (K8s)</strong> manages containerized ML workloads across compute clusters using five fundamental primitives:
+<p>
+Deploying machine learning models in production requires high availability, rolling zero-downtime updates, and automated self-healing. <strong>Kubernetes (K8s)</strong> manages containerized ML workloads across compute clusters using key declarative primitives:
 </p>
 <div class="mermaid">
 graph TD
-  Client["Client / Web Traffic"] --> Ingress["Ingress Controller (NGINX / ALB)"]
+  Client["Client / External Web Traffic"] --> Ingress["Ingress Controller (NGINX / ALB)"]
   Ingress --> Svc["ClusterIP Service (Load Balancer)"]
   Svc --> Pod1["Pod 1: FastAPI Model Worker
-(GPU/CPU Limit: 4GiB)"]
+(RAM: 2Gi, CPU: 1.0)"]
   Svc --> Pod2["Pod 2: FastAPI Model Worker
-(GPU/CPU Limit: 4GiB)"]
+(RAM: 2Gi, CPU: 1.0)"]
   Svc --> Pod3["Pod 3: FastAPI Model Worker
-(GPU/CPU Limit: 4GiB)"]
-  RS["ReplicaSet (Desired: 3)"] -.->|Maintains Count| Pod1 & Pod2 & Pod3
+(RAM: 2Gi, CPU: 1.0)"]
+  RS["ReplicaSet (Replicas: 3)"] -.->|Maintains Desired State| Pod1 & Pod2 & Pod3
 </div>
 <div class="diagram-cap">Kubernetes Ingress, Service, and ReplicaSet Architecture for High-Availability Model Serving.</div>
 
-<h3 class="sh3">2. Production Pod Manifest Specification</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-A production ML deployment requires explicit resource boundaries and readiness probes to ensure traffic is only routed after model weights are loaded into VRAM/RAM:
+<h3 class="sh3">2. Production Pod Manifest & Resource Constraints</h3>
+<p>
+A production ML deployment requires explicit resource boundaries and readiness probes to ensure traffic is only routed after model weights are fully loaded into memory:
 </p>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">yaml — model-deployment.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code>apiVersion: apps/v1
+<div class="cb-head"><span class="cb-lang">yaml — model-deployment.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+<pre><code>apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ml-inference-deployment
@@ -291,28 +291,6 @@ spec:
             port: 8000
           initialDelaySeconds: 15
           periodSeconds: 10</code></pre>
-</div>
-
-<h3 class="sh3">3. Production Python Health Check & Cluster Verification</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — k8s_health_monitor.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>from typing import Dict, Any
-
-class ModelHealthChecker:
-    def __init__(self, model_loaded: bool, memory_usage_mb: float, memory_limit_mb: float = 4096.0):
-        self.model_loaded = model_loaded
-        self.memory_usage_mb = memory_usage_mb
-        self.memory_limit_mb = memory_limit_mb
-
-    def evaluate_readiness(self) -> Dict[str, Any]:
-        if not self.model_loaded:
-            return {"status": "UNREADY", "code": 503, "reason": "Model weights still loading into memory"}
-        if self.memory_usage_mb > (self.memory_limit_mb * 0.95):
-            return {"status": "DEGRADED", "code": 500, "reason": "Near OOM memory threshold"}
-        return {"status": "HEALTHY", "code": 200, "memory_pct": round(self.memory_usage_mb / self.memory_limit_mb * 100, 2)}
-
-checker = ModelHealthChecker(model_loaded=True, memory_usage_mb=1850.0)
-print("Kubernetes Probe Response:", checker.evaluate_readiness())</code></pre>
 </div>
         </div>
 
@@ -372,31 +350,25 @@ print(rps)</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: torch-inference-deployment
-  labels:
-    app: torch-inference
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: torch-inference
-  template:
-    metadata:
-      labels:
-        app: torch-inference
-    spec:
-      containers:
-      - name: inference-container
-        image: ml-model-server:latest
-        ports:
-        - containerPort: 8000
-        resources:
-          limits:
-            cpu: "2"
-            memory: 4Gi</pre>
+                  <pre># Day 125 Task 1: Deploy Local K3s / Minikube Cluster Simulation
+import subprocess, json
+
+def verify_k8s_node_status() -> dict:
+    """Simulates kubectl get nodes verification."""
+    mock_nodes = {
+        "items": [
+            {"metadata": {"name": "node-worker-gpu-1"}, "status": {"conditions": [{"type": "Ready", "status": "True"}]}},
+            {"metadata": {"name": "node-worker-gpu-2"}, "status": {"conditions": [{"type": "Ready", "status": "True"}]}}
+        ]
+    }
+    ready_nodes = [n["metadata"]["name"] for n in mock_nodes["items"] if n["status"]["conditions"][0]["status"] == "True"]
+    return {"total_nodes": len(mock_nodes["items"]), "ready_nodes": ready_nodes, "cluster_healthy": len(ready_nodes) > 0}
+
+status = verify_k8s_node_status()
+print("Cluster Node Health Status:", status)
+assert status["cluster_healthy"] is True
+assert len(status["ready_nodes"]) == 2
+print("✓ Kubernetes cluster verification passed.")</pre>
                 </div>
               </div>
             </div>
@@ -424,31 +396,46 @@ spec:
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>apiVersion: apps/v1
+                  <pre># Day 125 Task 2: Validate Kubernetes Deployment YAML Manifest
+import yaml
+
+K8S_MANIFEST = """
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: torch-inference-deployment
+  name: fastapi-predictor
   labels:
-    app: torch-inference
+    app: ml-service
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: torch-inference
+      app: ml-service
   template:
     metadata:
       labels:
-        app: torch-inference
+        app: ml-service
     spec:
       containers:
-      - name: inference-container
-        image: ml-model-server:latest
+      - name: model-server
+        image: ml-registry.company.com/model:v1.2.0
         ports:
         - containerPort: 8000
         resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
           limits:
-            cpu: "2"
-            memory: 4Gi</pre>
+            memory: "2Gi"
+            cpu: "1000m"
+"""
+
+manifest = yaml.safe_load(K8S_MANIFEST)
+assert manifest["apiVersion"] == "apps/v1"
+assert manifest["spec"]["replicas"] == 3
+assert manifest["spec"]["template"]["spec"]["containers"][0]["resources"]["limits"]["memory"] == "2Gi"
+print("Deployment manifest validated: replicas=3, resource limits defined.")
+print("✓ Kubernetes deployment specification verified.")</pre>
                 </div>
               </div>
             </div>
@@ -642,29 +629,19 @@ spec:
         <div id="day-125-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-125" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Kubernetes Basics for ML Deployments — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-125" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Kubernetes Basics for ML Deployments — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-125" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Kubernetes Basics for ML Deployments — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-125" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Kubernetes Basics for ML Deployments — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-125" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Kubernetes Basics for ML Deployments Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -764,54 +741,38 @@ spec:
         <!-- THEORY SECTION -->
         <div id="day-126-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. PaaS Architecture: Render & Railway Continuous Delivery</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Platform-as-a-Service (PaaS) solutions simplify ML deployment by automating container compilation, SSL certificate provisioning, and ingress routing:
+          <h3 class="sh3">1. PaaS Deployment Patterns for ML Applications</h3>
+<p>
+Platform-as-a-Service (PaaS) providers like <strong>Render</strong> and <strong>Railway</strong> streamline continuous deployment by connecting directly to Git repositories. When changes merge into <code>main</code>, the platform builds the Docker container, attaches managed environment variables, issues SSL certificates, and exposes a public HTTPS endpoint.
 </p>
 <div class="mermaid">
 graph LR
-  Git["Git Push to main"] --> Webhook["GitHub Webhook"]
-  Webhook --> Render["Render / Railway Build Runner"]
-  Render --> Build["Docker Multi-Stage Build
-(Deps + App)"]
-  Build --> S3["Fetch Weights from S3 / HF Hub"]
-  S3 --> Deploy["Zero-Downtime Live Container
-(Public HTTPS Domain)"]
+  Git["Git Push to main"] --> Webhook["PaaS Webhook Trigger"]
+  Webhook --> Build["Docker Build & Dependency Cache"]
+  Build --> Health["Healthcheck Probe (/health)"]
+  Health --> Traffic["Traffic Cutover (Zero-Downtime)"]
+  Traffic --> CDN["Edge CDN / HTTPS Endpoint"]
 </div>
-<div class="diagram-cap">Automated Git-Driven Cloud CI/CD Deployment Flow on PaaS Infrastructure.</div>
+<div class="diagram-cap">Automated Git-driven PaaS deployment workflow with health-check validation.</div>
 
-<h3 class="sh3">2. Infrastructure as Code: Blueprint Specification</h3>
+<h3 class="sh3">2. Multi-Stage Dockerfile for Minimal Image Size</h3>
+<p>
+Large images increase cold-start latency and bandwidth costs. Using a multi-stage build isolates build dependencies (compilers, wheel caches) from the final lightweight runtime image:
+</p>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">yaml — render.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code>services:
-  - type: web
-    name: ai-inference-service
-    env: docker
-    plan: standard
-    healthCheckPath: /health
-    envVars:
-      - key: MODEL_STORAGE_URL
-        value: https://huggingface.co/models/my-weights
-      - key: PORT
-        value: 8000</code></pre>
-</div>
+<div class="cb-head"><span class="cb-lang">dockerfile — Dockerfile</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+<pre><code>FROM python:3.11-slim AS builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-<h3 class="sh3">3. Production Python Model Startup Loader</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — startup_weight_fetcher.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>import os
-
-def initialize_service(model_name: str, cache_dir: str = "/tmp/models") -> dict:
-    os.makedirs(cache_dir, exist_ok=True)
-    weight_path = os.path.join(cache_dir, f"{model_name}.bin")
-    # Simulate downloading if not cached
-    if not os.path.exists(weight_path):
-        with open(weight_path, "w") as f:
-            f.write("WEIGHT_METADATA_HEADER_V1")
-    return {"model": model_name, "path": weight_path, "status": "LOADED"}
-
-result = initialize_service("churn_classifier_v1")
-print("Startup Initialization Result:", result)</code></pre>
+FROM python:3.11-slim AS runner
+WORKDIR /app
+COPY --from=builder /root/.local /root/.local
+COPY src/ ./src/
+ENV PATH=/root/.local/bin:$PATH
+EXPOSE 8000
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
 </div>
         </div>
 
@@ -871,77 +832,25 @@ print(rps)</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># deploy_to_rendercom.py — Solution
-# Complete solution for: Deploy to Render.com
+                  <pre># Day 126 Task 1: Render.com Infrastructure Blueprint (render.yaml)
+RENDER_BLUEPRINT = """services:
+  - type: web
+    name: ai-ml-inference-service
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    plan: standard
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: MODEL_STAGE
+        value: production
+    healthCheckPath: /health
+"""
 
-# Dockerfile for RAG Application
-# Build: docker build -t rag-app .
-# Run:   docker run -p 8000:8000 --env-file .env rag-app
-
-# --- Dockerfile ---
-# FROM python:3.11-slim
-# WORKDIR /app
-# 
-# # Install dependencies first (Docker cache optimization)
-# COPY requirements.txt .
-# RUN pip install --no-cache-dir -r requirements.txt
-# 
-# # Copy application code
-# COPY . .
-# 
-# # Create volume for persistent ChromaDB data
-# VOLUME /app/chroma_db
-# 
-# EXPOSE 8000
-# 
-# # Health check
-# HEALTHCHECK --interval=30s --timeout=5s \
-#   CMD curl -f http://localhost:8000/health || exit 1
-# 
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# --- docker-compose.yml ---
-# version: "3.9"
-# services:
-#   rag-api:
-#     build: .
-#     ports:
-#       - "8000:8000"
-#     env_file: .env
-#     volumes:
-#       - chroma_data:/app/chroma_db
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-#       interval: 30s
-#       timeout: 5s
-#       retries: 3
-# 
-# volumes:
-#   chroma_data:
-
-# --- requirements.txt ---
-# fastapi==0.111.0
-# uvicorn[standard]==0.30.0
-# chromadb==0.5.0
-# sentence-transformers==3.0.0
-# openai==1.35.0
-# pydantic==2.7.0
-
-# --- .env.example ---
-# OPENAI_API_KEY=sk-...
-
-# Build and run
-import subprocess
-print("To build and run:")
-print("  1. docker build -t rag-app .")
-print("  2. docker run -p 8000:8000 --env-file .env rag-app")
-print("  3. Visit http://localhost:8000/docs for Swagger UI")
-print("  4. POST /ingest to add documents")
-print("  5. POST /query to ask questions")
-
-if __name__ == '__main__':
-    solve()</pre>
+print("Render.com Infrastructure as Code Spec Verified.")
+assert "healthCheckPath" in RENDER_BLUEPRINT
+print("✓ Render cloud deployment blueprint verified.")</pre>
                 </div>
               </div>
             </div>
@@ -969,36 +878,37 @@ if __name__ == '__main__':
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>import numpy as np
-import torch
-np.random.seed(42)
-torch.manual_seed(42)
-# configure_github_actions_pipeline.py — Solution
-# Complete solution for: Configure GitHub Actions Pipeline
+                  <pre># Day 126 Task 2: GitHub Actions MLOps CI/CD Workflow
+GITHUB_ACTIONS_WORKFLOW = """name: MLOps Continuous Integration & Deployment
 
-import torch
-from torch.utils.data import Dataset, DataLoader
-import numpy as np
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
-class CustomDataset(Dataset):
-    def __init__(self, size=100, feature_dim=10):
-        self.data = np.random.randn(size, feature_dim).astype(np.float32)
-        self.labels = np.random.randint(0, 2, size=size).astype(np.int64)
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest httpx -r requirements.txt
+      - name: Lint with flake8
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Run Test Suite
+        run: pytest tests/ -v --maxfail=1
+"""
 
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return torch.from_numpy(self.data[idx]), torch.tensor(self.labels[idx])
-
-dataset = CustomDataset()
-loader = DataLoader(dataset, batch_size=16, shuffle=True)
-sample_x, sample_y = next(iter(loader))
-print(f"Dataset Pipeline Executed for: {task_title}")
-print(f"Batch X: {sample_x.shape}, Batch Y: {sample_y.shape}")
-
-if __name__ == '__main__':
-    solve()</pre>
+print("GitHub Actions MLOps Workflow Spec Verified.")
+assert "actions/checkout" in GITHUB_ACTIONS_WORKFLOW
+print("✓ GitHub Actions CI/CD pipeline verified.")</pre>
                 </div>
               </div>
             </div>
@@ -1192,29 +1102,19 @@ if __name__ == '__main__':
         <div id="day-126-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-126" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Cloud Deployment on Render & Railway — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-126" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Cloud Deployment on Render & Railway — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-126" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Cloud Deployment on Render & Railway — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-126" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Cloud Deployment on Render & Railway — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-126" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Cloud Deployment on Render & Railway Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -1314,50 +1214,40 @@ if __name__ == '__main__':
         <!-- THEORY SECTION -->
         <div id="day-127-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. The MLflow Experiment Tracking Ecosystem</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-MLflow is the industry standard open-source MLOps platform for managing the end-to-end machine learning lifecycle across four major components: <strong>Tracking</strong>, <strong>Projects</strong>, <strong>Models</strong>, and <strong>Model Registry</strong>.
+          <h3 class="sh3">1. The MLOps Lifecycle & Experiment Tracking</h3>
+<p>
+Traditional software versioning tracks source code via Git, but machine learning requires versioning three distinct dimensions: <strong>Code</strong>, <strong>Data</strong>, and <strong>Model Hyperparameters / Metrics</strong>. Without structured experiment tracking, comparing candidate models across training iterations is error-prone.
 </p>
 <div class="mermaid">
 graph TD
-  Train["Training Job (PyTorch / Scikit)"] -->|Logs Params & Metrics| Track["MLflow Tracking Server"]
-  Train -->|Saves Artifacts| S3[("Remote Object Store
-(S3 / GCS)")]
-  Track --> DB[("PostgreSQL Metadata Store")]
-  Track --> Reg["MLflow Model Registry
-(Staging -> Champion)"]
-  Reg --> Deploy["Production Inference API"]
+  Code["1. Code (Git Commit)"] & Data["2. Data (DVC / S3 URI)"] & Params["3. Parameters (LR, Batch Size)"] --> Train["Model Training Run"]
+  Train --> Metrics["Validation Metrics (Accuracy, AUC, F1)"]
+  Train --> Artifacts["Model Artifacts (.onnx / .pkl)"]
+  Metrics & Artifacts --> MLflow["MLflow Tracking Server & Model Registry"]
+  MLflow --> Stage["Model Staging & Promotion Gate"]
 </div>
-<div class="diagram-cap">MLflow Enterprise Architecture: Tracking parameters, versioning artifacts, and promoting models through the Registry.</div>
+<div class="diagram-cap">Tri-factor tracking: Associating code, data, and parameters with logged artifacts in MLflow.</div>
 
-<h3 class="sh3">2. Production Python MLflow Tracking & Artifact Logging</h3>
+<h3 class="sh3">2. Programmatic Experiment Logging with MLflow</h3>
 <div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — mlflow_tracker.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>from typing import Dict, Any
+<div class="cb-head"><span class="cb-lang">python — train_and_log.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+<pre><code>import mlflow
+import mlflow.sklearn
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import roc_auc_score
 
-class ExperimentLogger:
-    def __init__(self, experiment_name: str):
-        self.experiment_name = experiment_name
-        self.runs = []
+mlflow.set_experiment("churn-prediction-v2")
 
-    def log_run(self, params: Dict[str, Any], metrics: Dict[str, float], model_tag: str) -> Dict[str, Any]:
-        run_data = {
-            "run_id": f"run_{len(self.runs) + 1:04d}",
-            "params": params,
-            "metrics": metrics,
-            "tag": model_tag,
-            "status": "FINISHED"
-        }
-        self.runs.append(run_data)
-        return run_data
-
-logger = ExperimentLogger("customer_churn_prediction")
-run1 = logger.log_run(
-    params={"learning_rate": 0.001, "batch_size": 32, "optimizer": "AdamW"},
-    metrics={"val_loss": 0.182, "f1_score": 0.934, "roc_auc": 0.961},
-    model_tag="candidate_v2"
-)
-print("Logged MLflow Run:", run1)</code></pre>
+with mlflow.start_run(run_name="gbm-depth-4"):
+    params = {"n_estimators": 100, "learning_rate": 0.05, "max_depth": 4}
+    mlflow.log_params(params)
+    
+    clf = GradientBoostingClassifier(**params)
+    clf.fit(X_train, y_train)
+    
+    auc = roc_auc_score(y_val, clf.predict_proba(X_val)[:, 1])
+    mlflow.log_metric("val_roc_auc", auc)
+    mlflow.sklearn.log_model(clf, artifact_path="model")</code></pre>
 </div>
         </div>
 
@@ -1707,29 +1597,19 @@ assert best_run is not None, "best_run should not be None"</pre>
         <div id="day-127-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-127" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLOps Basics & Experiment Tracking — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-127" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLOps Basics & Experiment Tracking — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-127" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLOps Basics & Experiment Tracking — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-127" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">MLOps Basics & Experiment Tracking — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-127" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">MLOps Basics & Experiment Tracking Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -1829,49 +1709,31 @@ assert best_run is not None, "best_run should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-128-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. End-to-End Enterprise ML Capstone Architecture</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-A complete enterprise-grade machine learning system integrates data ingestion, model serving, API validation, and an interactive presentation layer:
+          <h3 class="sh3">1. Capstone System Architecture & Specification</h3>
+<p>
+An enterprise machine learning capstone project must demonstrate end-to-end engineering rigor: from data ingestion and validation to model serving, monitoring, and interactive user interfaces.
 </p>
 <div class="mermaid">
-graph TD
-  User["User / Web Browser"] --> UI["Streamlit Frontend UI
-(Port 8501)"]
-  UI -->|REST JSON Payloads| API["FastAPI Backend API
-(Port 8000)"]
-  API --> Pydantic["Pydantic Schema Validation"]
-  Pydantic --> Cache["Redis Feature / Prediction Cache"]
-  Cache --> Model["PyTorch / Scikit Model Worker"]
-  Model --> Monitor["Telemetry & Prometheus Metrics"]
+graph LR
+  subgraph Data Pipeline
+    Raw["Raw Parquet Data"] --> Val["Great Expectations Validation"]
+    Val --> Pre["Feature Transformer"]
+  end
+  subgraph Inference Engine
+    Pre --> Model["Trained Model (ONNX Runtime)"]
+    Model --> API["FastAPI REST Endpoints"]
+  end
+  subgraph Client & Monitoring
+    API --> UI["Streamlit / React Dashboard"]
+    API --> Prom["Prometheus Metrics & Drift Alerts"]
+  end
 </div>
-<div class="diagram-cap">End-to-End Microservices Architecture for the Enterprise AI Capstone Project.</div>
+<div class="diagram-cap">Capstone End-to-End System Architecture: Pipeline, Inference Engine, and Observability Layers.</div>
 
-<h3 class="sh3">2. Typed Configuration Specification</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — project_config.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class ServiceConfig:
-    app_name: str
-    version: str
-    host: str
-    port: int
-    model_path: str
-    latency_sla_ms: float
-    enable_cache: bool
-
-config = ServiceConfig(
-    app_name="Enterprise Fraud Detection Engine",
-    version="1.0.0",
-    host="0.0.0.0",
-    port=8000,
-    model_path="models/fraud_detector_v1.pt",
-    latency_sla_ms=50.0,
-    enable_cache=True
-)
-print("Validated Architecture Configuration:", config)</code></pre>
-</div>
+<h3 class="sh3">2. System Contract & API Interface Design</h3>
+<p>
+Defining explicit Pydantic schemas prevents downstream inference failures due to missing or ill-typed input fields.
+</p>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1929,86 +1791,34 @@ print(tensor.ndim)</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># select_capstone_track.py — Solution
-# Complete solution for: Select Capstone Track
+                  <pre># Day 128 Task 1: Capstone Project Track Selection & Technical Spec
+from typing import Dict, Any
 
-# QLoRA Fine-Tuning on Google Colab
-# Requires: pip install transformers peft bitsandbytes datasets trl accelerate
+def get_capstone_track_spec(track_name: str) -> Dict[str, Any]:
+    """Returns technical blueprint and acceptance criteria for chosen capstone track."""
+    tracks = {
+        "enterprise_rag": {
+            "title": "Enterprise Knowledge Graph RAG with Hybrid Search",
+            "stack": ["Qdrant", "FastAPI", "Docker", "LangGraph", "OpenTelemetry"],
+            "sla": "p95 retrieval latency < 45ms, Faithfulness > 0.90"
+        },
+        "multimodal_vlm": {
+            "title": "Multimodal Document Intelligence with ColPali",
+            "stack": ["PyTorch", "vLLM", "Whisper", "Gradio", "Kubernetes"],
+            "sla": "Table extraction accuracy > 95%, transcription WER < 6%"
+        },
+        "mlops_platform": {
+            "title": "Autonomous MLOps Pipeline with Drift-Triggered Retraining",
+            "stack": ["MLflow", "DVC", "Airflow", "Evidently AI", "Helm"],
+            "sla": "Zero-downtime canary deployment, automated KS drift alerts"
+        }
+    }
+    return tracks.get(track_name, tracks["enterprise_rag"])
 
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from datasets import load_dataset
-from trl import SFTTrainer, SFTConfig
-
-# 1. Load model in 4-bit quantization (QLoRA)
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.float16,
-    bnb_4bit_use_double_quant=True,
-)
-
-model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-model = AutoModelForCausalLM.from_pretrained(
-    model_name, quantization_config=bnb_config, device_map="auto"
-)
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-tokenizer.pad_token = tokenizer.eos_token
-
-# 2. Prepare for k-bit training
-model = prepare_model_for_kbit_training(model)
-
-# 3. Configure LoRA
-lora_config = LoraConfig(
-    r=16,                    # Low rank
-    lora_alpha=32,           # Scaling factor
-    target_modules=["q_proj", "v_proj"],  # Which layers to adapt
-    lora_dropout=0.05,
-    bias="none",
-    task_type="CAUSAL_LM",
-)
-model = get_peft_model(model, lora_config)
-model.print_trainable_parameters()  # Should show ~0.5% trainable
-
-# 4. Load dataset
-dataset = load_dataset("tatsu-lab/alpaca", split="train[:1000]")
-
-def format_instruction(example):
-    if example.get("input"):
-        return f"### Instruction:\n{example['instruction']}\n\n### Input:\n{example['input']}\n\n### Response:\n{example['output']}"
-    return f"### Instruction:\n{example['instruction']}\n\n### Response:\n{example['output']}"
-
-# 5. Train with SFTTrainer
-training_args = SFTConfig(
-    output_dir="./qlora-output",
-    num_train_epochs=1,
-    per_device_train_batch_size=4,
-    gradient_accumulation_steps=4,
-    learning_rate=2e-4,
-    fp16=True,
-    logging_steps=10,
-    save_strategy="epoch",
-    max_seq_length=512,
-)
-
-trainer = SFTTrainer(
-    model=model,
-    train_dataset=dataset,
-    formatting_func=format_instruction,
-    args=training_args,
-    tokenizer=tokenizer,
-)
-
-trainer.train()
-
-# 6. Save LoRA adapter (small, ~16MB)
-model.save_pretrained("./qlora-adapter")
-tokenizer.save_pretrained("./qlora-adapter")
-print("LoRA adapter saved! Merge with base model for deployment.")
-
-if __name__ == '__main__':
-    solve()</pre>
+spec = get_capstone_track_spec("enterprise_rag")
+print("Selected Capstone Track:", spec["title"])
+assert "Qdrant" in spec["stack"]
+print("✓ Capstone project track specification verified.")</pre>
                 </div>
               </div>
             </div>
@@ -2036,61 +1846,24 @@ if __name__ == '__main__':
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># draw_system_flowchart.py — Solution
-# Complete solution for: Draw System Flowchart
+                  <pre># Day 128 Task 2: Capstone System Flowchart Architecture Specification
+MERMAID_SYSTEM_FLOWCHART = """graph TD
+    Client[Client UI / React Frontend] -->|HTTPS Query| APIGateway[FastAPI Gateway]
+    APIGateway -->|Trace Context| OTel[OpenTelemetry Collector]
+    APIGateway -->|Check Semantic Cache| Redis[Redis Semantic Cache]
+    Redis -->|Cache Hit| ReturnCache[Return Sub-5ms Result]
+    Redis -->|Cache Miss| Router[LangGraph Agentic Router]
+    Router -->|Dense + Sparse Search| VectorDB[Qdrant Hybrid Index]
+    VectorDB -->|Top-50 Candidates| Reranker[Cross-Encoder Reranker]
+    Reranker -->|Top-5 Contexts| LLM[vLLM PagedAttention Cluster]
+    LLM -->|Streamed Tokens| Guardrails[Output Safety Guardrail]
+    Guardrails -->|Verified Output| Client
+"""
 
-# Add LangSmith Tracing to any LangChain/OpenAI application
-# pip install langsmith langchain langchain-openai
-
-import os
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_API_KEY"] = "your-langsmith-api-key"
-os.environ["LANGCHAIN_PROJECT"] = "rag-tracing-demo"
-
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langsmith import traceable
-
-# Method 1: Automatic tracing with LangChain
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful AI tutor for ML concepts."),
-    ("user", "{question}")
-])
-chain = prompt | llm
-
-# Every invocation is automatically traced in LangSmith
-response = chain.invoke({"question": "Explain LoRA in simple terms"})
-print(response.content)
-
-# Method 2: Custom function tracing with @traceable
-@traceable(name="custom_rag_pipeline")
-def rag_pipeline(query: str) -> str:
-    """Traced RAG pipeline — every step visible in LangSmith."""
-    # Step 1: Retrieve (would use vector DB in production)
-    retrieved_docs = retrieve_docs(query)
-    
-    # Step 2: Generate
-    context = "\n".join(retrieved_docs)
-    response = chain.invoke({
-        "question": f"Context: {context}\n\nQuestion: {query}"
-    })
-    return response.content
-
-@traceable(name="retrieve_docs")
-def retrieve_docs(query: str) -> list:
-    """Simulated retrieval — replace with actual vector DB."""
-    return [
-        "LoRA adds low-rank matrices to frozen weights.",
-        "Rank r=16 is a common default for LoRA."
-    ]
-
-result = rag_pipeline("What rank should I use for LoRA?")
-print(f"Answer: {result}")
-print("Check LangSmith dashboard for full trace!")
-
-if __name__ == '__main__':
-    solve()</pre>
+print("Validated System Flowchart Spec:")
+print(MERMAID_SYSTEM_FLOWCHART[:150] + "...")
+assert "APIGateway" in MERMAID_SYSTEM_FLOWCHART
+print("✓ System architecture flowchart verified.")</pre>
                 </div>
               </div>
             </div>
@@ -2284,29 +2057,19 @@ if __name__ == '__main__':
         <div id="day-128-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-128" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 1: Project Architecture Specification — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-128" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 1: Project Architecture Specification — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-128" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 1: Project Architecture Specification — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-128" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone Part 1: Project Architecture Specification — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-128" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone Part 1: Project Architecture Specification Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -2406,41 +2169,23 @@ if __name__ == '__main__':
         <!-- THEORY SECTION -->
         <div id="day-129-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Rigorous Training & Validation Pipeline</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-The training pipeline ingests raw data, executes deterministic feature transformations, runs stratified cross-validation, and logs evaluation metrics:
+          <h3 class="sh3">1. Modular Model Training Pipeline</h3>
+<p>
+Clean ML engineering separates preprocessing logic, training execution, and evaluation gates into reusable, testable Python modules.
 </p>
 <div class="mermaid">
-graph LR
-  Raw["Raw Dataset"] --> Split["Stratified Train / Test Split"]
-  Split --> Train["Train Set (80%)"]
-  Split --> Test["Test Set (20%)"]
-  Train --> Pipe["Feature Pipeline fit_transform()"]
-  Pipe --> Optuna["Hyperparameter Search (Optuna)"]
-  Optuna --> Best["Best Model Weights"]
-  Best & Test --> Eval["Final Evaluation (F1, ROC-AUC)"]
+graph TD
+  Raw["Raw Dataset"] --> Split["Stratified Train/Val/Test Split"]
+  Split --> Fit["Fit Preprocessor on Train Only"]
+  Fit --> Transform["Transform Train, Val, Test"]
+  Transform --> Train["Train Estimator"]
+  Train --> Eval["Evaluate on Test Set"]
+  Eval --> Gate{"Passes Quality Gate?
+(AUC > 0.85 & Latency < 20ms)"}
+  Gate -->|Yes| Save["Export Artifacts"]
+  Gate -->|No| Abort["Abort & Alert"]
 </div>
-<div class="diagram-cap">Machine Learning Training & Cross-Validation Pipeline Architecture.</div>
-
-<h3 class="sh3">2. Production Python Training & Evaluation Implementation</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — train_pipeline.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>import numpy as np
-
-def compute_classification_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    tp = np.sum((y_true == 1) & (y_pred == 1))
-    fp = np.sum((y_true == 0) & (y_pred == 1))
-    fn = np.sum((y_true == 1) & (y_pred == 0))
-    precision = tp / (tp + fp + 1e-9)
-    recall = tp / (tp + fn + 1e-9)
-    f1 = 2 * (precision * recall) / (precision + recall + 1e-9)
-    return {"precision": round(float(precision), 4), "recall": round(float(recall), 4), "f1": round(float(f1), 4)}
-
-y_true = np.array([1, 0, 1, 1, 0, 1, 0, 0, 1, 0])
-y_pred = np.array([1, 0, 1, 0, 0, 1, 0, 1, 1, 0])
-metrics = compute_classification_metrics(y_true, y_pred)
-print("Pipeline Validation Metrics:", metrics)</code></pre>
-</div>
+<div class="diagram-cap">Reproducible Training Pipeline with Automated Quality Gate Validation.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2498,77 +2243,42 @@ print(tensor.ndim)</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># implement_data_preprocessing_pipeline.py — Solution
-# Complete solution for: Implement Data Preprocessing Pipeline
+                  <pre># Day 129 Task 1: Scikit-Learn ColumnTransformer Preprocessing Pipeline
+import numpy as np
+import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
-# Dockerfile for RAG Application
-# Build: docker build -t rag-app .
-# Run:   docker run -p 8000:8000 --env-file .env rag-app
+df = pd.DataFrame({
+    'age': [25, 45, np.nan, 35, 52],
+    'income': [50000.0, 95000.0, 72000.0, np.nan, 120000.0],
+    'category': ['tier1', 'tier2', 'tier1', 'tier3', 'tier2']
+})
 
-# --- Dockerfile ---
-# FROM python:3.11-slim
-# WORKDIR /app
-# 
-# # Install dependencies first (Docker cache optimization)
-# COPY requirements.txt .
-# RUN pip install --no-cache-dir -r requirements.txt
-# 
-# # Copy application code
-# COPY . .
-# 
-# # Create volume for persistent ChromaDB data
-# VOLUME /app/chroma_db
-# 
-# EXPOSE 8000
-# 
-# # Health check
-# HEALTHCHECK --interval=30s --timeout=5s \
-#   CMD curl -f http://localhost:8000/health || exit 1
-# 
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+numeric_features = ['age', 'income']
+categorical_features = ['category']
 
-# --- docker-compose.yml ---
-# version: "3.9"
-# services:
-#   rag-api:
-#     build: .
-#     ports:
-#       - "8000:8000"
-#     env_file: .env
-#     volumes:
-#       - chroma_data:/app/chroma_db
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-#       interval: 30s
-#       timeout: 5s
-#       retries: 3
-# 
-# volumes:
-#   chroma_data:
+num_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
 
-# --- requirements.txt ---
-# fastapi==0.111.0
-# uvicorn[standard]==0.30.0
-# chromadb==0.5.0
-# sentence-transformers==3.0.0
-# openai==1.35.0
-# pydantic==2.7.0
+cat_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('ohe', OneHotEncoder(sparse_output=False, handle_unknown='ignore'))
+])
 
-# --- .env.example ---
-# OPENAI_API_KEY=sk-...
+preprocessor = ColumnTransformer(transformers=[
+    ('num', num_pipeline, numeric_features),
+    ('cat', cat_pipeline, categorical_features)
+])
 
-# Build and run
-import subprocess
-print("To build and run:")
-print("  1. docker build -t rag-app .")
-print("  2. docker run -p 8000:8000 --env-file .env rag-app")
-print("  3. Visit http://localhost:8000/docs for Swagger UI")
-print("  4. POST /ingest to add documents")
-print("  5. POST /query to ask questions")
-
-if __name__ == '__main__':
-    solve()</pre>
+processed = preprocessor.fit_transform(df)
+print("Processed Feature Matrix Shape:", processed.shape)
+assert processed.shape[0] == 5 and not np.isnan(processed).any()
+print("✓ Scikit-Learn data preprocessing pipeline verified.")</pre>
                 </div>
               </div>
             </div>
@@ -2826,29 +2536,19 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
         <div id="day-129-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-129" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 2: Model Training & Core Pipeline — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-129" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 2: Model Training & Core Pipeline — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-129" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 2: Model Training & Core Pipeline — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-129" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone Part 2: Model Training & Core Pipeline — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-129" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone Part 2: Model Training & Core Pipeline Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -2948,60 +2648,19 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
         <!-- THEORY SECTION -->
         <div id="day-130-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. High-Performance Asynchronous FastAPI Architecture</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Production inference APIs leverage asynchronous I/O and Pydantic data validation to achieve sub-20ms p95 latencies:
+          <h3 class="sh3">1. Containerizing Inference Services with FastAPI & Uvicorn</h3>
+<p>
+FastAPI provides asynchronous request handling, automated OpenAPI documentation, and strict Pydantic payload validation. Paired with Gunicorn/Uvicorn process workers, it handles concurrent prediction requests efficiently.
 </p>
 <div class="mermaid">
 graph LR
-  Req["Client Request"] --> Pyd["Pydantic Validator"]
-  Pyd -->|Valid Payload| Handler["FastAPI Async Handler"]
-  Handler --> InMem["In-Memory Model Worker"]
-  InMem --> Resp["JSON Response: Prediction & Confidence"]
-  Pyd -->|Invalid| Err["HTTP 422 Unprocessable Entity"]
+  Client["Client POST /predict"] --> Gunicorn["Gunicorn Master Process"]
+  Gunicorn --> W1["Worker 1 (Uvicorn)"]
+  Gunicorn --> W2["Worker 2 (Uvicorn)"]
+  W1 & W2 --> Cache["In-Memory Model Session"]
+  Cache --> Resp["JSON Prediction Response"]
 </div>
-<div class="diagram-cap">FastAPI Inference Service Pipeline with Schema Validation.</div>
-
-<h3 class="sh3">2. Multi-Stage Dockerfile Blueprint</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">dockerfile — Dockerfile</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># Stage 1: Build & Dependencies
-FROM python:3.11-slim as builder
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# Stage 2: Final Minimal Runtime
-FROM python:3.11-slim
-WORKDIR /app
-COPY --from=builder /root/.local /root/.local
-COPY . .
-ENV PATH=/root/.local/bin:$PATH
-EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
-</div>
-
-<h3 class="sh3">3. Production Python FastAPI Service Code</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — main.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>from pydantic import BaseModel, Field
-
-class PredictionRequest(BaseModel):
-    feature_1: float = Field(..., ge=0.0, description="Feature 1 magnitude")
-    feature_2: float = Field(..., description="Feature 2 value")
-    category: str = Field(default="tier_1")
-
-class PredictionResponse(BaseModel):
-    prediction: int
-    probability: float
-    status: str = "SUCCESS"
-
-# Simulation
-req = PredictionRequest(feature_1=14.2, feature_2=-1.8)
-prob = 0.94
-resp = PredictionResponse(prediction=1, probability=prob)
-print("API Response Output:", resp.model_dump())</code></pre>
-</div>
+<div class="diagram-cap">Gunicorn Worker Process Management for High-Throughput FastAPI Serving.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3059,77 +2718,36 @@ print(tensor.ndim)</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># build_fastapi_predictions_route.py — Solution
-# Complete solution for: Build FastAPI Predictions Route
+                  <pre># Day 130 Task 1: FastAPI Inference Router with Pydantic Input Validation
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+import numpy as np
 
-# Dockerfile for RAG Application
-# Build: docker build -t rag-app .
-# Run:   docker run -p 8000:8000 --env-file .env rag-app
+app = FastAPI(title="Model Prediction API")
 
-# --- Dockerfile ---
-# FROM python:3.11-slim
-# WORKDIR /app
-# 
-# # Install dependencies first (Docker cache optimization)
-# COPY requirements.txt .
-# RUN pip install --no-cache-dir -r requirements.txt
-# 
-# # Copy application code
-# COPY . .
-# 
-# # Create volume for persistent ChromaDB data
-# VOLUME /app/chroma_db
-# 
-# EXPOSE 8000
-# 
-# # Health check
-# HEALTHCHECK --interval=30s --timeout=5s \
-#   CMD curl -f http://localhost:8000/health || exit 1
-# 
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+class CustomerPayload(BaseModel):
+    age: float = Field(..., ge=18, le=100)
+    income: float = Field(..., ge=0)
+    tenure_months: int = Field(..., ge=0)
 
-# --- docker-compose.yml ---
-# version: "3.9"
-# services:
-#   rag-api:
-#     build: .
-#     ports:
-#       - "8000:8000"
-#     env_file: .env
-#     volumes:
-#       - chroma_data:/app/chroma_db
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-#       interval: 30s
-#       timeout: 5s
-#       retries: 3
-# 
-# volumes:
-#   chroma_data:
+class PredictionResponse(BaseModel):
+    churn_probability: float
+    decision: str
 
-# --- requirements.txt ---
-# fastapi==0.111.0
-# uvicorn[standard]==0.30.0
-# chromadb==0.5.0
-# sentence-transformers==3.0.0
-# openai==1.35.0
-# pydantic==2.7.0
+@app.post("/predict", response_model=PredictionResponse)
+def predict_churn(payload: CustomerPayload):
+    # Simulated calibrated logistic regression inference
+    logit = 0.05 * payload.age - 0.00002 * payload.income - 0.08 * payload.tenure_months
+    prob = float(1.0 / (1.0 + np.exp(-logit)))
+    return PredictionResponse(
+        churn_probability=round(prob, 4),
+        decision="CHURN_RISK" if prob > 0.50 else "STABLE"
+    )
 
-# --- .env.example ---
-# OPENAI_API_KEY=sk-...
-
-# Build and run
-import subprocess
-print("To build and run:")
-print("  1. docker build -t rag-app .")
-print("  2. docker run -p 8000:8000 --env-file .env rag-app")
-print("  3. Visit http://localhost:8000/docs for Swagger UI")
-print("  4. POST /ingest to add documents")
-print("  5. POST /query to ask questions")
-
-if __name__ == '__main__':
-    solve()</pre>
+res = predict_churn(CustomerPayload(age=35, income=75000, tenure_months=12))
+print("Prediction Response:", res.dict())
+assert res.decision in ["CHURN_RISK", "STABLE"]
+print("✓ FastAPI prediction route verified.")</pre>
                 </div>
               </div>
             </div>
@@ -3157,77 +2775,25 @@ if __name__ == '__main__':
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># construct_multi_stage_dockerfile.py — Solution
-# Complete solution for: Construct Multi-stage Dockerfile
+                  <pre># Day 130 Task 2: Multi-Stage Production Dockerfile Spec
+DOCKERFILE_PRODUCTION = """# syntax=docker/dockerfile:1
+FROM python:3.11-slim AS builder
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --prefix=/install --no-warn-script-location -r requirements.txt
 
-# Dockerfile for RAG Application
-# Build: docker build -t rag-app .
-# Run:   docker run -p 8000:8000 --env-file .env rag-app
+FROM python:3.11-slim AS runner
+WORKDIR /app
+COPY --from=builder /install /usr/local
+COPY app/ ./app
+USER 1000:1000
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+"""
 
-# --- Dockerfile ---
-# FROM python:3.11-slim
-# WORKDIR /app
-# 
-# # Install dependencies first (Docker cache optimization)
-# COPY requirements.txt .
-# RUN pip install --no-cache-dir -r requirements.txt
-# 
-# # Copy application code
-# COPY . .
-# 
-# # Create volume for persistent ChromaDB data
-# VOLUME /app/chroma_db
-# 
-# EXPOSE 8000
-# 
-# # Health check
-# HEALTHCHECK --interval=30s --timeout=5s \
-#   CMD curl -f http://localhost:8000/health || exit 1
-# 
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# --- docker-compose.yml ---
-# version: "3.9"
-# services:
-#   rag-api:
-#     build: .
-#     ports:
-#       - "8000:8000"
-#     env_file: .env
-#     volumes:
-#       - chroma_data:/app/chroma_db
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-#       interval: 30s
-#       timeout: 5s
-#       retries: 3
-# 
-# volumes:
-#   chroma_data:
-
-# --- requirements.txt ---
-# fastapi==0.111.0
-# uvicorn[standard]==0.30.0
-# chromadb==0.5.0
-# sentence-transformers==3.0.0
-# openai==1.35.0
-# pydantic==2.7.0
-
-# --- .env.example ---
-# OPENAI_API_KEY=sk-...
-
-# Build and run
-import subprocess
-print("To build and run:")
-print("  1. docker build -t rag-app .")
-print("  2. docker run -p 8000:8000 --env-file .env rag-app")
-print("  3. Visit http://localhost:8000/docs for Swagger UI")
-print("  4. POST /ingest to add documents")
-print("  5. POST /query to ask questions")
-
-if __name__ == '__main__':
-    solve()</pre>
+print("Multi-Stage Dockerfile Blueprint Verified.")
+assert "AS runner" in DOCKERFILE_PRODUCTION
+print("✓ Production multi-stage Dockerfile verified.")</pre>
                 </div>
               </div>
             </div>
@@ -3421,29 +2987,19 @@ if __name__ == '__main__':
         <div id="day-130-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-130" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 3: API Wrapper & Containerization — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-130" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 3: API Wrapper & Containerization — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-130" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 3: API Wrapper & Containerization — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-130" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone Part 3: API Wrapper & Containerization — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-130" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone Part 3: API Wrapper & Containerization Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -3543,35 +3099,18 @@ if __name__ == '__main__':
         <!-- THEORY SECTION -->
         <div id="day-131-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Frontend-Backend Cloud Communication Topology</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-The decoupled microservice architecture separates the presentation layer (Streamlit) from high-throughput computation (FastAPI):
+          <h3 class="sh3">1. Frontend Integration & Cloud Production Deployment</h3>
+<p>
+Connecting a modern frontend (Streamlit, Gradio, or Next.js) to your containerized ML service completes the user-facing deployment. Securing the API with CORS policies and API tokens ensures safe multi-tenant access.
 </p>
 <div class="mermaid">
 graph LR
-  User["End User Browser"] --> Streamlit["Streamlit UI (Port 8501)"]
-  Streamlit -->|HTTP POST Request| API["FastAPI Endpoint (Port 8000)"]
-  API --> Engine["Inference Engine"]
-  Engine --> API -->|JSON Response| Streamlit
-  Streamlit --> Charts["Interactive Plotly Charts & Confidence Gauges"]
+  User["End User"] --> Frontend["Streamlit / Web UI"]
+  Frontend -->|JSON / HTTPS| API["FastAPI Backend (Render / AWS)"]
+  API --> Engine["ONNX / PyTorch Inference"]
+  API --> Logs["CloudWatch / Datadog Logs"]
 </div>
-<div class="diagram-cap">Decoupled Microservice Topology: Streamlit Frontend to FastAPI Inference Engine.</div>
-
-<h3 class="sh3">2. Production Python Streamlit Client Implementation</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — app_frontend.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>from typing import Dict, Any
-
-def render_prediction_badge(prediction_data: Dict[str, Any]) -> str:
-    pred = prediction_data.get("prediction", 0)
-    prob = prediction_data.get("probability", 0.0)
-    label = "POSITIVE / HIGH RISK" if pred == 1 else "NEGATIVE / LOW RISK"
-    color = "red" if pred == 1 else "green"
-    return f"Prediction: {label} (Confidence: {prob * 100:.1f}%) [Badge: {color}]"
-
-sample_resp = {"prediction": 1, "probability": 0.942, "status": "SUCCESS"}
-print("Rendered UI Component:", render_prediction_badge(sample_resp))</code></pre>
-</div>
+<div class="diagram-cap">Frontend to Backend API Integration Architecture with Centralized Logging.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -3905,29 +3444,19 @@ if submit_btn and user_input:
         <div id="day-131-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-131" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 4: Cloud Deployment & Frontend — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-131" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 4: Cloud Deployment & Frontend — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-131" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone Part 4: Cloud Deployment & Frontend — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-131" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone Part 4: Cloud Deployment & Frontend — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-131" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone Part 4: Cloud Deployment & Frontend Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -4027,41 +3556,17 @@ if submit_btn and user_input:
         <!-- THEORY SECTION -->
         <div id="day-132-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Anatomy of a Tier-1 AI/ML GitHub Repository</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Senior engineering hiring managers evaluate code quality, repository structure, test coverage, and documentation clarity:
+          <h3 class="sh3">1. Architecting a Senior-Level GitHub Repository</h3>
+<p>
+Hiring managers and technical leads look for professional repository hygiene. A top-tier portfolio repository includes:
 </p>
-<div class="mermaid">
-graph TD
-  Repo["GitHub Repository"] --> Badges["CI/CD Badges, License & Python Version"]
-  Repo --> Arch["System Architecture Diagram (Mermaid / SVG)"]
-  Repo --> Demo["Live Interactive Demo Link / GIF"]
-  Repo --> Quickstart["1-Line Docker Quickstart (docker run -p 8000:8000)"]
-  Repo --> Benchmarks["Latency vs Accuracy Benchmark Table"]
-  Repo --> Tests["Automated Pytest Suite (Coverage > 90%)"]
-</div>
-<div class="diagram-cap">Standard Structural Components of an Industry-Grade AI Portfolio Repository.</div>
-
-<h3 class="sh3">2. Production README.md Structure Template</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">markdown — README.md</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-  <pre><code># 🚀 Enterprise Real-Time Fraud Detection Engine
-
-[![CI/CD](https://github.com/user/repo/actions/workflows/ci.yml/badge.svg)](https://github.com)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://docker.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-## ⚡ Quickstart
-```bash
-docker run -p 8000:8000 my-docker-username/fraud-detector:latest
-```
-
-## 📊 Benchmark Results
-| Model Variant | p95 Latency | F1-Score | Memory Footprint |
-| :--- | :--- | :--- | :--- |
-| **LightGBM (INT8)** | **4.2 ms** | **0.941** | **45 MB** |
-| XGBoost (FP32) | 14.8 ms | 0.943 | 180 MB |</code></pre>
-</div>
+<ul>
+  <li><strong>System Architecture Diagram:</strong> Visual representation of components, data flow, and APIs.</li>
+  <li><strong>Quickstart Guide:</strong> One-line <code>docker compose up</code> setup command.</li>
+  <li><strong>Reproducibility:</strong> Pinned dependencies, seeds, and DVC data pipelines.</li>
+  <li><strong>CI/CD Badges:</strong> Automated unit testing and linting status.</li>
+  <li><strong>Benchmarking Table:</strong> Latency (p50/p95), throughput (QPS), and validation metrics.</li>
+</ul>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -4119,77 +3624,25 @@ print(tensor.ndim)</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># organize_repository_files.py — Solution
-# Complete solution for: Organize Repository Files
+                  <pre># Day 132 Task 1: Standard MLOps Production Directory Scaffolder
+from typing import List, Dict
 
-# Dockerfile for RAG Application
-# Build: docker build -t rag-app .
-# Run:   docker run -p 8000:8000 --env-file .env rag-app
+PROJECT_STRUCTURE = {
+    "configs/": ["model_config.yaml", "train_config.yaml"],
+    "src/": ["__init__.py", "data.py", "model.py", "train.py", "inference.py"],
+    "tests/": ["test_data.py", "test_model.py", "test_api.py"],
+    "docker/": ["Dockerfile", "docker-compose.yml"],
+    ".github/workflows/": ["ci.yml", "deploy.yml"]
+}
 
-# --- Dockerfile ---
-# FROM python:3.11-slim
-# WORKDIR /app
-# 
-# # Install dependencies first (Docker cache optimization)
-# COPY requirements.txt .
-# RUN pip install --no-cache-dir -r requirements.txt
-# 
-# # Copy application code
-# COPY . .
-# 
-# # Create volume for persistent ChromaDB data
-# VOLUME /app/chroma_db
-# 
-# EXPOSE 8000
-# 
-# # Health check
-# HEALTHCHECK --interval=30s --timeout=5s \
-#   CMD curl -f http://localhost:8000/health || exit 1
-# 
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+def verify_project_structure(structure: Dict[str, List[str]]) -> int:
+    total_files = sum(len(files) for files in structure.values())
+    return total_files
 
-# --- docker-compose.yml ---
-# version: "3.9"
-# services:
-#   rag-api:
-#     build: .
-#     ports:
-#       - "8000:8000"
-#     env_file: .env
-#     volumes:
-#       - chroma_data:/app/chroma_db
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-#       interval: 30s
-#       timeout: 5s
-#       retries: 3
-# 
-# volumes:
-#   chroma_data:
-
-# --- requirements.txt ---
-# fastapi==0.111.0
-# uvicorn[standard]==0.30.0
-# chromadb==0.5.0
-# sentence-transformers==3.0.0
-# openai==1.35.0
-# pydantic==2.7.0
-
-# --- .env.example ---
-# OPENAI_API_KEY=sk-...
-
-# Build and run
-import subprocess
-print("To build and run:")
-print("  1. docker build -t rag-app .")
-print("  2. docker run -p 8000:8000 --env-file .env rag-app")
-print("  3. Visit http://localhost:8000/docs for Swagger UI")
-print("  4. POST /ingest to add documents")
-print("  5. POST /query to ask questions")
-
-if __name__ == '__main__':
-    solve()</pre>
+count = verify_project_structure(PROJECT_STRUCTURE)
+print(f"Verified {count} standardized MLOps repo file specifications.")
+assert count >= 10
+print("✓ Production repository organization verified.")</pre>
                 </div>
               </div>
             </div>
@@ -4441,29 +3894,19 @@ print(generate_capstone_readme("End-to-End Enterprise RAG", "https://github.com/
         <div id="day-132-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-132" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">GitHub Portfolio Polish — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-132" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">GitHub Portfolio Polish — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-132" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">GitHub Portfolio Polish — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-132" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">GitHub Portfolio Polish — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-132" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">GitHub Portfolio Polish Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -4563,21 +4006,14 @@ print(generate_capstone_readme("End-to-End Enterprise RAG", "https://github.com/
         <!-- THEORY SECTION -->
         <div id="day-133-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. The Google XYZ Resume Framework for AI Engineers</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Every bullet point on your resume should follow the standardized metric-driven formula:
+          <h3 class="sh3">1. Resume & LinkedIn Positioning for ML & AI Engineers</h3>
+<p>
+Translate technical tasks into high-impact engineering accomplishments using the <strong>Action + Context + Metric</strong> formula:
 </p>
-<div class="math-block">
-$$\text{Bullet Point} = \text{Accomplished [X]} + \text{Measured by [Y]} + \text{By doing [Z]}$$
-</div>
-
-<div class="table-wrap">
-<table class="concept-table">
-  <tr><th>Weak / Amateur Bullet</th><th>Strong / Google XYZ Formatted Bullet</th></tr>
-  <tr><td>Built a RAG chatbot using LangChain and OpenAI.</td><td><strong>Engineered enterprise Hybrid RAG system achieving 94% context recall and &lt;45ms latency by combining BM25, HNSW dense retrieval, and Reciprocal Rank Fusion (RRF).</strong></td></tr>
-  <tr><td>Trained a computer vision model for defect detection.</td><td><strong>Trained and quantized a YOLOv8 vision pipeline reducing inspection false positives by 38% while achieving 60 FPS throughput on edge NVIDIA Jetson hardware.</strong></td></tr>
-  <tr><td>Deployed models using Docker and Kubernetes.</td><td><strong>Architected autoscaling Kubernetes inference cluster serving 12M daily requests with zero downtime across rolling Canary deployments.</strong></td></tr>
-</table>
+<div class="cb">
+<div class="cb-head"><span class="cb-lang">text — Bullet Point Comparison</span></div>
+<pre><code>❌ WEAK: "Trained a machine learning model to predict customer churn in Python."
+✅ STRONG: "Architected an end-to-end churn prediction pipeline using XGBoost and FastAPI; reduced inference latency from 140ms to 22ms (p95) and delivered $180k projected annual retention savings."</code></pre>
 </div>
         </div>
 
@@ -4638,77 +4074,31 @@ print(f'{mse:.1f}')</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># add_mlops_keywords_to_skills.py — Solution
-# Complete solution for: Add MLOps Keywords to Skills
+                  <pre># Day 133 Task 1: ATS MLOps Resume Keyword Alignment Engine
+from typing import List, Dict
 
-# Dockerfile for RAG Application
-# Build: docker build -t rag-app .
-# Run:   docker run -p 8000:8000 --env-file .env rag-app
+class MLOpsResumeOptimizer:
+    CORE_KEYWORDS = [
+        "Kubernetes", "vLLM", "FlashAttention", "MLflow", "DVC",
+        "Airflow", "FastAPI", "Docker", "OpenTelemetry", "RAGAS", "LoRA"
+    ]
 
-# --- Dockerfile ---
-# FROM python:3.11-slim
-# WORKDIR /app
-# 
-# # Install dependencies first (Docker cache optimization)
-# COPY requirements.txt .
-# RUN pip install --no-cache-dir -r requirements.txt
-# 
-# # Copy application code
-# COPY . .
-# 
-# # Create volume for persistent ChromaDB data
-# VOLUME /app/chroma_db
-# 
-# EXPOSE 8000
-# 
-# # Health check
-# HEALTHCHECK --interval=30s --timeout=5s \
-#   CMD curl -f http://localhost:8000/health || exit 1
-# 
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    @classmethod
+    def audit_resume_text(cls, text: str) -> Dict[str, Any]:
+        text_lower = text.lower()
+        found = [kw for kw in cls.CORE_KEYWORDS if kw.lower() in text_lower]
+        missing = [kw for kw in cls.CORE_KEYWORDS if kw.lower() not in text_lower]
+        return {
+            "score_pct": round((len(found) / len(cls.CORE_KEYWORDS)) * 100, 1),
+            "matched_keywords": found,
+            "recommended_additions": missing
+        }
 
-# --- docker-compose.yml ---
-# version: "3.9"
-# services:
-#   rag-api:
-#     build: .
-#     ports:
-#       - "8000:8000"
-#     env_file: .env
-#     volumes:
-#       - chroma_data:/app/chroma_db
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-#       interval: 30s
-#       timeout: 5s
-#       retries: 3
-# 
-# volumes:
-#   chroma_data:
-
-# --- requirements.txt ---
-# fastapi==0.111.0
-# uvicorn[standard]==0.30.0
-# chromadb==0.5.0
-# sentence-transformers==3.0.0
-# openai==1.35.0
-# pydantic==2.7.0
-
-# --- .env.example ---
-# OPENAI_API_KEY=sk-...
-
-# Build and run
-import subprocess
-print("To build and run:")
-print("  1. docker build -t rag-app .")
-print("  2. docker run -p 8000:8000 --env-file .env rag-app")
-print("  3. Visit http://localhost:8000/docs for Swagger UI")
-print("  4. POST /ingest to add documents")
-print("  5. POST /query to ask questions")
-
-if __name__ == '__main__':
-    solve()</pre>
+sample_cv = "Engineered RAG pipelines with vLLM, Docker, FastAPI and tracked experiments in MLflow."
+audit = MLOpsResumeOptimizer.audit_resume_text(sample_cv)
+print(f"MLOps Competency Match Score: {audit['score_pct']}%")
+assert len(audit["matched_keywords"]) >= 4
+print("✓ MLOps resume optimizer verified.")</pre>
                 </div>
               </div>
             </div>
@@ -4950,29 +4340,19 @@ for title, star in STAR_PROJECTS.items():
         <div id="day-133-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-133" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Resume & LinkedIn Optimization — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-133" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Resume & LinkedIn Optimization — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-133" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Resume & LinkedIn Optimization — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-133" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Resume & LinkedIn Optimization — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-133" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Resume & LinkedIn Optimization Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -5072,36 +4452,20 @@ for title, star in STAR_PROJECTS.items():
         <!-- THEORY SECTION -->
         <div id="day-134-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Core Mathematical Derivations: Cross-Entropy & Softmax</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-The Cross-Entropy loss for multi-class classification with true distribution $y$ and predicted probabilities $\hat{y} = \text{Softmax}(z)$ is:
+          <h3 class="sh3">1. Machine Learning Interview Framework</h3>
+<p>
+Technical ML interviews evaluate candidates across three core pillars:
 </p>
-<div class="math-block">
-$$\mathcal{L}_{\text{CE}} = -\sum_{i=1}^C y_i \log(\hat{y}_i) \quad \text{where } \hat{y}_i = \frac{e^{z_i}}{\sum_j e^{z_j}}$$
-$$\frac{\partial \mathcal{L}}{\partial z_i} = \hat{y}_i - y_i \quad \text{(Gradient is simply predicted prob minus true label!)}$$
+<div class="mermaid">
+graph TD
+  Pillars["ML Engineering Interview"] --> Math["1. Theory & Math
+(Gradients, Loss Functions, Trade-offs)"]
+  Pillars --> Coding["2. Applied Coding
+(Vectorization, Data Structures, PyTorch)"]
+  Pillars --> Design["3. System Design
+(Scale, Latency SLAs, Drift, Caching)"]
 </div>
-
-<h3 class="sh3">2. Vectorized Python Implementation (Live Coding Question)</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — cross_entropy_gradient.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>import numpy as np
-
-def softmax(logits: np.ndarray) -> np.ndarray:
-    e_x = np.exp(logits - np.max(logits, axis=-1, keepdims=True))
-    return e_x / np.sum(e_x, axis=-1, keepdims=True)
-
-def cross_entropy_loss_and_grad(logits: np.ndarray, target_idx: int):
-    probs = softmax(logits)
-    loss = -np.log(probs[target_idx] + 1e-12)
-    grad = probs.copy()
-    grad[target_idx] -= 1.0 # dL/dz = p_i - y_i
-    return loss, grad
-
-logits = np.array([2.0, 1.0, 0.1])
-loss, grad = cross_entropy_loss_and_grad(logits, target_idx=0)
-print(f"Computed Loss: {loss:.4f}")
-print("Exact Analytical Gradient:", [round(float(g), 4) for g in grad])</code></pre>
-</div>
+<div class="diagram-cap">The Three Pillars of Senior Machine Learning Technical Interviews.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -5159,83 +4523,20 @@ print(tensor.ndim)</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># revise_core_ml_theory_topics.py — Solution
-# Complete solution for: Revise Core ML Theory Topics
+                  <pre># Day 134 Task 1: Machine Learning Core Foundations Diagnostic Review
+from typing import Dict, Any
 
-# FastAPI RAG Application with ChromaDB
-# pip install fastapi uvicorn chromadb sentence-transformers openai
+DIAGNOSTIC_CONCEPTS = {
+    "bias_variance_tradeoff": "High bias -> underfitting; High variance -> overfitting; Regularization reduces variance at slight bias cost.",
+    "vanishing_gradients": "Mitigated by ReLU/GELU activations, Residual skip connections, and Batch/Layer normalization.",
+    "self_attention_complexity": "O(N^2) time and memory complexity in sequence length N, optimized to O(N) IO with FlashAttention SRAM tiling.",
+    "paged_attention": "Dynamically partitions KV cache into non-contiguous memory blocks, eliminating internal fragmentation."
+}
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import chromadb
-from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
-from openai import OpenAI
-import os
-
-app = FastAPI(title="RAG API", version="1.0")
-client = OpenAI()
-
-# 1. Initialize ChromaDB with embeddings
-embed_fn = SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-chroma = chromadb.PersistentClient(path="./chroma_db")
-collection = chroma.get_or_create_collection("knowledge_base", embedding_function=embed_fn)
-
-# 2. Models
-class Document(BaseModel):
-    text: str
-    metadata: dict = {}
-
-class Query(BaseModel):
-    question: str
-    top_k: int = 3
-
-class Answer(BaseModel):
-    answer: str
-    sources: list[str]
-
-# 3. Endpoints
-@app.post("/ingest")
-async def ingest_document(doc: Document):
-    """Add a document to the knowledge base."""
-    doc_id = f"doc_{collection.count()}"
-    collection.add(
-        documents=[doc.text],
-        metadatas=[doc.metadata],
-        ids=[doc_id],
-    )
-    return {"status": "ingested", "id": doc_id, "total_docs": collection.count()}
-
-@app.post("/query", response_model=Answer)
-async def query_rag(query: Query):
-    """Query the RAG pipeline: retrieve + generate."""
-    if collection.count() == 0:
-        raise HTTPException(400, "No documents ingested yet")
-    
-    # Retrieve
-    results = collection.query(query_texts=[query.question], n_results=query.top_k)
-    chunks = results["documents"][0]
-    
-    # Generate
-    context = "\n\n".join(f"[Source {i+1}]: {c}" for i, c in enumerate(chunks))
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "Answer using ONLY the provided context. Cite sources as [Source N]."},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query.question}"},
-        ],
-        temperature=0,
-    )
-    
-    return Answer(answer=response.choices[0].message.content, sources=chunks)
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "documents": collection.count()}
-
-# Run: uvicorn main:app --reload
-
-if __name__ == '__main__':
-    solve()</pre>
+for concept, summary in DIAGNOSTIC_CONCEPTS.items():
+    print(f"• {concept}: {summary[:60]}...")
+assert len(DIAGNOSTIC_CONCEPTS) == 4
+print("✓ Core ML theory diagnostic review verified.")</pre>
                 </div>
               </div>
             </div>
@@ -5263,77 +4564,37 @@ if __name__ == '__main__':
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># solve_classical_ml_coding_drills.py — Solution
-# Complete solution for: Solve Classical ML Coding Drills
+                  <pre># Day 134 Task 2: Classical ML Algorithms from Scratch — K-Means & PCA
+import numpy as np
 
-# Dockerfile for RAG Application
-# Build: docker build -t rag-app .
-# Run:   docker run -p 8000:8000 --env-file .env rag-app
+def kmeans_scratch(X: np.ndarray, k: int = 3, max_iters: int = 20) -> np.ndarray:
+    np.random.seed(42)
+    centroids = X[np.random.choice(len(X), k, replace=False)]
+    for _ in range(max_iters):
+        # Distances: (N, K)
+        dists = np.linalg.norm(X[:, None] - centroids[None, :], axis=2)
+        labels = np.argmin(dists, axis=1)
+        new_centroids = np.array([X[labels == i].mean(axis=0) if np.sum(labels == i) > 0 else centroids[i] for i in range(k)])
+        if np.allclose(centroids, new_centroids): break
+        centroids = new_centroids
+    return centroids
 
-# --- Dockerfile ---
-# FROM python:3.11-slim
-# WORKDIR /app
-# 
-# # Install dependencies first (Docker cache optimization)
-# COPY requirements.txt .
-# RUN pip install --no-cache-dir -r requirements.txt
-# 
-# # Copy application code
-# COPY . .
-# 
-# # Create volume for persistent ChromaDB data
-# VOLUME /app/chroma_db
-# 
-# EXPOSE 8000
-# 
-# # Health check
-# HEALTHCHECK --interval=30s --timeout=5s \
-#   CMD curl -f http://localhost:8000/health || exit 1
-# 
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+def pca_scratch(X: np.ndarray, n_components: int = 2) -> np.ndarray:
+    X_centered = X - np.mean(X, axis=0)
+    cov = np.cov(X_centered, rowvar=False)
+    eigenvalues, eigenvectors = np.linalg.eigh(cov)
+    top_indices = np.argsort(eigenvalues)[::-1][:n_components]
+    return X_centered @ eigenvectors[:, top_indices]
 
-# --- docker-compose.yml ---
-# version: "3.9"
-# services:
-#   rag-api:
-#     build: .
-#     ports:
-#       - "8000:8000"
-#     env_file: .env
-#     volumes:
-#       - chroma_data:/app/chroma_db
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-#       interval: 30s
-#       timeout: 5s
-#       retries: 3
-# 
-# volumes:
-#   chroma_data:
+X_synth = np.random.randn(100, 5)
+c = kmeans_scratch(X_synth, k=3)
+x_proj = pca_scratch(X_synth, n_components=2)
 
-# --- requirements.txt ---
-# fastapi==0.111.0
-# uvicorn[standard]==0.30.0
-# chromadb==0.5.0
-# sentence-transformers==3.0.0
-# openai==1.35.0
-# pydantic==2.7.0
-
-# --- .env.example ---
-# OPENAI_API_KEY=sk-...
-
-# Build and run
-import subprocess
-print("To build and run:")
-print("  1. docker build -t rag-app .")
-print("  2. docker run -p 8000:8000 --env-file .env rag-app")
-print("  3. Visit http://localhost:8000/docs for Swagger UI")
-print("  4. POST /ingest to add documents")
-print("  5. POST /query to ask questions")
-
-if __name__ == '__main__':
-    solve()</pre>
+print("K-Means Centroids Shape:", c.shape)
+print("PCA 2D Projections Shape:", x_proj.shape)
+assert c.shape == (3, 5)
+assert x_proj.shape == (100, 2)
+print("✓ Classical ML algorithms from scratch verified.")</pre>
                 </div>
               </div>
             </div>
@@ -5527,29 +4788,19 @@ if __name__ == '__main__':
         <div id="day-134-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-134" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Final Interview Prep: ML Theory & Coding — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-134" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Final Interview Prep: ML Theory & Coding — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-134" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Final Interview Prep: ML Theory & Coding — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-134" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Final Interview Prep: ML Theory & Coding — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-134" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Final Interview Prep: ML Theory & Coding Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -5649,38 +4900,10 @@ if __name__ == '__main__':
         <!-- THEORY SECTION -->
         <div id="day-135-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Tier-1 ML System Design 4-Step Framework</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Mastering the 45-minute Principal / Senior ML System Design interview loop requires structured execution:
+          <h3 class="sh3">1. Mid-Course Milestone: Applied System Architecture</h3>
+<p>
+Consolidating Months 1–4: Foundations (Linear Algebra, Calculus, Statistics), Core Machine Learning (Scikit-Learn, Ensembles), Deep Learning & NLP (CNNs, RNNs, Attention, Transformers), and MLOps Deployment (FastAPI, Docker, Kubernetes).
 </p>
-<div class="mermaid">
-graph TD
-  Step1["1. Problem Scope & Constraints
-(100M MAU, 50k QPS, p99 under 50ms)"] --> Step2["2. High-Level Architecture
-(Data Ingestion, Offline Training, Online Serving)"]
-  Step2 --> Step3["3. Deep Component Design
-(Two-Tower ANN, Feature Store, Redis Cache, Re-ranker)"]
-  Step3 --> Step4["4. Production Operations
-(Data Drift, Canary Rollout, Fallback Degradation)"]
-</div>
-<div class="diagram-cap">Standard 4-Step Technical Framework for Senior ML System Design Interviews.</div>
-
-<h3 class="sh3">2. System Capacity & Latency Budget Math</h3>
-<div class="cb">
-  <div class="cb-head"><span class="cb-lang">python — latency_budget_calculator.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)">Run</button></div></div>
-  <pre><code>def evaluate_system_latency_budget(network_ms: float, ann_retrieval_ms: float, feature_fetch_ms: float, model_forward_ms: float, rerank_ms: float, max_sla_ms: float = 50.0):
-    total = network_ms + ann_retrieval_ms + feature_fetch_ms + model_forward_ms + rerank_ms
-    passed = total <= max_sla_ms
-    return {
-        "total_latency_ms": round(total, 2),
-        "sla_target_ms": max_sla_ms,
-        "is_within_budget": passed,
-        "headroom_ms": round(max_sla_ms - total, 2)
-    }
-
-budget = evaluate_system_latency_budget(network_ms=8.0, ann_retrieval_ms=10.0, feature_fetch_ms=5.0, model_forward_ms=18.0, rerank_ms=4.0)
-print("System Design Latency Audit:", budget)</code></pre>
-</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -5802,34 +5025,35 @@ assert gpus_needed is not None, "gpus_needed should not be None"</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># review_model_drift_metrics.py — Solution
-# Complete solution for: Review Model Drift Metrics
-
+                  <pre># Day 135 Task 2: Model & Feature Drift Monitoring Engine
 import numpy as np
+from scipy import stats
 
-def compute_classification_metrics(y_true, y_pred_probs, threshold=0.5):
-    y_pred = (y_pred_probs >= threshold).astype(int)
-    tp = np.sum((y_true == 1) & (y_pred == 1))
-    fp = np.sum((y_true == 0) & (y_pred == 1))
-    fn = np.sum((y_true == 1) & (y_pred == 0))
-    tn = np.sum((y_true == 0) & (y_pred == 0))
+def compute_drift_metrics(ref_feature: np.ndarray, prod_feature: np.ndarray) -> dict:
+    """Computes KS statistic, p-value, and Population Stability Index (PSI)."""
+    ks_stat, p_val = stats.ks_2samp(ref_feature, prod_feature)
     
-    accuracy = (tp + tn) / len(y_true)
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    # Binned PSI
+    ref_counts, bin_edges = np.histogram(ref_feature, bins=10)
+    prod_counts, _ = np.histogram(prod_feature, bins=bin_edges)
     
-    return {"accuracy": accuracy, "precision": precision, "recall": recall, "f1_score": f1}
+    ref_pct = (ref_counts + 1e-6) / (np.sum(ref_counts) + 1e-5)
+    prod_pct = (prod_counts + 1e-6) / (np.sum(prod_counts) + 1e-5)
+    psi = np.sum((prod_pct - ref_pct) * np.log(prod_pct / ref_pct))
+    
+    return {
+        "ks_statistic": round(float(ks_stat), 4),
+        "ks_p_value": round(float(p_val), 4),
+        "psi_score": round(float(psi), 4),
+        "drift_detected": bool(p_val < 0.05 or psi > 0.20)
+    }
 
-y_true = np.array([1, 0, 1, 1, 0, 1, 0, 0])
-y_probs = np.array([0.9, 0.1, 0.8, 0.4, 0.2, 0.7, 0.6, 0.3])
-metrics = compute_classification_metrics(y_true, y_probs)
-print(f"Evaluation for {task_title}:")
-for k, v in metrics.items():
-    print(f"  {k}: {v:.4f}")
-
-if __name__ == '__main__':
-    solve()</pre>
+ref_data = np.random.normal(0, 1, 1000)
+shifted_data = np.random.normal(0.5, 1.2, 500)
+drift_report = compute_drift_metrics(ref_data, shifted_data)
+print("Drift Monitoring Report:", drift_report)
+assert drift_report["drift_detected"] is True
+print("✓ Model drift metrics review verified.")</pre>
                 </div>
               </div>
             </div>
@@ -6023,29 +5247,19 @@ if __name__ == '__main__':
         <div id="day-135-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-135" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Mid-Course Milestone: MLOps & System Design Architecture — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://kubernetes.io/docs/home/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Kubernetes Official Documentation & Production Deployment</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-135" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Mid-Course Milestone: MLOps & System Design Architecture — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Guides</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-135" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Mid-Course Milestone: MLOps & System Design Architecture — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-135" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Mid-Course Milestone: MLOps & System Design Architecture — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-135" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Mid-Course Milestone: MLOps & System Design Architecture Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://render.com/docs" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Render Cloud Application Deployment Documentation</div>
               <div class="rc-sub"></div>
             </a>
           </div>

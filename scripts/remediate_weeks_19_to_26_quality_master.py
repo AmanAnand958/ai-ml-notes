@@ -532,6 +532,12 @@ print(passed)"""
     }
 }
 
+class BlockDumper(yaml.SafeDumper):
+    def represent_scalar(self, tag, value, style=None):
+        if isinstance(value, str) and '\n' in value:
+            style = '|'
+        return super().represent_scalar(tag, value, style)
+
 # ═════════════════════════════════════════════════════════════════════
 # 3. APPLY UPGRADES ACROSS WEEKS 19-26
 # ═════════════════════════════════════════════════════════════════════
@@ -578,7 +584,7 @@ if __name__ == "__main__":
                 print(f"  ✓ Polished Solution Code for Day {day_num} Task {idx+1}")
     
     with open(yf, 'w', encoding='utf-8') as f:
-        yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        yaml.dump(data, f, Dumper=BlockDumper, allow_unicode=True, default_flow_style=False, sort_keys=False)
     print(f"✓ Saved updated {yf}")
 
 print("=== WEEKS 19-26 QUALITY REMEDIATION COMPLETE ===")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 scripts/clean_mermaid_arrows.py
-Replaces escaped HTML entities (--&gt; -> -->, &lt; -> <, etc.) inside Mermaid diagrams across all YAML files.
+Replaces escaped HTML entities (--&gt; -> -->, -.-&gt; -> -.->) inside Mermaid diagrams across all YAML files.
 """
 
 import glob, re
@@ -12,12 +12,9 @@ for yf in yaml_files:
     with open(yf, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Replace escaped arrows
+    # Replace escaped arrows safely
     new_content = content.replace("--&gt;", "-->")
     new_content = new_content.replace("-.-&gt;", "-.->")
-    new_content = new_content.replace("&lt;=", "<=")
-    new_content = new_content.replace("&gt;=", ">=")
-    new_content = new_content.replace("&quot;", '"')
     
     if new_content != content:
         with open(yf, 'w', encoding='utf-8') as f:

@@ -89,7 +89,8 @@ def validate_week_html(fpath, contract):
                 'getAttribute', 'setAttribute', 'removeAttribute', 'hasAttribute', 'includes', 'replace',
                 'toString', 'match', 'test', 'toggle', 'add', 'remove', 'contains', 'focus', 'blur',
                 'scrollIntoView', 'scrollTo', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
-                'alert', 'prompt', 'confirm'
+                'alert', 'prompt', 'confirm', 'startsWith', 'endsWith', 'indexOf', 'trim', 'toLowerCase',
+                'toUpperCase', 'split', 'join', 'slice', 'substring'
             }
             for c in calls:
                 if c in dom_builtins:

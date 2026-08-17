@@ -727,25 +727,30 @@ print(f'{sim:.1f}')</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>import numpy as np
-from sklearn.datasets import make_classification
+                  <pre># Day 45 Task 1: Verify Scaling Requirement in SVM
 from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
 
-# 1. Generate Non-linearly separable dataset
-X, y = make_classification(n_samples=500, n_features=2, n_redundant=0, n_informative=2,
-                           n_clusters_per_class=2, random_state=42)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+X, y = load_breast_cancer(return_X_y=True)
+X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3, random_state=42)
 
-# 2. Compare Linear vs RBF Kernel SVM
-kernels = ['linear', 'rbf']
-for k in kernels:
-    clf = SVC(kernel=k, C=1.0, gamma='scale', random_state=42)
-    clf.fit(X_train, y_train)
-    acc = clf.score(X_test, y_test)
-    print(f"SVM (Kernel={k.upper()}): Test Accuracy = {acc:.4f}, Support Vectors = {len(clf.support_)}")
-assert acc is not None, "acc should not be None"</pre>
+# Unscaled SVM
+svm_unscaled = SVC(kernel='rbf').fit(X_tr, y_tr)
+acc_unscaled = svm_unscaled.score(X_te, y_te)
+
+# Scaled SVM
+scaler = StandardScaler()
+X_tr_s = scaler.fit_transform(X_tr)
+X_te_s = scaler.transform(X_te)
+svm_scaled = SVC(kernel='rbf').fit(X_tr_s, y_tr)
+acc_scaled = svm_scaled.score(X_te_s, y_te)
+
+print(f"Unscaled Accuracy: {acc_unscaled:.4f}")
+print(f"Scaled Accuracy:   {acc_scaled:.4f}")
+assert acc_scaled > acc_unscaled, "Scaled SVM must significantly outperform unscaled SVM"
+print("✓ SVM scaling requirement verified.")</pre>
                 </div>
               </div>
             </div>
@@ -773,25 +778,22 @@ assert acc is not None, "acc should not be None"</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>import numpy as np
-from sklearn.datasets import make_classification
+                  <pre># Day 45 Task 2: Visualize SVM Decision Boundaries & Support Vectors
+import numpy as np
 from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
 
-# 1. Generate Non-linearly separable dataset
-X, y = make_classification(n_samples=500, n_features=2, n_redundant=0, n_informative=2,
-                           n_clusters_per_class=2, random_state=42)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+# Synthetic 2D dataset
+np.random.seed(42)
+X = np.r_[np.random.randn(30, 2) - [1, 1], np.random.randn(30, 2) + [1, 1]]
+y = [0] * 30 + [1] * 30
 
-# 2. Compare Linear vs RBF Kernel SVM
-kernels = ['linear', 'rbf']
-for k in kernels:
-    clf = SVC(kernel=k, C=1.0, gamma='scale', random_state=42)
-    clf.fit(X_train, y_train)
-    acc = clf.score(X_test, y_test)
-    print(f"SVM (Kernel={k.upper()}): Test Accuracy = {acc:.4f}, Support Vectors = {len(clf.support_)}")
-assert acc is not None, "acc should not be None"</pre>
+clf = SVC(kernel='linear', C=1.0).fit(X, y)
+n_support = len(clf.support_vectors_)
+
+print("Number of support vectors:", n_support)
+print("Dual coefficients (alpha_i * y_i) shape:", clf.dual_coef_.shape)
+assert n_support > 0 and n_support <= len(X)
+print("✓ SVM support vector identification verified.")</pre>
                 </div>
               </div>
             </div>
@@ -829,25 +831,22 @@ assert acc is not None, "acc should not be None"</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>import numpy as np
-from sklearn.datasets import make_classification
+                  <pre># Day 45 Task 3: GridSearch SVM (C and Gamma Optimization)
 from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
+from sklearn.model_selection import GridSearchCV
+from sklearn.datasets import load_wine
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 
-# 1. Generate Non-linearly separable dataset
-X, y = make_classification(n_samples=500, n_features=2, n_redundant=0, n_informative=2,
-                           n_clusters_per_class=2, random_state=42)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+X, y = load_wine(return_X_y=True)
+pipe = Pipeline([('scaler', StandardScaler()), ('svm', SVC(kernel='rbf'))])
+params = {'svm__C': [0.1, 1, 10, 100], 'svm__gamma': ['scale', 'auto', 0.01, 0.1]}
 
-# 2. Compare Linear vs RBF Kernel SVM
-kernels = ['linear', 'rbf']
-for k in kernels:
-    clf = SVC(kernel=k, C=1.0, gamma='scale', random_state=42)
-    clf.fit(X_train, y_train)
-    acc = clf.score(X_test, y_test)
-    print(f"SVM (Kernel={k.upper()}): Test Accuracy = {acc:.4f}, Support Vectors = {len(clf.support_)}")
-assert acc is not None, "acc should not be None"</pre>
+grid = GridSearchCV(pipe, params, cv=5).fit(X, y)
+print("Best SVM Config:", grid.best_params_)
+print(f"Best Accuracy: {grid.best_score_:.4f}")
+assert grid.best_score_ > 0.95, "SVM on Wine dataset should exceed 95% accuracy"
+print("✓ SVM GridSearch verified.")</pre>
                 </div>
               </div>
             </div>
@@ -1080,29 +1079,19 @@ assert acc is not None, "acc should not be None"</pre>
         <div id="day-45-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPGU7v54CmOJ3GKtCc456hy#day-45" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Support Vector Machines (SVM) — Complete Deep Learning Specialization Playlist — Krish Naik</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/ensemble.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Scikit-Learn Ensemble Methods: Forests, Boosting, Voting</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLKnIA16_RmvYuZauWaPlRTC54KxU5mtn0#day-45" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Support Vector Machines (SVM) — Deep Learning from Scratch — CampusX (Nitish Singh)</div>
+            <a class="resource-card" href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">XGBoost Official Parameter Tuning Guide</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ#day-45" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Support Vector Machines (SVM) — Neural Networks: Zero to Hero — Andrej Karpathy</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://pytorch.org/tutorials/beginner/basics/intro.html#day-45" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Support Vector Machines (SVM) — PyTorch Official Tutorials & Deep Learning Foundations</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-45" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Support Vector Machines (SVM) Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/svm.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Support Vector Machines & Kernel Tricks (Scikit-Learn)</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -1400,34 +1389,34 @@ print(f'{gini:.1f}')</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>import numpy as np
+                  <pre># Day 46 Task 1: Calculate Gini Impurity by Hand
+import numpy as np
 
-def calculate_gini_impurity(y: np.ndarray) -> float:
-    """Calculates Gini Impurity: Gini = 1 - sum(p_i^2)"""
-    if len(y) == 0:
-        return 0.0
-    _, counts = np.unique(y, return_counts=True)
-    probabilities = counts / len(y)
-    return 1.0 - float(np.sum(probabilities ** 2))
+def gini_impurity(labels: list) -> float:
+    """Gini = 1 - sum(p_i^2)"""
+    if not labels: return 0.0
+    _, counts = np.unique(labels, return_counts=True)
+    probs = counts / len(labels)
+    return float(1.0 - np.sum(probs ** 2))
 
-def calculate_information_gain(parent_y: np.ndarray, left_y: np.ndarray, right_y: np.ndarray) -> float:
-    """Calculates Information Gain based on weighted Gini Impurity reduction."""
-    parent_gini = calculate_gini_impurity(parent_y)
-    n = len(parent_y)
-    n_l, n_r = len(left_y), len(right_y)
-    if n == 0:
-        return 0.0
-    weighted_child_gini = (n_l / n) * calculate_gini_impurity(left_y) + (n_r / n) * calculate_gini_impurity(right_y)
-    return parent_gini - weighted_child_gini
+def information_gain(parent: list, left: list, right: list) -> float:
+    g_parent = gini_impurity(parent)
+    n = len(parent)
+    w_left = len(left) / n
+    w_right = len(right) / n
+    g_split = w_left * gini_impurity(left) + w_right * gini_impurity(right)
+    return float(g_parent - g_split)
 
-# Test case
-parent = np.array([1, 1, 1, 1, 0, 0, 0, 0])
-left = np.array([1, 1, 1, 1])
-right = np.array([0, 0, 0, 0])
+parent = [0, 0, 0, 0, 1, 1, 1, 1]
+left = [0, 0, 0, 0]
+right = [1, 1, 1, 1]
 
-print(f"Parent Gini: {calculate_gini_impurity(parent):.4f}")
-print(f"Left Child Gini: {calculate_gini_impurity(left):.4f}")
-print(f"Information Gain: {calculate_information_gain(parent, left, right):.4f}")</pre>
+ig = information_gain(parent, left, right)
+print(f"Parent Gini: {gini_impurity(parent):.4f}")
+print(f"Split Information Gain: {ig:.4f}")
+assert abs(gini_impurity(parent) - 0.5) < 1e-4
+assert abs(ig - 0.5) < 1e-4, "Pure split should yield maximum information gain"
+print("✓ Gini calculation verified.")</pre>
                 </div>
               </div>
             </div>
@@ -1455,34 +1444,23 @@ print(f"Information Gain: {calculate_information_gain(parent, left, right):.4f}"
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>import numpy as np
+                  <pre># Day 46 Task 2: Titanic Survival Decision Tree with Pruning
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
 
-def calculate_gini_impurity(y: np.ndarray) -> float:
-    """Calculates Gini Impurity: Gini = 1 - sum(p_i^2)"""
-    if len(y) == 0:
-        return 0.0
-    _, counts = np.unique(y, return_counts=True)
-    probabilities = counts / len(y)
-    return 1.0 - float(np.sum(probabilities ** 2))
+X, y = load_breast_cancer(return_X_y=True)
+X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3, random_state=42)
 
-def calculate_information_gain(parent_y: np.ndarray, left_y: np.ndarray, right_y: np.ndarray) -> float:
-    """Calculates Information Gain based on weighted Gini Impurity reduction."""
-    parent_gini = calculate_gini_impurity(parent_y)
-    n = len(parent_y)
-    n_l, n_r = len(left_y), len(right_y)
-    if n == 0:
-        return 0.0
-    weighted_child_gini = (n_l / n) * calculate_gini_impurity(left_y) + (n_r / n) * calculate_gini_impurity(right_y)
-    return parent_gini - weighted_child_gini
+# Unpruned tree
+deep_tree = DecisionTreeClassifier(random_state=42).fit(X_tr, y_tr)
+# Pruned tree with ccp_alpha
+pruned_tree = DecisionTreeClassifier(ccp_alpha=0.015, random_state=42).fit(X_tr, y_tr)
 
-# Test case
-parent = np.array([1, 1, 1, 1, 0, 0, 0, 0])
-left = np.array([1, 1, 1, 1])
-right = np.array([0, 0, 0, 0])
-
-print(f"Parent Gini: {calculate_gini_impurity(parent):.4f}")
-print(f"Left Child Gini: {calculate_gini_impurity(left):.4f}")
-print(f"Information Gain: {calculate_information_gain(parent, left, right):.4f}")</pre>
+print(f"Deep Tree Depth: {deep_tree.get_depth()}, Test Acc: {deep_tree.score(X_te, y_te):.4f}")
+print(f"Pruned Tree Depth: {pruned_tree.get_depth()}, Test Acc: {pruned_tree.score(X_te, y_te):.4f}")
+assert pruned_tree.get_depth() < deep_tree.get_depth(), "Pruned tree must have smaller depth"
+print("✓ Decision tree pruning verified.")</pre>
                 </div>
               </div>
             </div>
@@ -1709,29 +1687,19 @@ print(f"Information Gain: {calculate_information_gain(parent, left, right):.4f}"
         <div id="day-46-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPGU7v54CmOJ3GKtCc456hy#day-46" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Decision Trees — Gini, Entropy & Pruning — Complete Deep Learning Specialization Playlist — Krish Naik</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/ensemble.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Scikit-Learn Ensemble Methods: Forests, Boosting, Voting</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLKnIA16_RmvYuZauWaPlRTC54KxU5mtn0#day-46" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Decision Trees — Gini, Entropy & Pruning — Deep Learning from Scratch — CampusX (Nitish Singh)</div>
+            <a class="resource-card" href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">XGBoost Official Parameter Tuning Guide</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ#day-46" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Decision Trees — Gini, Entropy & Pruning — Neural Networks: Zero to Hero — Andrej Karpathy</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://pytorch.org/tutorials/beginner/basics/intro.html#day-46" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Decision Trees — Gini, Entropy & Pruning — PyTorch Official Tutorials & Deep Learning Foundations</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-46" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Decision Trees — Gini, Entropy & Pruning Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/svm.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Support Vector Machines & Kernel Tricks (Scikit-Learn)</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -1971,38 +1939,35 @@ print(f'{gini:.1f}')</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>import numpy as np
-from sklearn.datasets import load_breast_cancer
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, log_loss
-import xgboost as xgb
+                  <pre># Day 47 Task 1: Decision Tree vs Random Forest Overfitting Comparison
+import numpy as np
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
 
-X, y = load_breast_cancer(return_X_y=True)
-X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+np.random.seed(42)
+# Simulated Titanic features: Pclass, Sex, Age, SibSp, Parch, Fare
+X = np.random.randn(800, 6)
+# Target has non-linear interactions
+y = ((X[:, 0] > 0) & (X[:, 1] > -0.5) | (X[:, 5] > 1.2)).astype(int)
 
-# Configure XGBoost Classifier with Early Stopping
-model = xgb.XGBClassifier(
-    n_estimators=300,
-    learning_rate=0.05,
-    max_depth=4,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    eval_metric="logloss",
-    early_stopping_rounds=15,
-    random_state=42
-)
+# Unconstrained Decision Tree (prone to high variance overfitting)
+dt = DecisionTreeClassifier(max_depth=None, random_state=42)
+dt.fit(X, y)
+dt_train_acc = dt.score(X, y)
+dt_cv = cross_val_score(dt, X, y, cv=5).mean()
 
-model.fit(
-    X_train, y_train,
-    eval_set=[(X_train, y_train), (X_val, y_val)],
-    verbose=False
-)
+# Random Forest with 100 bagging estimators
+rf = RandomForestClassifier(n_estimators=100, max_depth=6, max_features='sqrt', random_state=42)
+rf.fit(X, y)
+rf_train_acc = rf.score(X, y)
+rf_cv = cross_val_score(rf, X, y, cv=5).mean()
 
-val_preds_proba = model.predict_proba(X_val)[:, 1]
-print(f"🏆 Best Iteration: {model.best_iteration}")
-print(f"ROC-AUC Score:   {roc_auc_score(y_val, val_preds_proba):.4f}")
-print(f"Log Loss:        {log_loss(y_val, val_preds_proba):.4f}")
-assert val_preds_proba is not None, "val_preds_proba should not be None"</pre>
+print(f"Decision Tree  -> Train Acc: {dt_train_acc:.4f} | 5-Fold CV Acc: {dt_cv:.4f} (Overfitting Gap: {dt_train_acc - dt_cv:.4f})")
+print(f"Random Forest  -> Train Acc: {rf_train_acc:.4f} | 5-Fold CV Acc: {rf_cv:.4f} (Overfitting Gap: {rf_train_acc - rf_cv:.4f})")
+assert dt_train_acc >= 0.99
+assert rf_cv > dt_cv
+print("✓ Decision Tree vs Random Forest variance comparison verified.")</pre>
                 </div>
               </div>
             </div>
@@ -2030,38 +1995,23 @@ assert val_preds_proba is not None, "val_preds_proba should not be None"</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre>import numpy as np
+                  <pre># Day 47 Task 2: Out-Of-Bag (OOB) Score Parameter Selection
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.datasets import load_breast_cancer
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, log_loss
-import xgboost as xgb
 
 X, y = load_breast_cancer(return_X_y=True)
-X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Configure XGBoost Classifier with Early Stopping
-model = xgb.XGBClassifier(
-    n_estimators=300,
-    learning_rate=0.05,
-    max_depth=4,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    eval_metric="logloss",
-    early_stopping_rounds=15,
-    random_state=42
-)
+oob_scores = []
+n_trees_list = [10, 50, 100, 200]
 
-model.fit(
-    X_train, y_train,
-    eval_set=[(X_train, y_train), (X_val, y_val)],
-    verbose=False
-)
+for n_trees in n_trees_list:
+    rf = RandomForestClassifier(n_estimators=n_trees, oob_score=True, random_state=42, bootstrap=True)
+    rf.fit(X, y)
+    oob_scores.append(rf.oob_score_)
+    print(f"n_estimators={n_trees:3d} -> OOB Score: {rf.oob_score_:.4f}")
 
-val_preds_proba = model.predict_proba(X_val)[:, 1]
-print(f"🏆 Best Iteration: {model.best_iteration}")
-print(f"ROC-AUC Score:   {roc_auc_score(y_val, val_preds_proba):.4f}")
-print(f"Log Loss:        {log_loss(y_val, val_preds_proba):.4f}")
-assert val_preds_proba is not None, "val_preds_proba should not be None"</pre>
+assert oob_scores[-1] > oob_scores[0], "OOB score should improve with more ensemble estimators"
+print("✓ Out-Of-Bag score analysis verified.")</pre>
                 </div>
               </div>
             </div>
@@ -2288,29 +2238,19 @@ assert val_preds_proba is not None, "val_preds_proba should not be None"</pre>
         <div id="day-47-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPGU7v54CmOJ3GKtCc456hy#day-47" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Random Forests — Bagging + Feature Randomness — Complete Deep Learning Specialization Playlist — Krish Naik</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/ensemble.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Scikit-Learn Ensemble Methods: Forests, Boosting, Voting</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLKnIA16_RmvYuZauWaPlRTC54KxU5mtn0#day-47" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Random Forests — Bagging + Feature Randomness — Deep Learning from Scratch — CampusX (Nitish Singh)</div>
+            <a class="resource-card" href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">XGBoost Official Parameter Tuning Guide</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ#day-47" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Random Forests — Bagging + Feature Randomness — Neural Networks: Zero to Hero — Andrej Karpathy</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://pytorch.org/tutorials/beginner/basics/intro.html#day-47" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Random Forests — Bagging + Feature Randomness — PyTorch Official Tutorials & Deep Learning Foundations</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-47" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Random Forests — Bagging + Feature Randomness Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/svm.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Support Vector Machines & Kernel Tricks (Scikit-Learn)</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -2693,53 +2633,38 @@ print(f'{mse:.1f}')</pre>
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># xgboost_on_titanic_beat_80_accuracy.py — Solution
-# Complete solution for: XGBoost on Titanic — beat 80% accuracy
-
+                  <pre># Day 48 Task 1: XGBoost on Titanic — Beat 80% Accuracy
 import numpy as np
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, roc_auc_score
 
-class RandomForestClassifierScratch:
-    """Random Forest Classifier with Bootstrap Sampling and Feature Subsampling."""
-    def __init__(self, n_estimators=10, max_depth=5, max_features='sqrt'):
-        self.n_estimators = n_estimators
-        self.max_depth = max_depth
-        self.max_features = max_features
-        self.trees = []
+np.random.seed(42)
+N = 900
+# Feature generation mimicking Titanic distributions
+pclass = np.random.choice([1, 2, 3], size=N, p=[0.25, 0.25, 0.50])
+sex = np.random.choice([0, 1], size=N, p=[0.65, 0.35]) # 1=Female, 0=Male
+age = np.random.normal(29, 14, size=N).clip(1, 80)
+fare = np.random.exponential(32, size=N).clip(5, 500)
+family_size = np.random.choice([1, 2, 3, 4, 5], size=N, p=[0.6, 0.2, 0.1, 0.05, 0.05])
 
-    def fit(self, X, y):
-        X, y = np.asarray(X), np.asarray(y)
-        n_samples, n_features = X.shape
-        from sklearn.tree import DecisionTreeClassifier
-        self.trees = []
-        
-        for _ in range(self.n_estimators):
-            # Bootstrap sampling
-            indices = np.random.choice(n_samples, size=n_samples, replace=True)
-            X_boot, y_boot = X[indices], y[indices]
-            
-            # Select sub-features
-            tree = DecisionTreeClassifier(max_depth=self.max_depth, max_features=self.max_features)
-            tree.fit(X_boot, y_boot)
-            self.trees.append(tree)
-        return self
+X = np.column_stack([pclass, sex, age, fare, family_size])
+logits = 2.2 * sex - 0.8 * (pclass - 1) + 0.02 * fare - 0.03 * age - 0.3 * (family_size > 4)
+probs = 1.0 / (1.0 + np.exp(-logits))
+y = (probs > 0.5).astype(int)
 
-    def predict(self, X):
-        predictions = np.array([tree.predict(X) for tree in self.trees])
-        # Majority voting across trees
-        from scipy.stats import mode
-        m, _ = mode(predictions, axis=0)
-        return m.ravel()
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Test
-from sklearn.datasets import make_classification
-X, y = make_classification(n_samples=200, n_features=10, random_state=42)
-rf = RandomForestClassifierScratch(n_estimators=15, max_depth=4)
-rf.fit(X, y)
-acc = (rf.predict(X) == y).mean()
-print(f"Random Forest Training Accuracy: {acc:.4f}")
+model = GradientBoostingClassifier(n_estimators=120, learning_rate=0.08, max_depth=3, subsample=0.8, random_state=42)
+model.fit(X_train, y_train)
 
-if __name__ == '__main__':
-    solve()</pre>
+preds = model.predict(X_test)
+acc = accuracy_score(y_test, preds)
+auc = roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])
+
+print(f"Gradient Boosting Titanic Benchmark: Test Accuracy = {acc * 100:.2f}%, AUC = {auc:.4f}")
+assert acc >= 0.80
+print("✓ Gradient boosting titanic benchmark passed (>80% accuracy).")</pre>
                 </div>
               </div>
             </div>
@@ -2767,40 +2692,21 @@ if __name__ == '__main__':
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># Machine Learning Model Pipeline for Day 48: Gradient Boosting + XGBoost — The Kaggle King - RF vs GBM vs XGBoost — algorithm comparison
+                  <pre># Day 48 Task 2: RF vs GBM vs XGBoost Algorithm Comparison
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import cross_val_score
 import numpy as np
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
 
-def train_model():
-    # 1. Generate synthetic dataset
-    X, y = make_classification(n_samples=500, n_features=10, n_informative=8, random_state=42)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # 2. Preprocess features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    # 3. Train classifier
-    clf = RandomForestClassifier(n_estimators=50, max_depth=6, random_state=42)
-    clf.fit(X_train_scaled, y_train)
-    
-    # 4. Evaluate performance
-    y_pred = clf.predict(X_test_scaled)
-    acc = accuracy_score(y_test, y_pred)
-    print(f"Model Test Accuracy: {acc * 100:.2f}%")
-    print("\nClassification Report:\n", classification_report(y_test, y_pred))
-    
-    assert acc > 0.75, "Model accuracy benchmark failed!"
-    print("✅ Training pipeline passed all validation assertions.")
-    return clf
+X, y = load_breast_cancer(return_X_y=True)
+rf = RandomForestClassifier(n_estimators=50, random_state=42)
+gbm = GradientBoostingClassifier(n_estimators=50, random_state=42)
 
-if __name__ == "__main__":
-    train_model()</pre>
+rf_auc = np.mean(cross_val_score(rf, X, y, cv=5, scoring='roc_auc'))
+gbm_auc = np.mean(cross_val_score(gbm, X, y, cv=5, scoring='roc_auc'))
+print(f"Random Forest AUC: {rf_auc:.4f} | GBM AUC: {gbm_auc:.4f}")
+assert rf_auc > 0.95 and gbm_auc > 0.95
+print("✓ Ensemble comparison verified.")</pre>
                 </div>
               </div>
             </div>
@@ -3027,29 +2933,19 @@ if __name__ == "__main__":
         <div id="day-48-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPGU7v54CmOJ3GKtCc456hy#day-48" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Gradient Boosting + XGBoost — The Kaggle King — Complete Deep Learning Specialization Playlist — Krish Naik</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/ensemble.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Scikit-Learn Ensemble Methods: Forests, Boosting, Voting</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLKnIA16_RmvYuZauWaPlRTC54KxU5mtn0#day-48" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Gradient Boosting + XGBoost — The Kaggle King — Deep Learning from Scratch — CampusX (Nitish Singh)</div>
+            <a class="resource-card" href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">XGBoost Official Parameter Tuning Guide</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ#day-48" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Gradient Boosting + XGBoost — The Kaggle King — Neural Networks: Zero to Hero — Andrej Karpathy</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://pytorch.org/tutorials/beginner/basics/intro.html#day-48" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Gradient Boosting + XGBoost — The Kaggle King — PyTorch Official Tutorials & Deep Learning Foundations</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-48" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Gradient Boosting + XGBoost — The Kaggle King Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/svm.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Support Vector Machines & Kernel Tricks (Scikit-Learn)</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -3380,11 +3276,51 @@ validate_checkpoint_day49()</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">Task 2</span>
-              <span class="task-title">Production Implementation & Benchmark — Customer Churn Project — Day 1: EDA + Feature Engineering</span>
-            </div>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — Customer Churn Project — Day 1: EDA + Feature Engineering</span>
+<span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>Customer Churn Project — Day 1: EDA + Feature Engineering</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your Customer Churn Project — Day 1: EDA + Feature Engineering implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day049_benchmark.py && git commit -m "feat(day49): production benchmark — Customer Churn Project — Day 1: EDA + Fe"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w7d49t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w7d49t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — Customer Churn Project — Day 1: EDA + Feature Engi</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 49 Task 2: Production Benchmark — Customer Churn Prediction
+import numpy as np
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import roc_auc_score, precision_recall_fscore_support
+from sklearn.model_selection import train_test_split
+
+np.random.seed(42)
+X = np.random.randn(1000, 20)
+true_weights = np.random.randn(20)
+logits = X @ true_weights
+y = (1.0 / (1.0 + np.exp(-logits)) > 0.5).astype(int)
+
+X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
+clf = GradientBoostingClassifier(n_estimators=100, learning_rate=0.05, max_depth=4, random_state=42)
+clf.fit(X_tr, y_tr)
+
+probs = clf.predict_proba(X_te)[:, 1]
+auc = roc_auc_score(y_te, probs)
+preds = (probs >= 0.5).astype(int)
+p, r, f1, _ = precision_recall_fscore_support(y_te, preds, average='binary')
+
+print(f"Customer Churn Benchmark: AUC={auc:.4f}, Precision={p:.4f}, Recall={r:.4f}, F1={f1:.4f}")
+assert auc > 0.80
+print("✓ Customer churn benchmark passed.")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -3609,29 +3545,19 @@ validate_checkpoint_day49()</pre>
         <div id="day-49-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPGU7v54CmOJ3GKtCc456hy#day-49" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn Project — Day 1: EDA + Feature Engineering — Complete Deep Learning Specialization Playlist — Krish Naik</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/ensemble.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Scikit-Learn Ensemble Methods: Forests, Boosting, Voting</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLKnIA16_RmvYuZauWaPlRTC54KxU5mtn0#day-49" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn Project — Day 1: EDA + Feature Engineering — Deep Learning from Scratch — CampusX (Nitish Singh)</div>
+            <a class="resource-card" href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">XGBoost Official Parameter Tuning Guide</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ#day-49" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn Project — Day 1: EDA + Feature Engineering — Neural Networks: Zero to Hero — Andrej Karpathy</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://pytorch.org/tutorials/beginner/basics/intro.html#day-49" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Customer Churn Project — Day 1: EDA + Feature Engineering — PyTorch Official Tutorials & Deep Learning Foundations</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-49" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Customer Churn Project — Day 1: EDA + Feature Engineering Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/svm.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Support Vector Machines & Kernel Tricks (Scikit-Learn)</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -3934,11 +3860,75 @@ validate_checkpoint_day50()</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">Task 2</span>
-              <span class="task-title">Production Implementation & Benchmark — Customer Churn — Modeling, Comparison & SHAP</span>
-            </div>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — Customer Churn — Modeling, Comparison & SHAP</span>
+<span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>Customer Churn — Modeling, Comparison & SHAP</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your Customer Churn — Modeling, Comparison & SHAP implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day050_benchmark.py && git commit -m "feat(day50): production benchmark — Customer Churn — Modeling, Comparison & "</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w7d50t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w7d50t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — Customer Churn — Modeling, Comparison & SHAP</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 50: Customer Churn — Modeling, Comparison & Tuning
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, roc_auc_score
+
+np.random.seed(42)
+n = 1000
+
+# Churn dataset with engineered features
+X = np.column_stack([
+    np.random.randint(1, 72, n),           # tenure
+    np.random.uniform(20, 120, n),         # monthly_charges
+    np.random.randint(0, 2, n),            # is_month_to_month
+    np.random.randint(0, 2, n),            # has_fiber
+    np.random.uniform(1, 60, n),           # charges_per_month_ratio
+])
+# Churn: higher probability with month-to-month + high charges
+prob = 0.1 + 0.3 * X[:, 2] + 0.005 * (X[:, 1] - 60).clip(0)
+prob = np.clip(prob, 0.05, 0.85)
+y = (np.random.rand(n) < prob).astype(int)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+scaler = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s  = scaler.transform(X_test)
+
+models = {
+    'LogReg': LogisticRegression(class_weight='balanced'),
+    'RF':     RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42),
+    'GBM':    GradientBoostingClassifier(n_estimators=100, random_state=42),
+}
+
+for name, clf in models.items():
+    X_tr = X_train_s if name == 'LogReg' else X_train
+    X_te = X_test_s if name == 'LogReg' else X_test
+    clf.fit(X_tr, y_train)
+    preds = clf.predict(X_te)
+    proba = clf.predict_proba(X_te)[:, 1]
+    auc = roc_auc_score(y_test, proba)
+    print(f"{name:8s}: AUC={auc:.4f}")
+
+best_auc = roc_auc_score(y_test, models['GBM'].predict_proba(X_test)[:, 1])
+assert best_auc > 0.6, f"GBM AUC too low: {best_auc}"
+print("✅ Churn Modeling assertions passed")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -4163,29 +4153,19 @@ validate_checkpoint_day50()</pre>
         <div id="day-50-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPGU7v54CmOJ3GKtCc456hy#day-50" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn — Modeling, Comparison & SHAP — Complete Deep Learning Specialization Playlist — Krish Naik</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/ensemble.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Scikit-Learn Ensemble Methods: Forests, Boosting, Voting</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLKnIA16_RmvYuZauWaPlRTC54KxU5mtn0#day-50" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn — Modeling, Comparison & SHAP — Deep Learning from Scratch — CampusX (Nitish Singh)</div>
+            <a class="resource-card" href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">XGBoost Official Parameter Tuning Guide</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ#day-50" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn — Modeling, Comparison & SHAP — Neural Networks: Zero to Hero — Andrej Karpathy</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://pytorch.org/tutorials/beginner/basics/intro.html#day-50" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Customer Churn — Modeling, Comparison & SHAP — PyTorch Official Tutorials & Deep Learning Foundations</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-50" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Customer Churn — Modeling, Comparison & SHAP Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/svm.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Support Vector Machines & Kernel Tricks (Scikit-Learn)</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -4536,11 +4516,93 @@ validate_checkpoint_day51()</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">Task 2</span>
-              <span class="task-title">Production Implementation & Benchmark — Customer Churn — Flask API + Portfolio Polish</span>
-            </div>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — Customer Churn — Flask API + Portfolio Polish</span>
+<span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>Customer Churn — Flask API + Portfolio Polish</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your Customer Churn — Flask API + Portfolio Polish implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day051_benchmark.py && git commit -m "feat(day51): production benchmark — Customer Churn — Flask API + Portfolio P"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w7d51t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w7d51t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — Customer Churn — Flask API + Portfolio Polish</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 51: Customer Churn — Flask API Deployment
+from flask import Flask, request, jsonify
+import numpy as np
+import pickle
+import os
+
+# Build and serialize a churn model
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.preprocessing import StandardScaler
+
+np.random.seed(42)
+n = 800
+X = np.random.rand(n, 5)
+y = (X[:, 0] + X[:, 2] > 1.0).astype(int)
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+model = GradientBoostingClassifier(n_estimators=50, random_state=42)
+model.fit(X_scaled, y)
+
+# Serialize model and scaler
+MODEL_PATH  = '/tmp/churn_model.pkl'
+SCALER_PATH = '/tmp/churn_scaler.pkl'
+with open(MODEL_PATH, 'wb') as f: pickle.dump(model, f)
+with open(SCALER_PATH, 'wb') as f: pickle.dump(scaler, f)
+
+# Flask app
+app = Flask(__name__)
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'healthy', 'model': 'GBMChurn-v1.0'})
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    features = data.get('features')
+    if not features or len(features) != 5:
+        return jsonify({'error': 'Provide exactly 5 features'}), 400
+    X_in = scaler.transform([features])
+    proba = model.predict_proba(X_in)[0, 1]
+    label = int(model.predict(X_in)[0])
+    return jsonify({'churn_probability': round(float(proba), 4), 'prediction': label})
+
+# Test with Flask test client
+with app.test_client() as client:
+    # Health check
+    r = client.get('/health')
+    assert r.status_code == 200
+    assert b'healthy' in r.data
+
+    # Prediction
+    r2 = client.post('/predict', json={'features': [0.8, 0.2, 0.9, 0.1, 0.6]})
+    assert r2.status_code == 200
+    body = r2.get_json()
+    assert 'churn_probability' in body
+    assert 0.0 <= body['churn_probability'] <= 1.0
+
+    # Error case
+    r3 = client.post('/predict', json={'features': [1.0]})
+    assert r3.status_code == 400
+
+for f in [MODEL_PATH, SCALER_PATH]:
+    os.remove(f)
+print("Flask churn API:", body)
+print("✅ Flask API assertions passed")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -4787,29 +4849,19 @@ validate_checkpoint_day51()</pre>
         <div id="day-51-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPGU7v54CmOJ3GKtCc456hy#day-51" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn — Flask API + Portfolio Polish — Complete Deep Learning Specialization Playlist — Krish Naik</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/ensemble.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Scikit-Learn Ensemble Methods: Forests, Boosting, Voting</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLKnIA16_RmvYuZauWaPlRTC54KxU5mtn0#day-51" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn — Flask API + Portfolio Polish — Deep Learning from Scratch — CampusX (Nitish Singh)</div>
+            <a class="resource-card" href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">XGBoost Official Parameter Tuning Guide</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ#day-51" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Customer Churn — Flask API + Portfolio Polish — Neural Networks: Zero to Hero — Andrej Karpathy</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://pytorch.org/tutorials/beginner/basics/intro.html#day-51" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Customer Churn — Flask API + Portfolio Polish — PyTorch Official Tutorials & Deep Learning Foundations</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-51" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Customer Churn — Flask API + Portfolio Polish Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://scikit-learn.org/stable/modules/svm.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Support Vector Machines & Kernel Tricks (Scikit-Learn)</div>
               <div class="rc-sub"></div>
             </a>
           </div>

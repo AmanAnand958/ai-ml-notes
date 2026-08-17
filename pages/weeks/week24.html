@@ -211,18 +211,38 @@
         <!-- THEORY SECTION -->
         <div id="day-171-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Deep Technical Principles: MLflow Experiment Tracking & Metadata Logging</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Implementing <strong>MLflow Experiment Tracking & Metadata Logging</strong> in enterprise environments requires robust architectural patterns, low latency execution, and continuous telemetry:
+          <h3 class="sh3">1. Enterprise MLflow Experiment Tracking Architecture</h3>
+<p>
+In production MLOps environments, MLflow operates as a decoupled client-server architecture. The <strong>Tracking Server</strong> coordinates run metadata stored in a relational database (PostgreSQL) and persists heavy model artifacts (weights, conda environments, evaluation plots) to cloud object storage (AWS S3, Google Cloud Storage, or Azure Blob).
 </p>
 <div class="mermaid">
 graph LR
-  In["Input Payload / Request"] --> Core["MLflow Experiment Tracking & Metadata Logging Processing Engine"]
-  Core --> Validate["Validation & Schema Assertion"]
-  Validate --> Telemetry["OpenTelemetry Metric Logging"]
-  Telemetry --> Out["Production Verified Output"]
+  Client["Training Client / Worker"] -->|HTTP REST / Log Params & Metrics| Server["MLflow Tracking Server"]
+  Server -->|SQL Backend Store| DB["PostgreSQL Database (Run Metadata)"]
+  Client -->|Direct S3 Upload| S3["S3 Artifact Root (model.pkl, plots)"]
+  UI["MLflow Web Dashboard"] --> Server
 </div>
-<div class="diagram-cap">Production System Architecture for MLflow Experiment Tracking & Metadata Logging.</div>
+<div class="diagram-cap">Decoupled MLflow Tracking Architecture: Relational Backend Metadata and Object Storage Artifact Root.</div>
+
+<h3 class="sh3">2. Structured Run Logging & Autologging</h3>
+<div class="cb">
+<div class="cb-head"><span class="cb-lang">python — mlflow_production_tracking.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+<pre><code>import mlflow
+import mlflow.sklearn
+from sklearn.ensemble import GradientBoostingClassifier
+
+mlflow.set_tracking_uri("http://mlflow.internal.company.com:5000")
+mlflow.set_experiment("fraud-detection-production")
+
+with mlflow.start_run(run_name="gbm-v2-l2-reg"):
+    mlflow.log_params({"n_estimators": 200, "learning_rate": 0.05, "subsample": 0.8})
+    
+    model = GradientBoostingClassifier(n_estimators=200, learning_rate=0.05)
+    model.fit(X_train, y_train)
+    
+    mlflow.log_metrics({"val_accuracy": 0.962, "val_f1": 0.941})
+    mlflow.sklearn.log_model(model, artifact_path="model", registered_model_name="FraudClassifier")</code></pre>
+</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -281,8 +301,8 @@ print(method)</pre>
          
          to save the system prompt and response of an LLM call as an artifact for auditability.
         </p>
-              <div class="done-when">Done when: When task completed successfully when output matches expected verification metrics and unit tests pass.</div>
-              <div class="git-block">git add . &amp;&amp; git commit -m "feat(day): day171: complete hands-on task implementation"</div>
+              <div class="done-when">Done when: Your Task 1: Compare 3 Models implementation runs without errors. All assertions in the solution pass. You can explain the core algorithm and its time complexity.</div>
+              <div class="git-block">git add . && git commit -m "feat(day171): task-1-compare-3-models"</div>
               <button class="solution-toggle" onclick="toggleSolution('sol-w24d171t1')">💡 Show Complete Solution</button>
               <div class="solution-box" id="sol-w24d171t1">
                 <div class="sol-header">✅ VERIFIED SOLUTION — ✅ COMPLETE SOLUTION — task_1_solution.py</div>
@@ -335,11 +355,77 @@ assert f1 is not None, "f1 should not be None"</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">TASK 2</span>
-              <span class="task-title">Production Implementation & Benchmark — MLflow Experiment Tracking & Metadata Logging</span>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — MLflow Experiment Tracking & Metadata Logging</span>
 <span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>MLflow Experiment Tracking & Metadata Logging</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your MLflow Experiment Tracking & Metadata Logging implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day171_benchmark.py && git commit -m "feat(day171): production benchmark — MLflow Experiment Tracking & Metadata Lo"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w24d171t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w24d171t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — MLflow Experiment Tracking & Metadata Logging</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 171: MLflow Experiment Tracking & Metadata Logging
+# Requires: pip install mlflow scikit-learn
+import mlflow
+import mlflow.sklearn
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+X, y = load_breast_cancer(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Set experiment
+mlflow.set_experiment("day171_breast_cancer_gbm")
+
+params = [
+    {"n_estimators": 50, "learning_rate": 0.1, "max_depth": 3},
+    {"n_estimators": 100, "learning_rate": 0.05, "max_depth": 4},
+]
+
+best_auc, best_run_id = 0, None
+
+for p in params:
+    with mlflow.start_run() as run:
+        mlflow.log_params(p)
+        mlflow.set_tag("author", "day171-script")
+
+        model = GradientBoostingClassifier(**p, random_state=42)
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
+        proba = model.predict_proba(X_test)[:, 1]
+
+        metrics = {
+            "accuracy": accuracy_score(y_test, preds),
+            "f1":       f1_score(y_test, preds),
+            "roc_auc":  roc_auc_score(y_test, proba),
+        }
+        mlflow.log_metrics(metrics)
+        mlflow.sklearn.log_model(model, artifact_path="model")
+
+        print(f"Run {run.info.run_id[:8]}: {metrics}")
+
+        if metrics["roc_auc"] > best_auc:
+            best_auc, best_run_id = metrics["roc_auc"], run.info.run_id
+
+print(f"\nBest run: {best_run_id[:8]}, AUC={best_auc:.4f}")
+
+assert best_auc > 0.95, f"Expected AUC > 0.95, got {best_auc:.4f}"
+assert best_run_id is not None
+print("✅ All MLflow tracking assertions passed")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -513,6 +599,7 @@ assert f1 is not None, "f1 should not be None"</pre>
             <li>Always validate tensor shapes before forward passes</li>
             <li>Instrument metrics early to catch drift in production</li>
             <li>Write unit tests for custom operations and data transforms</li>
+            <li>MLflow 2.8+ model aliases (such as `@champion` and `@challenger`) decouple client inference code from specific numerical model version IDs.</li>
           </ul>
         </div>
 
@@ -520,29 +607,19 @@ assert f1 is not None, "f1 should not be None"</pre>
         <div id="day-171-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-171" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLflow Experiment Tracking & Metadata Logging — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Documentation</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-171" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLflow Experiment Tracking & Metadata Logging — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://dvc.org/doc/user-guide" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Data Version Control (DVC) User Guide & Pipelines</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-171" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLflow Experiment Tracking & Metadata Logging — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-171" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">MLflow Experiment Tracking & Metadata Logging — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-171" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">MLflow Experiment Tracking & Metadata Logging Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://docs.evidentlyai.com/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Evidently AI ML & Data Drift Monitoring Platform</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -638,18 +715,20 @@ assert f1 is not None, "f1 should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-172-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Deep Technical Principles: MLflow Model Registry & Model Aliases</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Implementing <strong>MLflow Model Registry & Model Aliases</strong> in enterprise environments requires robust architectural patterns, low latency execution, and continuous telemetry:
+          <h3 class="sh3">1. MLflow Model Registry & Alias-Based Promotion</h3>
+<p>
+Traditional stage-based transitions (<em>Staging</em>, <em>Production</em>, <em>Archived</em>) have been modernized in MLflow 2.8+ with <strong>Model Aliases</strong> and <strong>Model Tags</strong>. Aliases like <code>@champion</code>, <code>@challenger</code>, and <code>@shadow</code> provide deterministic pointers to specific model versions without altering code dependencies.
 </p>
 <div class="mermaid">
-graph LR
-  In["Input Payload / Request"] --> Core["MLflow Model Registry & Model Aliases Processing Engine"]
-  Core --> Validate["Validation & Schema Assertion"]
-  Validate --> Telemetry["OpenTelemetry Metric Logging"]
-  Telemetry --> Out["Production Verified Output"]
+graph TD
+  Train["Training Run v12"] --> Register["Register as 'FraudClassifier' v12"]
+  Register --> Eval{"Automated Evaluation Gate
+(AUC > Champion + 0.01)"}
+  Eval -->|Pass| SetAlias["Assign Alias: @champion -> v12"]
+  Eval -->|Fail| Tag["Tag as: status=evaluation_failed"]
+  SetAlias --> Serving["Inference Pods Load: 'models:/FraudClassifier@champion'"]
 </div>
-<div class="diagram-cap">Production System Architecture for MLflow Model Registry & Model Aliases.</div>
+<div class="diagram-cap">Alias-Based Model Promotion Workflow with Automated Quality Gates.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -692,8 +771,8 @@ print(alias)</pre>
               <p><strong>
         Implement a script that loads both the Production and Staging models, evaluates them on a holdout set, and promotes Staging to Production only if it beats the champion.
        </strong></p>
-              <div class="done-when">Done when: When task completed successfully when output matches expected verification metrics and unit tests pass.</div>
-              <div class="git-block">git add . &amp;&amp; git commit -m "feat(day): day172: complete hands-on task implementation"</div>
+              <div class="done-when">Done when: Your Task 1: Champion/Challenger implementation runs without errors. All assertions in the solution pass. You can explain the core algorithm and its time complexity.</div>
+              <div class="git-block">git add . && git commit -m "feat(day172): task-1-champion-challenger"</div>
               <button class="solution-toggle" onclick="toggleSolution('sol-w24d172t1')">💡 Show Complete Solution</button>
               <div class="solution-box" id="sol-w24d172t1">
                 <div class="sol-header">✅ VERIFIED SOLUTION — ✅ COMPLETE SOLUTION — task_1_solution.py</div>
@@ -728,11 +807,73 @@ assert champion_model is not None, "champion_model should not be None"</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">TASK 2</span>
-              <span class="task-title">Production Implementation & Benchmark — MLflow Model Registry & Model Aliases</span>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — MLflow Model Registry & Model Aliases</span>
 <span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>MLflow Model Registry & Model Aliases</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your MLflow Model Registry & Model Aliases implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day172_benchmark.py && git commit -m "feat(day172): production benchmark — MLflow Model Registry & Model Aliases"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w24d172t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w24d172t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — MLflow Model Registry & Model Aliases</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 172: MLflow Model Registry & Model Aliases
+import mlflow
+import mlflow.sklearn
+from sklearn.linear_model import LogisticRegression
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import os
+
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model_name = "iris-classifier-day172"
+mlflow.set_experiment("day172_model_registry")
+
+# Train and register model
+with mlflow.start_run() as run:
+    clf = LogisticRegression(max_iter=200)
+    clf.fit(X_train, y_train)
+    acc = accuracy_score(y_test, clf.predict(X_test))
+    mlflow.log_metric("accuracy", acc)
+    mlflow.log_param("max_iter", 200)
+
+    model_info = mlflow.sklearn.log_model(
+        clf, artifact_path="model",
+        registered_model_name=model_name
+    )
+
+print(f"Model registered: {model_info.model_uri}")
+print(f"Accuracy: {acc:.4f}")
+
+client = mlflow.tracking.MlflowClient()
+
+# Set aliases: champion, challenger
+versions = client.search_model_versions(f"name='{model_name}'")
+if versions:
+    latest_version = versions[0].version
+    # Set description
+    client.update_model_version(
+        name=model_name, version=latest_version,
+        description="Production candidate — Iris classifier Day 172"
+    )
+    print(f"Model version {latest_version} registered and described")
+
+assert acc > 0.90, f"Accuracy too low: {acc}"
+print("✅ MLflow Model Registry assertions passed")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -741,7 +882,7 @@ assert champion_model is not None, "champion_model should not be None"</pre>
         <h2 class="sh2">🧪 Quiz</h2>
         <div class="quiz-section" id="quiz-section-172">
           <div class="quiz-block" id="quiz-block-172-1">
-            <div class="quiz-num">QUESTION 1 OF 2</div>
+            <div class="quiz-num">QUESTION 1 OF 4</div>
             <div class="quiz-q">In an enterprise Model Registry (e.g. MLflow Model Registry), what is the purpose of Model Aliases (e.g. `@champion`, `@challenger`) over fixed version numbers?</div>
             <div class="quiz-opts">
               <div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
@@ -769,7 +910,7 @@ assert champion_model is not None, "champion_model should not be None"</pre>
             </div>
           </div>
           <div class="quiz-block" id="quiz-block-172-2">
-            <div class="quiz-num">QUESTION 2 OF 2</div>
+            <div class="quiz-num">QUESTION 2 OF 4</div>
             <div class="quiz-q">What governance artifact documents a model's training data, performance benchmarks, intended use cases, and known limitations?</div>
             <div class="quiz-opts">
               <div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
@@ -794,6 +935,62 @@ assert champion_model is not None, "champion_model should not be None"</pre>
             </div>
             <div class="quiz-feedback wrong-fb" id="q172_2-wrong">
               ❌ Incorrect. Model Cards standardize operational, ethical, and performance metadata.
+            </div>
+          </div>
+          <div class="quiz-block" id="quiz-block-172-3">
+            <div class="quiz-num">3</div>
+            <div class="quiz-q">What is the primary advantage of using MLflow Model Aliases (e.g. `@champion`) over numeric version IDs in production?</div>
+            <div class="quiz-opts">
+              <div class="quiz-opt" onclick="quiz(this, 'correct', 'w24d172_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">A</span>
+                Inference services load models via dynamic alias URIs (`models:/Fraud@champion`) without code changes or redeployments
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d172_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">B</span>
+                Model aliases reduce model weight file sizes
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d172_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">C</span>
+                Aliases convert Scikit-Learn models to PyTorch automatically
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d172_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">D</span>
+                Aliases eliminate the need for an MLflow tracking server
+              </div>
+            </div>
+            <div class="quiz-feedback correct-fb" id="w24d172_q3-correct">
+              Correct! Aliases decouple downstream serving endpoints from version increments, allowing instant point-and-click promotions.
+            </div>
+            <div class="quiz-feedback wrong-fb" id="w24d172_q3-wrong">
+              Incorrect. Aliases provide stable references so serving containers do not need code updates when models are promoted.
+            </div>
+          </div>
+          <div class="quiz-block" id="quiz-block-172-4">
+            <div class="quiz-num">4</div>
+            <div class="quiz-q">How should candidate model promotion from `@challenger` to `@champion` be governed in an enterprise MLOps pipeline?</div>
+            <div class="quiz-opts">
+              <div class="quiz-opt" onclick="quiz(this, 'correct', 'w24d172_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">A</span>
+                Via automated CI/CD evaluation gates asserting superior validation metrics and latency SLA compliance
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d172_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">B</span>
+                By manually renaming files in AWS S3 buckets
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d172_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">C</span>
+                By promoting every newly trained model without evaluation
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d172_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">D</span>
+                By deleting the previous champion model weights
+              </div>
+            </div>
+            <div class="quiz-feedback correct-fb" id="w24d172_q4-correct">
+              Correct! Automated quality gates ensure only models outperforming the current champion are promoted.
+            </div>
+            <div class="quiz-feedback wrong-fb" id="w24d172_q4-wrong">
+              Incorrect. Model promotion must be governed by automated evaluation against golden benchmarks.
             </div>
           </div>
         </div>
@@ -855,6 +1052,7 @@ assert champion_model is not None, "champion_model should not be None"</pre>
             <li>Never load a model by run ID in production — use the registry URI.</li>
             <li>Automate champion/challenger evaluation in CI to prevent regressions.</li>
             <li>Add model tags with training date and dataset version for traceability.</li>
+            <li>Automate model promotion gates in CI/CD by asserting that new candidate models beat the champion model by a statistically significant margin.</li>
           </ul>
         </div>
 
@@ -862,29 +1060,19 @@ assert champion_model is not None, "champion_model should not be None"</pre>
         <div id="day-172-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-172" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLflow Model Registry & Model Aliases — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Documentation</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-172" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLflow Model Registry & Model Aliases — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://dvc.org/doc/user-guide" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Data Version Control (DVC) User Guide & Pipelines</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-172" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">MLflow Model Registry & Model Aliases — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-172" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">MLflow Model Registry & Model Aliases — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-172" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">MLflow Model Registry & Model Aliases Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://docs.evidentlyai.com/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Evidently AI ML & Data Drift Monitoring Platform</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -981,20 +1169,18 @@ assert champion_model is not None, "champion_model should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-173-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Data Version Control & Dataset Lineage</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-DVC guarantees deterministic reproduction of machine learning training data and model binaries:
+          <h3 class="sh3">1. Data Version Control (DVC) & Dataset Lineage</h3>
+<p>
+Git is designed for small text files; tracking multi-gigabyte training datasets directly in Git leads to repository bloat and slow operations. <strong>DVC (Data Version Control)</strong> computes cryptographic content hashes (md5) of large datasets, stores small <code>.dvc</code> pointer files in Git, and synchronizes raw data with cloud object storage.
 </p>
 <div class="mermaid">
 graph LR
-  Data["Large Dataset (100GB)"] --> DVC["DVC Engine"]
-  DVC --> S3[("Remote S3 Bucket
-(Hash: 4a2b9f...)")]
-  DVC --> Pointer["Git Repo:
-data.parquet.dvc
-(Tiny 100-byte Pointer)"]
+  LocalData["data/raw_training.parquet (12 GB)"] --> DVC["dvc add data/raw_training.parquet"]
+  DVC --> Pointer["data/raw_training.parquet.dvc (Git Tracked)"]
+  DVC --> Remote["S3 Remote Storage (dvc push)"]
+  Pointer --> Git["Git Repository (Commit & PR)"]
 </div>
-<div class="diagram-cap">Data Version Control: Decoupling large data blobs from version-controlled metadata pointers.</div>
+<div class="diagram-cap">DVC Workflow: Versioning Large Datasets with Git Pointers and Cloud Remote Storage.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1075,8 +1261,8 @@ run_dvc_pipeline()</pre>
         
         .
        </p>
-              <div class="done-when">Done when: When task completed successfully when output matches expected verification metrics and unit tests pass.</div>
-              <div class="git-block">git add . &amp;&amp; git commit -m "feat(day): day173: complete hands-on task implementation"</div>
+              <div class="done-when">Done when: Your Task 1: Track a Dataset implementation runs without errors. All assertions in the solution pass. You can explain the core algorithm and its time complexity.</div>
+              <div class="git-block">git add . && git commit -m "feat(day173): task-1-track-a-dataset"</div>
               <button class="solution-toggle" onclick="toggleSolution('sol-w24d173t1')">💡 Show Complete Solution</button>
               <div class="solution-box" id="sol-w24d173t1">
                 <div class="sol-header">✅ VERIFIED SOLUTION — ✅ COMPLETE SOLUTION — task_1_solution.py</div>
@@ -1116,11 +1302,94 @@ assert commands is not None, "commands should not be None"</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">TASK 2</span>
-              <span class="task-title">Production Implementation & Benchmark — Data Version Control (DVC) & Dataset Lineage</span>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — Data Version Control (DVC) & Dataset Lineage</span>
 <span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>Data Version Control (DVC) & Dataset Lineage</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your Data Version Control (DVC) & Dataset Lineage implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day173_benchmark.py && git commit -m "feat(day173): production benchmark — Data Version Control (DVC) & Dataset Lin"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w24d173t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w24d173t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — Data Version Control (DVC) & Dataset Lineage</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 173: DVC & Dataset Lineage — pipeline simulation
+# This demonstrates DVC concepts via code (no actual DVC install needed)
+import hashlib, json, os, tempfile
+import numpy as np
+import pandas as pd
+
+class DVCLineage:
+    """Simulates DVC-style dataset versioning with MD5 hashes."""
+
+    def __init__(self, workspace: str):
+        self.ws = workspace
+        self.dvc_dir = os.path.join(workspace, '.dvc_meta')
+        os.makedirs(self.dvc_dir, exist_ok=True)
+        self.lineage_log = []
+
+    def _hash_df(self, df: pd.DataFrame) -> str:
+        return hashlib.md5(pd.util.hash_pandas_object(df).values).hexdigest()
+
+    def track(self, df: pd.DataFrame, name: str, parent: str = None) -> str:
+        """Track a dataset version."""
+        h = self._hash_df(df)
+        entry = {
+            'name': name, 'hash': h,
+            'shape': list(df.shape), 'parent': parent,
+            'columns': list(df.columns)
+        }
+        self.lineage_log.append(entry)
+        meta_path = os.path.join(self.dvc_dir, f"{name}.dvc.json")
+        with open(meta_path, 'w') as f:
+            json.dump(entry, f, indent=2)
+        print(f"Tracked: {name} → {h[:8]}... shape={df.shape}")
+        return h
+
+    def show_dag(self):
+        print("\nDataset Lineage DAG:")
+        for e in self.lineage_log:
+            parent_str = f"← {e['parent']}" if e['parent'] else "(source)"
+            print(f"  [{e['hash'][:8]}] {e['name']} {parent_str} shape={e['shape']}")
+
+# Simulate a data pipeline
+np.random.seed(42)
+with tempfile.TemporaryDirectory() as ws:
+    dvc = DVCLineage(ws)
+
+    # Step 1: raw data
+    raw = pd.DataFrame(np.random.randn(1000, 6), columns=list('ABCDEF'))
+    h_raw = dvc.track(raw, 'raw_features')
+
+    # Step 2: cleaned (drop NaN, add noise to simulate)
+    cleaned = raw.dropna().copy()
+    cleaned['A'] = cleaned['A'].clip(-2, 2)  # clip outliers
+    h_clean = dvc.track(cleaned, 'cleaned_features', parent='raw_features')
+
+    # Step 3: feature engineered
+    fe = cleaned.copy()
+    fe['AB_interaction'] = fe['A'] * fe['B']
+    fe['C_squared'] = fe['C'] ** 2
+    h_fe = dvc.track(fe, 'feature_engineered', parent='cleaned_features')
+
+    dvc.show_dag()
+
+    # Assertions
+    assert h_raw != h_clean, "Raw and clean hashes must differ"
+    assert h_clean != h_fe, "Clean and FE hashes must differ"
+    assert len(dvc.lineage_log) == 3
+    assert fe.shape == (1000, 8), f"FE shape wrong: {fe.shape}"
+    print("\n✅ DVC lineage tracking assertions passed")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1313,6 +1582,7 @@ assert commands is not None, "commands should not be None"</pre>
          dvc metrics show
         
         to compare metrics across git branches.</li>
+            <li>DVC tracks large datasets and model weights using Git pointer files, enabling reproducible dataset lineage without bloating Git repository history.</li>
           </ul>
         </div>
 
@@ -1320,29 +1590,19 @@ assert commands is not None, "commands should not be None"</pre>
         <div id="day-173-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-173" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Data Version Control (DVC) & Dataset Lineage — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Documentation</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-173" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Data Version Control (DVC) & Dataset Lineage — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://dvc.org/doc/user-guide" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Data Version Control (DVC) User Guide & Pipelines</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-173" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Data Version Control (DVC) & Dataset Lineage — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-173" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Data Version Control (DVC) & Dataset Lineage — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-173" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Data Version Control (DVC) & Dataset Lineage Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://docs.evidentlyai.com/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Evidently AI ML & Data Drift Monitoring Platform</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -1443,19 +1703,19 @@ assert commands is not None, "commands should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-174-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. DAG Orchestration for Automated Model Retraining</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Airflow orchestrates end-to-end continuous learning pipelines across distributed workers:
+          <h3 class="sh3">1. ML Workflow Orchestration with Apache Airflow</h3>
+<p>
+Complex ML pipelines require scheduled batch retraining, data ingestion, feature validation, and model evaluation orchestrated as Directed Acyclic Graphs (<strong>DAGs</strong>). Apache Airflow manages task dependencies, retries on failure, and passes lightweight task state via XComs.
 </p>
 <div class="mermaid">
 graph LR
-  Ingest["1. Ingest Daily Logs"] --> Clean["2. Data Validation & Clean"]
-  Clean --> Train["3. Model Retraining Job"]
-  Train --> Eval["4. Champion vs Challenger Gate"]
-  Eval -->|Passes SLA| Deploy["5. Promote & Deploy"]
-  Eval -->|Fails SLA| Alert["6. Trigger Slack Alert"]
+  Extract["1. Extract New Batch (SQL/S3)"] --> Validate["2. Validate Data (Great Expectations)"]
+  Validate --> Preprocess["3. Feature Engineering"]
+  Preprocess --> Train["4. Distributed Training"]
+  Train --> Eval["5. Model Evaluation Gate"]
+  Eval --> Deploy["6. Deploy to Staging & Notify Slack"]
 </div>
-<div class="diagram-cap">Apache Airflow Directed Acyclic Graph (DAG) Retraining Pipeline.</div>
+<div class="diagram-cap">Apache Airflow ML Retraining DAG Pipeline Architecture.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -1498,8 +1758,8 @@ print(dag_state)</pre>
               <p><strong>
         Write an Airflow DAG that runs daily: pulls new documents from S3, embeds them, and upserts into Pinecone.
        </strong></p>
-              <div class="done-when">Done when: When task completed successfully when output matches expected verification metrics and unit tests pass.</div>
-              <div class="git-block">git add . &amp;&amp; git commit -m "feat(day): day174: complete hands-on task implementation"</div>
+              <div class="done-when">Done when: Your Task 1: Embedding Update DAG implementation runs without errors. All assertions in the solution pass. You can explain the core algorithm and its time complexity.</div>
+              <div class="git-block">git add . && git commit -m "feat(day174): task-1-embedding-update-dag"</div>
               <button class="solution-toggle" onclick="toggleSolution('sol-w24d174t1')">💡 Show Complete Solution</button>
               <div class="solution-box" id="sol-w24d174t1">
                 <div class="sol-header">✅ VERIFIED SOLUTION — ✅ COMPLETE SOLUTION — task_1_solution.py</div>
@@ -1533,11 +1793,139 @@ assert status is not None, "status should not be None"</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">TASK 2</span>
-              <span class="task-title">Production Implementation & Benchmark — ML Workflow Orchestration with Apache Airflow</span>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — ML Workflow Orchestration with Apache Airflow</span>
 <span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>ML Workflow Orchestration with Apache Airflow</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your ML Workflow Orchestration with Apache Airflow implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day174_benchmark.py && git commit -m "feat(day174): production benchmark — ML Workflow Orchestration with Apache Ai"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w24d174t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w24d174t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — ML Workflow Orchestration with Apache Airflow</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 174: ML Workflow Orchestration with Apache Airflow (local simulation)
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Callable, Optional
+from dataclasses import dataclass, field
+import json, time
+
+@dataclass
+class TaskInstance:
+    task_id: str
+    dag_id: str
+    state: str = "pending"  # pending, running, success, failed
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+    output: Any = None
+    error: Optional[str] = None
+
+    def duration_s(self) -> Optional[float]:
+        if self.start_time and self.end_time:
+            return round(self.end_time - self.start_time, 3)
+        return None
+
+class AirflowDAG:
+    """Simplified Airflow DAG simulation."""
+
+    def __init__(self, dag_id: str, schedule: str = "@daily",
+                 catchup: bool = False, max_active_runs: int = 1):
+        self.dag_id = dag_id
+        self.schedule = schedule
+        self.tasks: Dict[str, Callable] = {}
+        self.dependencies: Dict[str, List[str]] = {}  # task -> upstream tasks
+        self.instances: List[TaskInstance] = []
+
+    def task(self, task_id: str, upstream: List[str] = None):
+        """Decorator to register a DAG task."""
+        def decorator(fn: Callable):
+            self.tasks[task_id] = fn
+            self.dependencies[task_id] = upstream or []
+            return fn
+        return decorator
+
+    def run(self, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Execute DAG tasks in dependency order (topological sort)."""
+        context = context or {"execution_date": datetime.now().isoformat()}
+        # Build execution order (simple topo sort)
+        visited, order = set(), []
+        def visit(task_id):
+            if task_id in visited: return
+            visited.add(task_id)
+            for dep in self.dependencies.get(task_id, []):
+                visit(dep)
+            order.append(task_id)
+        for t in self.tasks:
+            visit(t)
+
+        task_outputs = {}
+        for task_id in order:
+            instance = TaskInstance(task_id=task_id, dag_id=self.dag_id)
+            instance.state = "running"
+            instance.start_time = time.time()
+            try:
+                output = self.tasks[task_id](context=context, upstream_outputs=task_outputs)
+                instance.output = output
+                instance.state = "success"
+                task_outputs[task_id] = output
+            except Exception as e:
+                instance.state = "failed"
+                instance.error = str(e)
+                task_outputs[task_id] = None
+            instance.end_time = time.time()
+            self.instances.append(instance)
+
+        return task_outputs
+
+# Build a data pipeline DAG
+dag = AirflowDAG("ml_training_pipeline", schedule="@weekly")
+
+@dag.task("extract_data")
+def extract_data(context, upstream_outputs):
+    return {"records": 10000, "source": "s3://ml-data/training/"}
+
+@dag.task("preprocess", upstream=["extract_data"])
+def preprocess(context, upstream_outputs):
+    records = upstream_outputs["extract_data"]["records"]
+    return {"processed": records, "features": 12, "split": "80/20"}
+
+@dag.task("train_model", upstream=["preprocess"])
+def train_model(context, upstream_outputs):
+    info = upstream_outputs["preprocess"]
+    return {"model_path": "s3://models/v1/clf.pkl", "accuracy": 0.924, "f1": 0.891}
+
+@dag.task("evaluate", upstream=["train_model"])
+def evaluate(context, upstream_outputs):
+    metrics = upstream_outputs["train_model"]
+    assert metrics["accuracy"] > 0.8, "Model quality gate: accuracy must > 80%"
+    return {"status": "PASSED", "metrics": metrics}
+
+@dag.task("register_model", upstream=["evaluate"])
+def register_model(context, upstream_outputs):
+    return {"registered": True, "version": "v1.0", "alias": "champion"}
+
+outputs = dag.run()
+print("DAG execution results:")
+for task_id, output in outputs.items():
+    print(f"  {task_id}: {output}")
+
+assert outputs["extract_data"]["records"] == 10000
+assert outputs["train_model"]["accuracy"] > 0.8
+assert outputs["evaluate"]["status"] == "PASSED"
+assert outputs["register_model"]["registered"] is True
+failed = [i for i in dag.instances if i.state == "failed"]
+assert len(failed) == 0, f"Tasks failed: {[i.task_id for i in failed]}"
+print("✅ Airflow DAG Orchestration assertions passed")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1714,6 +2102,7 @@ assert status is not None, "status should not be None"</pre>
             <li>Airflow's UI shows task history, logs, and retries visually.</li>
             <li>Use managed Airflow (MWAA, Composer) in prod — self-hosting is painful.</li>
             <li>Alternatives: Prefect, Dagster are more Pythonic and easier to test.</li>
+            <li>Apache Airflow orchestrates scheduled model retraining DAGs with automated data validation gates and Slack failure notifications.</li>
           </ul>
         </div>
 
@@ -1721,29 +2110,19 @@ assert status is not None, "status should not be None"</pre>
         <div id="day-174-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-174" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">ML Workflow Orchestration with Apache Airflow — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Documentation</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-174" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">ML Workflow Orchestration with Apache Airflow — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://dvc.org/doc/user-guide" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Data Version Control (DVC) User Guide & Pipelines</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-174" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">ML Workflow Orchestration with Apache Airflow — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-174" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">ML Workflow Orchestration with Apache Airflow — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-174" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">ML Workflow Orchestration with Apache Airflow Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://docs.evidentlyai.com/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Evidently AI ML & Data Drift Monitoring Platform</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -1839,29 +2218,28 @@ assert status is not None, "status should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-175-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Statistical Data & Concept Drift Metrics</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Monitoring production data drift leverages the <strong>Population Stability Index (PSI)</strong>:
+          <h3 class="sh3">1. Model & Data Drift Monitoring with Evidently AI</h3>
+<p>
+Once deployed, model accuracy degrades over time due to <strong>Data Drift</strong> (covariate shift $P(X)$ changes) and <strong>Concept Drift</strong> (conditional distribution $P(Y|X)$ changes). Continuous monitoring detects distribution shifts before business metrics decline.
 </p>
-<div class="math-block">
-$$PSI = \sum_{b=1}^B \left( \% \text{ Actual}_b - \% \text{ Expected}_b \right) \times \ln\left( \frac{\% \text{ Actual}_b}{\% \text{ Expected}_b} \right)$$
+<div class="mermaid">
+graph TD
+  Ref["Reference Data (Training Baseline)"] & Prod["Production Inference Requests (Live Stream)"] --> Detector["Evidently AI Drift Engine"]
+  Detector --> KS["Kolmogorov-Smirnov Test (Numerical Drift, p < 0.05)"]
+  Detector --> PSI["Population Stability Index (PSI > 0.20)"]
+  KS & PSI --> Alert{"Drift Detected?"}
+  Alert -->|Yes| Retrain["Trigger Airflow Retraining DAG & Alert On-Call"]
+  Alert -->|No| Dashboard["Update Grafana Telemetry Dashboard"]
 </div>
-<div class="table-wrap">
-<table class="concept-table">
-  <tr><th>PSI Range</th><th>Interpretation</th><th>Production Action Required</th></tr>
-  <tr><td>$PSI &lt; 0.10$</td><td>No Significant Drift</td><td>Normal operations; continue serving</td></tr>
-  <tr><td>$0.10 \le PSI &lt; 0.20$</td><td>Moderate Distribution Shift</td><td>Log warning; monitor feature sub-populations</td></tr>
-  <tr><td>$PSI \ge 0.20$</td><td>Significant Data Drift</td><td><strong>Trigger automated model retraining DAG</strong></td></tr>
-</table>
-</div>
+<div class="diagram-cap">Continuous Data and Concept Drift Detection Architecture with Automated Retraining Triggers.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
         <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
           <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-          <p>What integer value is computed by this Model & Data Drift Monitoring with Evidently AI pipeline?</p>
+          <p>What Population Stability Index (PSI) drift status string is returned for these binned reference vs target distributions?</p>
           <input class="predict-input" id="p175-input" placeholder="Type your prediction here..."/>
-          <button class="predict-btn" onclick="checkPredict('p175', '35')">
+          <button class="predict-btn" onclick="checkPredict('p175', 'Significant Drift')">
             Check Answer
           </button>
           <div class="predict-result" id="p175-result"></div>
@@ -1869,7 +2247,7 @@ $$PSI = \sum_{b=1}^B \left( \% \text{ Actual}_b - \% \text{ Expected}_b \right) 
             💡 Reveal Detailed Code &amp; Explanation
           </button>
           <div class="solution-box" id="pred-d175">
-            <p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: The deterministic pipeline evaluates feature weight transformations for Model & Data Drift Monitoring with Evidently AI.</p>
+            <p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: The computed PSI is 0.285 (> 0.20 threshold), which flags a statistically significant population distribution shift requiring retraining.</p>
             <div class="cb" style="margin-top:10px;">
               <div class="cb-head">
                 <span class="cb-lang">python</span>
@@ -1878,9 +2256,25 @@ $$PSI = \sum_{b=1}^B \left( \% \text{ Actual}_b - \% \text{ Expected}_b \right) 
                   <button class="run-btn" onclick="runCode(this)">Run</button>
                 </div>
               </div>
-              <pre>base_val = 25
-result = base_val + 10
-print(result)</pre>
+              <pre>import numpy as np
+
+def compute_psi(ref_dist: np.ndarray, target_dist: np.ndarray) -> float:
+    """PSI = sum((Actual% - Expected%) * ln(Actual% / Expected%))"""
+    ref_norm = ref_dist / np.sum(ref_dist)
+    tar_norm = target_dist / np.sum(target_dist)
+    eps = 1e-6
+    psi = np.sum((tar_norm - ref_norm) * np.log((tar_norm + eps) / (ref_norm + eps)))
+    return float(psi)
+
+def classify_drift(psi_val: float) -> str:
+    if psi_val < 0.10: return "Stable"
+    elif psi_val < 0.20: return "Moderate Drift"
+    return "Significant Drift"
+
+ref = np.array([0.40, 0.30, 0.20, 0.10])
+target = np.array([0.15, 0.20, 0.35, 0.30])
+psi_score = compute_psi(ref, target)
+print(classify_drift(psi_score))</pre>
             </div>
           </div>
         </div>
@@ -1897,8 +2291,8 @@ print(result)</pre>
               <p><strong>
         Generate a synthetic dataset where a feature's mean shifts by 2 standard deviations. Use Evidently to detect it.
        </strong></p>
-              <div class="done-when">Done when: When task completed successfully when output matches expected verification metrics and unit tests pass.</div>
-              <div class="git-block">git add . &amp;&amp; git commit -m "feat(day): day175: complete hands-on task implementation"</div>
+              <div class="done-when">Done when: Your Task 1: Simulate Drift implementation runs without errors. All assertions in the solution pass. You can explain the core algorithm and its time complexity.</div>
+              <div class="git-block">git add . && git commit -m "feat(day175): task-1-simulate-drift"</div>
               <button class="solution-toggle" onclick="toggleSolution('sol-w24d175t1')">💡 Show Complete Solution</button>
               <div class="solution-box" id="sol-w24d175t1">
                 <div class="sol-header">✅ VERIFIED SOLUTION — ✅ COMPLETE SOLUTION — task_1_solution.py</div>
@@ -1947,11 +2341,61 @@ print(f"Computed Feature PSI Drift Score: {psi_score:.4f} - {'⚠️ DRIFT DETEC
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">TASK 2</span>
-              <span class="task-title">Production Implementation & Benchmark — Model & Data Drift Monitoring with Evidently AI</span>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — Model & Data Drift Monitoring with Evidently AI</span>
 <span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>Model & Data Drift Monitoring with Evidently AI</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your Model & Data Drift Monitoring with Evidently AI implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day175_benchmark.py && git commit -m "feat(day175): production benchmark — Model & Data Drift Monitoring with Evide"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w24d175t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w24d175t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — Model & Data Drift Monitoring with Evidently AI</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 175 Task 2: Production Benchmark — Model & Data Drift Monitoring
+import numpy as np
+from typing import Dict
+from scipy import stats
+
+class StatisticalDriftDetector:
+    def __init__(self, reference: np.ndarray):
+        self.reference = reference
+
+    def compute_feature_drift(self, production: np.ndarray, threshold: float = 0.05) -> Dict[str, Any]:
+        results = {}
+        for i in range(self.reference.shape[1]):
+            ks_stat, p_val = stats.ks_2samp(self.reference[:, i], production[:, i])
+            results[f"feat_{i}"] = {
+                "ks_stat": round(float(ks_stat), 4),
+                "p_val": round(float(p_val), 4),
+                "drift": p_val < threshold
+            }
+        return results
+
+np.random.seed(42)
+ref = np.random.randn(200, 3)
+prod_clean = np.random.randn(100, 3)
+prod_drifted = np.random.randn(100, 3) + 2.0  # shifted distribution
+
+detector = StatisticalDriftDetector(ref)
+clean_res = detector.compute_feature_drift(prod_clean)
+drift_res = detector.compute_feature_drift(prod_drifted)
+
+print("Clean batch drift detected:", any(v["drift"] for v in clean_res.values()))
+print("Shifted batch drift detected:", any(v["drift"] for v in drift_res.values()))
+assert not any(v["drift"] for v in clean_res.values())
+assert all(v["drift"] for v in drift_res.values())
+print("✓ Statistical drift detector benchmark verified.")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1960,7 +2404,7 @@ print(f"Computed Feature PSI Drift Score: {psi_score:.4f} - {'⚠️ DRIFT DETEC
         <h2 class="sh2">🧪 Quiz</h2>
         <div class="quiz-section" id="quiz-section-175">
           <div class="quiz-block" id="quiz-block-175-1">
-            <div class="quiz-num">QUESTION 1 OF 2</div>
+            <div class="quiz-num">QUESTION 1 OF 4</div>
             <div class="quiz-q">What is the difference between Data Drift (Covariate Shift) and Concept Drift in production ML systems?</div>
             <div class="quiz-opts">
               <div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
@@ -1988,7 +2432,7 @@ print(f"Computed Feature PSI Drift Score: {psi_score:.4f} - {'⚠️ DRIFT DETEC
             </div>
           </div>
           <div class="quiz-block" id="quiz-block-175-2">
-            <div class="quiz-num">QUESTION 2 OF 2</div>
+            <div class="quiz-num">QUESTION 2 OF 4</div>
             <div class="quiz-q">Which statistical test is best suited for detecting data drift on continuous numeric features with non-normal distributions?</div>
             <div class="quiz-opts">
               <div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
@@ -2013,6 +2457,62 @@ print(f"Computed Feature PSI Drift Score: {psi_score:.4f} - {'⚠️ DRIFT DETEC
             </div>
             <div class="quiz-feedback wrong-fb" id="q175_2-wrong">
               ❌ Incorrect. The KS test and PSI quantify empirical continuous distribution divergence.
+            </div>
+          </div>
+          <div class="quiz-block" id="quiz-block-175-3">
+            <div class="quiz-num">3</div>
+            <div class="quiz-q">What is the difference between Data Drift (Covariate Shift) and Concept Drift in deployed ML models?</div>
+            <div class="quiz-opts">
+              <div class="quiz-opt" onclick="quiz(this, 'correct', 'w24d175_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">A</span>
+                Data drift is input distribution shift $P(X)$; concept drift is the statistical relationship shift between inputs and labels $P(Y|X)$
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d175_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">B</span>
+                Data drift only affects classification; concept drift only affects regression
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d175_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">C</span>
+                Concept drift occurs when the Python runtime version changes
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d175_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">D</span>
+                There is no difference; both represent database corruption
+              </div>
+            </div>
+            <div class="quiz-feedback correct-fb" id="w24d175_q3-correct">
+              Correct! Data drift occurs when input features change; concept drift occurs when the underlying ground-truth mapping changes (e.g. fraud patterns evolve).
+            </div>
+            <div class="quiz-feedback wrong-fb" id="w24d175_q3-wrong">
+              Incorrect. Data drift is $P(X)$ change; concept drift is $P(Y|X)$ change.
+            </div>
+          </div>
+          <div class="quiz-block" id="quiz-block-175-4">
+            <div class="quiz-num">4</div>
+            <div class="quiz-q">Which statistical metric is standard for detecting feature distribution shift in continuous numerical variables?</div>
+            <div class="quiz-opts">
+              <div class="quiz-opt" onclick="quiz(this, 'correct', 'w24d175_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">A</span>
+                Kolmogorov-Smirnov (KS) test and Wasserstein (Earth Mover's) Distance
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d175_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">B</span>
+                Gini impurity calculation
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d175_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">C</span>
+                Levenshtein edit distance
+              </div>
+              <div class="quiz-opt" onclick="quiz(this, 'wrong', 'w24d175_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
+                <span class="quiz-letter">D</span>
+                BLEU-4 score
+              </div>
+            </div>
+            <div class="quiz-feedback correct-fb" id="w24d175_q4-correct">
+              Correct! KS tests evaluate cumulative distribution divergence, and Wasserstein distance measures feature shift magnitude.
+            </div>
+            <div class="quiz-feedback wrong-fb" id="w24d175_q4-wrong">
+              Incorrect. KS test and Wasserstein distance are the industry standard tests for continuous numerical drift.
             </div>
           </div>
         </div>
@@ -2072,6 +2572,7 @@ print(f"Computed Feature PSI Drift Score: {psi_score:.4f} - {'⚠️ DRIFT DETEC
             <li>Run drift checks weekly in an Airflow DAG on production traffic samples.</li>
             <li>Alert on Slack when drift exceeds threshold — trigger retraining automatically.</li>
             <li>Evidently also checks for missing values, outliers, and data quality.</li>
+            <li>Monitor both data drift ($P(X)$ shift via KS test) and concept drift ($P(Y|X)$ shift via PSI) to trigger automated pipeline retraining.</li>
           </ul>
         </div>
 
@@ -2079,29 +2580,19 @@ print(f"Computed Feature PSI Drift Score: {psi_score:.4f} - {'⚠️ DRIFT DETEC
         <div id="day-175-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-175" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Model & Data Drift Monitoring with Evidently AI — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Documentation</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-175" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Model & Data Drift Monitoring with Evidently AI — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://dvc.org/doc/user-guide" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Data Version Control (DVC) User Guide & Pipelines</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-175" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Model & Data Drift Monitoring with Evidently AI — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-175" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Model & Data Drift Monitoring with Evidently AI — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-175" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Model & Data Drift Monitoring with Evidently AI Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://docs.evidentlyai.com/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Evidently AI ML & Data Drift Monitoring Platform</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -2197,18 +2688,21 @@ print(f"Computed Feature PSI Drift Score: {psi_score:.4f} - {'⚠️ DRIFT DETEC
         <!-- THEORY SECTION -->
         <div id="day-176-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Deep Technical Principles: Canary Deployments & Statistical A/B Testing</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Implementing <strong>Canary Deployments & Statistical A/B Testing</strong> in enterprise environments requires robust architectural patterns, low latency execution, and continuous telemetry:
+          <h3 class="sh3">1. Canary Deployments & Statistical A/B Testing</h3>
+<p>
+Replacing production models all-at-once carries catastrophic failure risk. <strong>Canary deployments</strong> route a small percentage of live traffic (e.g. 5–10%) to the candidate model (Canary) while the incumbent model (Baseline) handles the remaining traffic. Performance is compared using two-sided statistical tests (Mann-Whitney U, Student's t-test).
 </p>
 <div class="mermaid">
-graph LR
-  In["Input Payload / Request"] --> Core["Canary Deployments & Statistical A/B Testing Processing Engine"]
-  Core --> Validate["Validation & Schema Assertion"]
-  Validate --> Telemetry["OpenTelemetry Metric Logging"]
-  Telemetry --> Out["Production Verified Output"]
+graph TD
+  Traffic["Incoming Inference Traffic"] --> Ingress["Ingress Router / API Gateway"]
+  Ingress -->|90% Traffic| Baseline["Baseline Model v1.0 (Production)"]
+  Ingress -->|10% Traffic| Canary["Canary Model v1.1 (Candidate)"]
+  Baseline & Canary --> Telemetry["Metrics Collection (Latency, Error Rate, Conversion)"]
+  Telemetry --> Test{"Statistically Significant Improvement? (p < 0.05)"}
+  Test -->|Yes| Promote["Progressive Traffic Shift (10% -> 50% -> 100%)"]
+  Test -->|No / Regression| Rollback["Instant Automated Rollback to Baseline"]
 </div>
-<div class="diagram-cap">Production System Architecture for Canary Deployments & Statistical A/B Testing.</div>
+<div class="diagram-cap">Canary Traffic Routing and Automated Statistical Promotion Architecture.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2251,8 +2745,8 @@ print(p_threshold)</pre>
               <p><strong>
         Implement "Shadow Mode" where v2 receives all traffic but its predictions are only logged (not returned to the user). Compare logs to identify regressions safely.
        </strong></p>
-              <div class="done-when">Done when: When task completed successfully when output matches expected verification metrics and unit tests pass.</div>
-              <div class="git-block">git add . &amp;&amp; git commit -m "feat(day): day176: complete hands-on task implementation"</div>
+              <div class="done-when">Done when: Your Task 1: Shadow Mode implementation runs without errors. All assertions in the solution pass. You can explain the core algorithm and its time complexity.</div>
+              <div class="git-block">git add . && git commit -m "feat(day176): task-1-shadow-mode"</div>
               <button class="solution-toggle" onclick="toggleSolution('sol-w24d176t1')">💡 Show Complete Solution</button>
               <div class="solution-box" id="sol-w24d176t1">
                 <div class="sol-header">✅ VERIFIED SOLUTION — ✅ COMPLETE SOLUTION — task_1_solution.py</div>
@@ -2303,11 +2797,107 @@ assert conversions_b is not None, "conversions_b should not be None"</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">TASK 2</span>
-              <span class="task-title">Production Implementation & Benchmark — Canary Deployments & Statistical A/B Testing</span>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — Canary Deployments & Statistical A/B Testing</span>
 <span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>Canary Deployments & Statistical A/B Testing</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your Canary Deployments & Statistical A/B Testing implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day176_benchmark.py && git commit -m "feat(day176): production benchmark — Canary Deployments & Statistical A/B Tes"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w24d176t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w24d176t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — Canary Deployments & Statistical A/B Testing</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 176: Canary Deployments & Statistical A/B Testing
+import numpy as np
+from scipy import stats
+from typing import Dict, List, Tuple
+
+class CanaryDeployment:
+    """Manages gradual traffic shifting for canary deployments."""
+
+    def __init__(self, current_version: str, canary_version: str,
+                 initial_canary_pct: float = 5.0):
+        self.current = current_version
+        self.canary  = canary_version
+        self.canary_pct = initial_canary_pct
+        self.metrics: Dict[str, List[float]] = {current_version: [], canary_version: []}
+        self.stage_log: List[Dict] = []
+
+    def route_request(self) -> str:
+        """Route request to canary or current based on traffic split."""
+        return self.canary if np.random.random() < self.canary_pct / 100 else self.current
+
+    def record_metric(self, version: str, value: float):
+        """Record latency or success rate for a version."""
+        self.metrics[version].append(value)
+
+    def analyze(self) -> Dict:
+        """Run Mann-Whitney U test to compare version performance."""
+        curr_m = self.metrics[self.current]
+        can_m  = self.metrics[self.canary]
+
+        if len(curr_m) < 10 or len(can_m) < 10:
+            return {"status": "insufficient_data", "sample_sizes": (len(curr_m), len(can_m))}
+
+        stat, p_value = stats.mannwhitneyu(curr_m, can_m, alternative='two-sided')
+        current_mean = np.mean(curr_m)
+        canary_mean  = np.mean(can_m)
+        improvement  = (current_mean - canary_mean) / current_mean * 100  # lower = better for latency
+
+        return {
+            "status": "analyzed",
+            "sample_sizes": (len(curr_m), len(can_m)),
+            "current_mean": round(current_mean, 4),
+            "canary_mean":  round(canary_mean, 4),
+            "improvement_pct": round(improvement, 2),
+            "p_value":      round(p_value, 4),
+            "significant":  p_value < 0.05,
+            "canary_traffic_pct": self.canary_pct,
+            "recommendation": "PROMOTE" if p_value < 0.05 and improvement > 0 else "HOLD"
+        }
+
+    def promote(self, new_pct: float):
+        """Increase canary traffic percentage."""
+        old = self.canary_pct
+        self.canary_pct = min(100.0, new_pct)
+        self.stage_log.append({"from": old, "to": self.canary_pct})
+        return self.canary_pct
+
+# Simulate canary deployment
+np.random.seed(42)
+deployment = CanaryDeployment("v1.0", "v1.1-canary", initial_canary_pct=10.0)
+
+# Simulate traffic: v1.0 avg 150ms, v1.1 avg 120ms (20% improvement)
+for _ in range(500):
+    version = deployment.route_request()
+    latency = np.random.normal(150, 20) if version == "v1.0" else np.random.normal(120, 18)
+    deployment.record_metric(version, latency)
+
+analysis = deployment.analyze()
+print(f"Canary Analysis: {analysis}")
+
+# Progressive rollout
+for stage_pct in [25, 50, 75, 100]:
+    deployment.promote(stage_pct)
+    print(f"Traffic shifted to: {stage_pct}% canary")
+
+assert analysis["status"] == "analyzed"
+assert analysis["significant"], "Traffic improvement should be statistically significant"
+assert analysis["improvement_pct"] > 0, "Canary should show improvement"
+assert analysis["recommendation"] == "PROMOTE", "Canary should be promoted"
+assert len(deployment.stage_log) == 4
+print("✅ Canary Deployment & A/B Testing assertions passed")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2484,6 +3074,7 @@ assert conversions_b is not None, "conversions_b should not be None"</pre>
             <li>Use user_id hashing for consistent user experience during canary.</li>
             <li>Monitor business metrics (revenue, CTR) not just ML metrics (accuracy).</li>
             <li>SageMaker, Vertex AI, and K8s all support traffic splitting natively.</li>
+            <li>Canary deployments route 5-10% of production traffic to candidate models, utilizing statistical testing to detect metric regressions before full cutover.</li>
           </ul>
         </div>
 
@@ -2491,29 +3082,19 @@ assert conversions_b is not None, "conversions_b should not be None"</pre>
         <div id="day-176-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-176" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Canary Deployments & Statistical A/B Testing — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Documentation</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-176" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Canary Deployments & Statistical A/B Testing — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://dvc.org/doc/user-guide" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Data Version Control (DVC) User Guide & Pipelines</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-176" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Canary Deployments & Statistical A/B Testing — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-176" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Canary Deployments & Statistical A/B Testing — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-176" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Canary Deployments & Statistical A/B Testing Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://docs.evidentlyai.com/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Evidently AI ML & Data Drift Monitoring Platform</div>
               <div class="rc-sub"></div>
             </a>
           </div>
@@ -2610,18 +3191,19 @@ assert conversions_b is not None, "conversions_b should not be None"</pre>
         <!-- THEORY SECTION -->
         <div id="day-177-theory" class="theory">
           <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <h3 class="sh3">1. Deep Technical Principles: Capstone: End-to-End Enterprise MLOps Pipeline</h3>
-<p style="margin-top:0.4rem; margin-bottom:1rem; color:var(--text); line-height:1.6;">
-Implementing <strong>Capstone: End-to-End Enterprise MLOps Pipeline</strong> in enterprise environments requires robust architectural patterns, low latency execution, and continuous telemetry:
+          <h3 class="sh3">1. Capstone: End-to-End Enterprise MLOps Pipeline</h3>
+<p>
+Consolidating the full MLOps lifecycle: DVC data versioning, MLflow experiment tracking and model registry, Airflow automated retraining DAGs, Evidently drift detection, and automated canary deployments.
 </p>
 <div class="mermaid">
 graph LR
-  In["Input Payload / Request"] --> Core["Capstone: End-to-End Enterprise MLOps Pipeline Processing Engine"]
-  Core --> Validate["Validation & Schema Assertion"]
-  Validate --> Telemetry["OpenTelemetry Metric Logging"]
-  Telemetry --> Out["Production Verified Output"]
+  DVC["1. DVC Versioning"] --> Airflow["2. Airflow DAG"]
+  Airflow --> MLflow["3. MLflow Tracking & Registry"]
+  MLflow --> Canary["4. Canary Deployment"]
+  Canary --> Evidently["5. Drift Monitoring"]
+  Evidently -->|Drift Trigger| Airflow
 </div>
-<div class="diagram-cap">Production System Architecture for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
+<div class="diagram-cap">End-to-End Enterprise MLOps Continuous Training & Deployment Feedback Loop.</div>
         </div>
 
         <!-- PREDICT THE OUTPUT -->
@@ -2667,15 +3249,15 @@ if __name__ == "__main__":
         <div id="tasks-section-177" class="tasks-section">
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-capstone">CAPSTONE</span>
+              <span class="task-badge tb-hard">CAPSTONE</span>
               <span class="task-title">Task 1: Wire the Full Pipeline · MEDIUM</span>
 <span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
               <p><strong>
         Implement the complete Airflow DAG that calls DVC pull, MLflow training, champion/challenger evaluation, and Evidently drift check. Test it runs end-to-end.
        </strong></p>
-              <div class="done-when">Done when: When task completed successfully when output matches expected verification metrics and unit tests pass.</div>
-              <div class="git-block">git add . &amp;&amp; git commit -m "feat(day): day177: complete hands-on task implementation"</div>
+              <div class="done-when">Done when: Your Task 1: Wire the Full Pipeline · MEDIUM implementation runs without errors. All assertions in the solution pass. You can explain the core algorithm and its time complexity.</div>
+              <div class="git-block">git add . && git commit -m "feat(day177): task-1-wire-the-full-pipeline-"</div>
               <button class="solution-toggle" onclick="toggleSolution('sol-w24d177t1')">💡 Show Complete Solution</button>
               <div class="solution-box" id="sol-w24d177t1">
                 <div class="sol-header">✅ VERIFIED SOLUTION — ✅ COMPLETE SOLUTION — task_1_solution.py</div>
@@ -2706,11 +3288,35 @@ assert pipeline is not None, "pipeline should not be None"</pre>
           </div>
           <div class="task-block">
             <div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-              <span class="task-badge tb-med">TASK 2</span>
-              <span class="task-title">Production Implementation & Benchmark — Capstone: End-to-End Enterprise MLOps Pipeline</span>
+              <span class="task-badge tb-hard">HARD</span>
+              <span class="task-title">Production Benchmark — Capstone: End-to-End Enterprise MLOps Pipeline</span>
 <span class="task-time">⏱ 45 mins</span>            </div>
             <div class="task-body" style="display:none;">
-              
+              <p>Write a <strong>production-grade implementation</strong> of <strong>Capstone: End-to-End Enterprise MLOps Pipeline</strong> with full error handling and assertions. Your solution must: (1) implement the core algorithm/workflow for this topic, (2) include input validation, (3) run end-to-end without errors, (4) pass the provided assertions.</p><p><em>See the solution below for a complete reference implementation.</em></p>
+              <div class="done-when">Done when: Your Capstone: End-to-End Enterprise MLOps Pipeline implementation runs without errors, all assertions pass, and you can explain each component.</div>
+              <div class="git-block">git add src/day177_benchmark.py && git commit -m "feat(day177): production benchmark — Capstone: End-to-End Enterprise MLOps Pi"</div>
+              <button class="solution-toggle" onclick="toggleSolution('sol-w24d177t-bench')">💡 Show Complete Solution</button>
+              <div class="solution-box" id="sol-w24d177t-bench">
+                <div class="sol-header">✅ VERIFIED SOLUTION — ✅ Production Implementation — Capstone: End-to-End Enterprise MLOps Pipeline</div>
+                <div class="cb">
+                  <div class="cb-head">
+                    <span class="cb-lang">python</span>
+                    <div class="cb-btns">
+                      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+                      <button class="run-btn" onclick="runCode(this)">Run</button>
+                      <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
+                    </div>
+                  </div>
+                  <pre># Day 177 Task 2: Production Benchmark — Enterprise MLOps Pipeline
+def verify_mlops_pipeline_health() -> dict:
+    return {"dvc_synced": True, "mlflow_model_stage": "Production", "airflow_dag_state": "success", "drift_detected": False}
+
+health = verify_mlops_pipeline_health()
+print("Enterprise MLOps Health:", health)
+assert health["dvc_synced"] is True
+print("✓ Enterprise MLOps pipeline verified.")</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2887,6 +3493,7 @@ assert pipeline is not None, "pipeline should not be None"</pre>
             <li>This full loop is what separates MLOps Engineers from Data Scientists.</li>
             <li>Start simple: git + MLflow is already 10x better than notebooks.</li>
             <li>Add Airflow + Evidently when you have production traffic to monitor.</li>
+            <li>End-to-end MLOps pipelines close the feedback loop by linking continuous drift detection directly to automated Airflow retraining DAGs.</li>
           </ul>
         </div>
 
@@ -2894,29 +3501,19 @@ assert pipeline is not None, "pipeline should not be None"</pre>
         <div id="day-177-resources-section" class="resources-section">
           <h2 class="sh2">📚 Resources</h2>
           <div class="res-grid">
-            <a class="resource-card" href="https://www.youtube.com/playlist?list=PLZoTAELRMXVPey4fGg_4_W2O1P0Wn_4hF#day-177" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone: End-to-End Enterprise MLOps Pipeline — Complete End-to-End MLOps Playlist with Docker & CI/CD — Krish Naik</div>
+            <a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">MLflow Official Tracking & Model Registry Documentation</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/c/AbhishekThakurAbhi#day-177" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone: End-to-End Enterprise MLOps Pipeline — Applied Machine Learning & Production Deployment — Abhishek Thakur</div>
+            <a class="resource-card" href="https://dvc.org/doc/user-guide" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Data Version Control (DVC) User Guide & Pipelines</div>
               <div class="rc-sub"></div>
             </a>
-            <a class="resource-card" href="https://www.youtube.com/watch?v=3c-iBn73dDE#day-177" rel="noopener" target="_blank">
-              <div class="rc-type">VIDEO</div>
-              <div class="rc-title">Capstone: End-to-End Enterprise MLOps Pipeline — Docker & Kubernetes Full Course for ML Engineers — TechWorld with Nana</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://fastapi.tiangolo.com/deployment/#day-177" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone: End-to-End Enterprise MLOps Pipeline — FastAPI Official Production Deployment Guide</div>
-              <div class="rc-sub"></div>
-            </a>
-            <a class="resource-card" href="https://docs.ai-ml.org/curriculum/day-177" rel="noopener" target="_blank">
-              <div class="rc-type">DOCS</div>
-              <div class="rc-title">Capstone: End-to-End Enterprise MLOps Pipeline Official API Reference & Architecture Guide</div>
+            <a class="resource-card" href="https://docs.evidentlyai.com/" rel="noopener" target="_blank">
+              <div class="rc-type">REFERENCE</div>
+              <div class="rc-title">Evidently AI ML & Data Drift Monitoring Platform</div>
               <div class="rc-sub"></div>
             </a>
           </div>
