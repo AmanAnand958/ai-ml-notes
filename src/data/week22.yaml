@@ -673,54 +673,30 @@ days:
   analogy: 'Dual-perimeter guardrails are like airport security: TSA checks your baggage for prohibited items before boarding
     (Input Guardrail), while customs checks your declarations before you exit the terminal (Output Guardrail).'
   theory_html: |-
-    <h3 class="sh3">1. Multi-Layer Guardrail Architecture</h3>
+    <h3 class="sh3">1. Dual-Perimeter Guardrails Architecture</h3>
     <p>
-    Deploying enterprise LLMs without guardrails exposes organizations to prompt injection attacks, PII leaks, brand reputation damage, and regulatory non-compliance.
+    Enterprise AI safety requires intercepting inputs and outputs across two distinct security perimeters:
     </p>
-    <p>
-    Production safety requires a <strong>dual-perimeter defense strategy</strong> operating before and after LLM inference:
-    </p>
-    <div class="mermaid">
-    graph LR
-        UserPrompt["User Prompt"] --> IngressGuard["Input Guardrail Layer\n1. Regex & Pattern Scanner\n2. Presidio PII De-identification\n3. Embedding Jailbreak Classifier"]
-        IngressGuard -->|Pass| LLM["LLM Inference Core"]
-        IngressGuard -->|Block| FastReject["400 Bad Request: Policy Violation"]
-        LLM --> EgressGuard["Output Guardrail Layer\n1. Hallucination Verifier\n2. PII / Secret Leak Scrubber\n3. JSON Schema Validator"]
-        EgressGuard -->|Verified| Client["Sanitized Safe Response"]
-    </div>
-    <div class="diagram-cap">Figure 159.1: Ingress/Egress Guardrail Pipeline Architecture.</div>
+    <ol>
+      <li><strong>Ingress Perimeter (Input Guardrails):</strong> Detects prompt injection attacks, jailbreaks, toxicity, and scrubs Personally Identifiable Information (PII) before queries reach the model.</li>
+      <li><strong>Egress Perimeter (Output Guardrails):</strong> Verifies factual consistency, enforces strict JSON schema compliance, and filters out unauthorized financial/medical advice.</li>
+    </ol>
 
-    <h3 class="sh3">2. Defense-in-Depth Components</h3>
-    <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-      <thead>
-        <tr style="border-bottom:2px solid var(--border); text-align:left;">
-          <th style="padding:8px;">Guardrail Layer</th>
-          <th style="padding:8px;">Technology</th>
-          <th style="padding:8px;">Execution Latency</th>
-          <th style="padding:8px;">Failure Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:8px;"><strong>PII Masking</strong></td>
-          <td style="padding:8px;">Microsoft Presidio + SpaCy NER</td>
-          <td style="padding:8px;">&lt; 5ms</td>
-          <td style="padding:8px;">Anonymize with synthetic tokens (e.g. <code>[EMAIL_1]</code>)</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:8px;"><strong>Jailbreak Detection</strong></td>
-          <td style="padding:8px;">FastText / Vector Embedding Distance</td>
-          <td style="padding:8px;">&lt; 10ms</td>
-          <td style="padding:8px;">Block request immediately</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:8px;"><strong>Structured Output</strong></td>
-          <td style="padding:8px;">Pydantic / CFG Grammar Masking</td>
-          <td style="padding:8px;">0ms (Token Logit Level)</td>
-          <td style="padding:8px;">Mask invalid tokens at decoding step</td>
-        </tr>
-      </tbody>
-    </table>
+    <h3 class="sh3">2. PII Scrubbing with Presidio & Regex Scanning</h3>
+    <div class="cb">
+      <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+      <pre><code><span class="kw">import</span> re
+
+    <span class="kw">class</span> <span class="fn">PIIScrubber</span>:
+        <span class="kw">def</span> <span class="fn">__init__</span>(self):
+            self.ssn_pattern = re.compile(r<span class="str">"\b\d{3}-\d{2}-\d{4}\b"</span>)
+            self.email_pattern = re.compile(r<span class="str">"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"</span>)
+
+        <span class="kw">def</span> <span class="fn">anonymize</span>(self, text: str) -> str:
+            text = self.ssn_pattern.sub(<span class="str">"[REDACTED_SSN]"</span>, text)
+            text = self.email_pattern.sub(<span class="str">"[REDACTED_EMAIL]"</span>, text)
+            <span class="kw">return</span> text</code></pre>
+    </div>
   predict:
     question: What string flag is returned by the Prompt Injection guard when evaluating a prompt containing 'Ignore previous
       instructions'?
@@ -977,30 +953,19 @@ days:
     even if a caller phrases the question slightly differently, the rep recognizes the intent instantly and reads the pre-approved
     answer.'
   theory_html: |-
-    <h3 class="sh3">1. Exact vs Semantic Vector Caching</h3>
+    <h3 class="sh3">1. Exact Match vs Semantic Vector Caching</h3>
     <p>
-    Traditional exact string caching (e.g. Redis key-value on MD5 hash of prompt) provides zero cache hits when users alter punctuation, word order, or phrasing (e.g. <em>"How do I reset my password?"</em> vs <em>"Password reset instructions"</em>).
+    Traditional key-value caching (e.g. Redis exact string hash) achieves near-zero cache hit rates in conversational AI because users phrase identical questions differently (e.g. <em>"How do I reset my password?"</em> vs <em>"Password reset steps"</em>).
     </p>
     <p>
-    <strong>Semantic Caching</strong> stores prompt embeddings in a vector index. When a new prompt arrives:
+    <strong>Semantic Caching</strong> embeds the incoming user prompt and executes an approximate nearest neighbor search over historical cached prompt vectors:
     </p>
-    <ol>
-      <li>Compute query embedding $\vec{q} = \text{Embed}(\text{prompt})$.</li>
-      <li>Search vector cache index for the nearest cached prompt vector $\vec{v}_{\text{cached}}$.</li>
-      <li>If cosine similarity $\cos(\vec{q}, \vec{v}_{\text{cached}}) \ge \tau$ (typically $\tau \in [0.92, 0.96]$), return the cached response in <strong>&lt;5ms</strong>.</li>
-      <li>If similarity is below threshold, forward request to the LLM and index the new response.</li>
-    </ol>
-    <div class="mermaid">
-    graph TD
-        Query["Incoming Prompt"] --> Embed["Compute Embedding vec(q)"]
-        Embed --> CacheIndex["Search Redis Vector Index"]
-        CacheIndex --> Check{"Cosine Similarity >= 0.94?"}
-        Check -->|Yes: Cache Hit| CachedResp["Return Cached LLM Response (4ms | $0 cost)"]
-        Check -->|No: Cache Miss| LLMInference["Execute Full LLM Generation (800ms)"]
-        LLMInference --> Store["Store (vec(q), Response) in Redis Vector Cache"]
-        Store --> FinalResp["Return Fresh Response"]
+    <div class="math-block">
+    $$\text{Similarity}(\vec{q}, \vec{k}_i) = \frac{\vec{q} \cdot \vec{k}_i}{\|\vec{q}\| \|\vec{k}_i\|}$$
     </div>
-    <div class="diagram-cap">Figure 160.1: Semantic Vector Cache Decision Flow.</div>
+    <p>
+    If $\text{Similarity} \ge 0.94$, the pre-computed LLM response is returned in <strong>&lt;5ms</strong>, cutting API costs by 70–85%.
+    </p>
   predict:
     question: What string is returned on a semantic cache hit?
     answer: CACHE_HIT
@@ -1567,34 +1532,14 @@ days:
   analogy: 'System design math for LLMs is like civil engineering for water supply: you calculate reservoir capacity (VRAM
     for weights), pipe diameter (memory bandwidth), and pump flow rate (Tokens/Sec throughput) to prevent system bottlenecks.'
   theory_html: |-
-    <h3 class="sh3">1. System Design Math for LLM Infrastructure</h3>
+    <h3 class="sh3">1. GPU Sizing & Hardware Capacity Planning Formulas</h3>
     <p>
-    Estimating GPU hardware requirements for enterprise LLM deployments requires exact capacity planning math:
-    </p>
-    <h3 class="sh3">2. VRAM Memory Sizing Formulas</h3>
-    <div class="math-block">
-    $$\text{VRAM}_{\text{total}} = M_{\text{weights}} + M_{\text{KV}} + M_{\text{activations}}$$
-    </div>
-    <p>
-    <strong>1. Model Weights Footprint:</strong>
+    Before deploying an enterprise LLM, engineers must calculate exact hardware memory and bandwidth requirements:
     </p>
     <div class="math-block">
-    $$M_{\text{weights}} = \text{Parameters (Billions)} \times \text{Bytes per Parameter}$$
-    </div>
-    <p>
-    For a 70B parameter model: FP16 (2 bytes) = 140GB; INT8 (1 byte) = 70GB; INT4 (0.5 bytes) = 35GB.
-    </p>
-    <p>
-    <strong>2. Key-Value (KV) Cache Memory:</strong>
-    </p>
-    <div class="math-block">
-    $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{bytes} \times B \times S$$
-    </div>
-    <p>
-    Where $B$ is concurrent batch size and $S$ is maximum sequence length. For Llama-3-70B with Grouped Query Attention (GQA: 8 KV heads, $d=128$, 80 layers, FP16):
-    </p>
-    <div class="math-block">
-    M_{\text{KV}} = 2 \times 80 \times 8 \times 128 \times 2 \times 32 \times 4096 \approx 42.95\text{ GB}
+    $$M_{\text{weights}} = P \times \text{BytesPerParam} \quad (\text{e.g. } 70\text{B} \times 2 = 140\text{GB in FP16})$$
+    $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{Bytes} \times \text{BatchSize} \times \text{SeqLen}$$
+    $$\text{Throughput Limit} = \frac{\text{Memory Bandwidth (TB/s)}}{\text{Model Size (GB)}} \quad (\text{Tokens/Sec})$$
     </div>
   predict:
     question: If a 7B model is quantized to 4-bit, how much VRAM do the weights take?
