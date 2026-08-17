@@ -599,58 +599,29 @@ if __name__ == "__main__":
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># implement_bahdanau_additive_attention.py — Solution
-# Complete solution for: Implement Bahdanau Additive Attention
+                  <pre># Day 80: Manual BLEU Metric Implementation
+import math
+from collections import Counter
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-class BahdanauAttention(nn.Module):
-    """Bahdanau (Additive) Attention mechanism.
+def compute_bleu(candidate, reference, max_n=2):
+    cand_tokens = candidate.lower().split()
+    ref_tokens = reference.lower().split()
+    precisions = []
     
-    score(s_t, h_i) = v^T * tanh(W_s * s_t + W_h * h_i)
-    """
-    def __init__(self, hidden_size):
-        super().__init__()
-        self.W_s = nn.Linear(hidden_size, hidden_size, bias=False)
-        self.W_h = nn.Linear(hidden_size, hidden_size, bias=False)
-        self.v = nn.Linear(hidden_size, 1, bias=False)
-    
-    def forward(self, decoder_hidden, encoder_outputs):
-        """
-        decoder_hidden: (batch, hidden_size) - current decoder state
-        encoder_outputs: (batch, src_len, hidden_size) - all encoder states
-        Returns: context (batch, hidden_size), attention_weights (batch, src_len)
-        """
-        # Expand decoder hidden for broadcasting
-        s = decoder_hidden.unsqueeze(1)  # (batch, 1, hidden)
+    for n in range(1, max_n + 1):
+        cand_ngrams = [tuple(cand_tokens[i:i+n]) for i in range(len(cand_tokens)-n+1)]
+        ref_ngrams = [tuple(ref_tokens[i:i+n]) for i in range(len(ref_tokens)-n+1)]
+        cand_counts = Counter(cand_ngrams)
+        ref_counts = Counter(ref_ngrams)
+        overlap = sum(min(count, ref_counts[ng]) for ng, count in cand_counts.items())
+        precisions.append(overlap / max(1, len(cand_ngrams)))
         
-        # Compute attention scores
-        scores = self.v(torch.tanh(self.W_s(s) + self.W_h(encoder_outputs)))
-        scores = scores.squeeze(-1)  # (batch, src_len)
-        
-        # Normalize
-        attn_weights = F.softmax(scores, dim=1)
-        
-        # Context vector (weighted sum of encoder outputs)
-        context = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)
-        context = context.squeeze(1)  # (batch, hidden)
-        
-        return context, attn_weights
+    bp = 1.0 if len(cand_tokens) > len(ref_tokens) else math.exp(1 - len(ref_tokens) / len(cand_tokens))
+    score = bp * math.exp(sum(math.log(max(1e-9, p)) for p in precisions) / max_n)
+    print(f"Candidate: '{candidate}' | Reference: '{reference}' | BLEU-2: {score:.4f}")
+    return score
 
-# Test
-batch_size, src_len, hidden = 4, 10, 64
-attention = BahdanauAttention(hidden)
-decoder_h = torch.randn(batch_size, hidden)
-encoder_out = torch.randn(batch_size, src_len, hidden)
-ctx, weights = attention(decoder_h, encoder_out)
-print(f"Context: {ctx.shape}")       # (4, 64)
-print(f"Weights: {weights.shape}")   # (4, 10)
-print(f"Weights sum: {weights.sum(dim=1)}")  # Should be ~1.0
-
-if __name__ == '__main__':
-    solve()</pre>
+compute_bleu("the cat sat on the mat", "the cat is sitting on the mat")</pre>
                 </div>
               </div>
             </div>
@@ -699,26 +670,29 @@ if __name__ == '__main__':
                       <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
                     </div>
                   </div>
-                  <pre># End-to-End Production Script for Day 80: The Attention Mechanism - Compute BLEU-1 and BLEU-2 Manually
-import os
-import sys
+                  <pre># Day 80: Manual BLEU Metric Implementation
+import math
+from collections import Counter
 
-def execute_pipeline():
-    print(f"Initializing pipeline execution for Day 80: The Attention Mechanism")
-    pipeline_state = {
-        "day": 80,
-        "module": "The Attention Mechanism",
-        "task": "Compute BLEU-1 and BLEU-2 Manually",
-        "status": "READY",
-        "checks_passed": True
-    }
-    print(f"Pipeline State: {pipeline_state}")
-    assert pipeline_state["checks_passed"] is True, "Pipeline state integrity verification failed!"
-    print("✅ All verification assertions passed with status: SUCCESS")
-    return pipeline_state
+def compute_bleu(candidate, reference, max_n=2):
+    cand_tokens = candidate.lower().split()
+    ref_tokens = reference.lower().split()
+    precisions = []
+    
+    for n in range(1, max_n + 1):
+        cand_ngrams = [tuple(cand_tokens[i:i+n]) for i in range(len(cand_tokens)-n+1)]
+        ref_ngrams = [tuple(ref_tokens[i:i+n]) for i in range(len(ref_tokens)-n+1)]
+        cand_counts = Counter(cand_ngrams)
+        ref_counts = Counter(ref_ngrams)
+        overlap = sum(min(count, ref_counts[ng]) for ng, count in cand_counts.items())
+        precisions.append(overlap / max(1, len(cand_ngrams)))
+        
+    bp = 1.0 if len(cand_tokens) > len(ref_tokens) else math.exp(1 - len(ref_tokens) / len(cand_tokens))
+    score = bp * math.exp(sum(math.log(max(1e-9, p)) for p in precisions) / max_n)
+    print(f"Candidate: '{candidate}' | Reference: '{reference}' | BLEU-2: {score:.4f}")
+    return score
 
-if __name__ == "__main__":
-    execute_pipeline()</pre>
+compute_bleu("the cat sat on the mat", "the cat is sitting on the mat")</pre>
                 </div>
               </div>
             </div>
