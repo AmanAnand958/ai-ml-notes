@@ -430,33 +430,48 @@ print(round(h_mean, 1))</pre>
                     </div>
                   </div>
                   <pre>"""
-Production Implementation: Task 1: Faithfulness Metric
-Module: Day 157 — LLM Evaluation Metrics
+Production Implementation: Algorithmic Faithfulness Evaluator
+Module: Day 157 — LLM Evaluation Metrics & Benchmarks
 """
 
-# Production Pipeline Implementation for Day 157: LLM Evaluation Metrics - Task 1: Faithfulness Metric
-import numpy as np
+from typing import List, Set
 
-def run_pipeline():
-    print(f"Executing LLM Evaluation Metrics: Task 1: Faithfulness Metric...")
-    metrics = {"status": "SUCCESS", "accuracy": 0.965, "latency_ms": 12.4, "day": 157}
-    assert metrics["status"] == "SUCCESS"
-    print(f"Pipeline Result: {metrics}")
-    return metrics
+class FaithfulnessEvaluator:
+    """
+    Evaluates what fraction of atomic claims in generated answer are factually supported by retrieved context.
+    """
+    def __init__(self, overlap_threshold: float = 0.5):
+        self.overlap_threshold = overlap_threshold
 
-if __name__ == "__main__":
-    run_pipeline()
+    def evaluate_claims(self, claims: List[str], context: str) -> float:
+        if not claims:
+            return 1.0
+        
+        ctx_words: Set[str] = set(context.lower().split())
+        supported_claims = 0
+        
+        for claim in claims:
+            claim_words = [w for w in claim.lower().split() if len(w) > 2]
+            if not claim_words:
+                continue
+            matched = sum(1 for w in claim_words if w in ctx_words)
+            if (matched / len(claim_words)) >= self.overlap_threshold:
+                supported_claims += 1
+                
+        return round(supported_claims / len(claims), 4)
 
-# ── Self-Verifying Unit Test & Execution Assertion Block ──
 if __name__ == '__main__':
-    print(f"Executing self-test suite for: Task 1: Faithfulness Metric...")
-    try:
-        # Automated runtime integrity check
-        assert True, "Verification failed"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
+    context = "FlashAttention-2 optimizes memory bandwidth by tiling matrix blocks into GPU SRAM."
+    claims = [
+        "FlashAttention-2 optimizes memory bandwidth",
+        "It tiles computation in GPU SRAM",
+        "It was invented in the year 1842" # Hallucinated claim
+    ]
+    evaluator = FaithfulnessEvaluator(overlap_threshold=0.5)
+    score = evaluator.evaluate_claims(claims, context)
+    print(f"Calculated Faithfulness Score: {score}")
+    assert score == 0.6667, f"Expected 0.6667, got {score}"
+    print("✓ Faithfulness evaluation verified!")
 </pre>
                 </div>
               </div>
@@ -528,33 +543,34 @@ ctx = <span class="str">"LoRA freezes original pretrained weights and injects lo
                     </div>
                   </div>
                   <pre>"""
-Production Implementation: Task 2: Implement LLM Evaluation Metrics
-Module: Day 157 — LLM Evaluation Metrics
+Production Implementation: RAG Triad Evaluator (Relevance & Recall)
+Module: Day 157 — LLM Evaluation Metrics & Benchmarks
 """
 
-# Production Pipeline Implementation for Day 157: LLM Evaluation Metrics - Task 2: Implement LLM Evaluation Metrics
-import numpy as np
+from typing import List
 
-def run_pipeline():
-    print(f"Executing LLM Evaluation Metrics: Task 2: Implement LLM Evaluation Metrics...")
-    metrics = {"status": "SUCCESS", "accuracy": 0.965, "latency_ms": 12.4, "day": 157}
-    assert metrics["status"] == "SUCCESS"
-    print(f"Pipeline Result: {metrics}")
-    return metrics
+def compute_context_recall(ground_truth_points: List[str], retrieved_context: str) -> float:
+    ctx_lower = retrieved_context.lower()
+    matched = sum(1 for p in ground_truth_points if any(w in ctx_lower for w in p.lower().split() if len(w) > 3))
+    return round(matched / max(1, len(ground_truth_points)), 4)
 
-if __name__ == "__main__":
-    run_pipeline()
+def compute_answer_relevance(query: str, answer: str) -> float:
+    q_words = set(w for w in query.lower().split() if len(w) > 2)
+    a_words = set(w for w in answer.lower().split() if len(w) > 2)
+    intersection = q_words.intersection(a_words)
+    return round(len(intersection) / max(1, len(q_words)), 4)
 
-# ── Self-Verifying Unit Test & Execution Assertion Block ──
 if __name__ == '__main__':
-    print(f"Executing self-test suite for: Task 2: Implement LLM Evaluation Metrics...")
-    try:
-        # Automated runtime integrity check
-        assert True, "Verification failed"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
+    query = "What is the primary advantage of PagedAttention?"
+    answer = "PagedAttention eliminates external memory fragmentation in GPU VRAM."
+    ground_truth = ["eliminates fragmentation", "manages KV cache blocks"]
+    context = "PagedAttention allocates non-contiguous physical memory blocks to eliminate GPU VRAM fragmentation."
+    
+    recall = compute_context_recall(ground_truth, context)
+    relevance = compute_answer_relevance(query, answer)
+    print(f"Context Recall: {recall} | Answer Relevance: {relevance}")
+    assert recall >= 0.5 and relevance >= 0.5
+    print("✓ RAG Triad metric evaluation passed!")
 </pre>
                 </div>
               </div>

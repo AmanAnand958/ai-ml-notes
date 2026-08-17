@@ -497,33 +497,46 @@ if __name__ == '__main__':
                     </div>
                   </div>
                   <pre>"""
-Production Implementation: Task 2: Implement Kubernetes Core Concepts
-Module: Day 178 — Kubernetes Core Concepts
+Production Implementation: Kubernetes Pod & ReplicaSet State Controller
+Module: Day 178 — Kubernetes Architecture & Core Concepts
 """
 
-# Production Pipeline Implementation for Day 178: Kubernetes Core Concepts - Task 2: Implement Kubernetes Core Concepts
-import numpy as np
+from typing import Dict, List
 
-def run_pipeline():
-    print(f"Executing Kubernetes Core Concepts: Task 2: Implement Kubernetes Core Concepts...")
-    metrics = {"status": "SUCCESS", "accuracy": 0.965, "latency_ms": 12.4, "day": 178}
-    assert metrics["status"] == "SUCCESS"
-    print(f"Pipeline Result: {metrics}")
-    return metrics
+class K8sPodController:
+    def __init__(self, desired_replicas: int = 3):
+        self.desired_replicas = desired_replicas
+        self.pods: Dict[str, str] = {}
 
-if __name__ == "__main__":
-    run_pipeline()
+    def reconcile(self) -> Dict[str, int]:
+        current_count = len([p for p, status in self.pods.items() if status == "Running"])
+        
+        # Scale up if under-provisioned
+        if current_count < self.desired_replicas:
+            for i in range(current_count, self.desired_replicas):
+                pod_name = f"vllm-worker-{i+1}"
+                self.pods[pod_name] = "Running"
+                print(f"[K8s Reconcile] Spawned {pod_name} -> Running")
+                
+        # Scale down if over-provisioned
+        elif current_count > self.desired_replicas:
+            running_pods = [p for p, status in self.pods.items() if status == "Running"]
+            for pod_name in running_pods[self.desired_replicas:]:
+                self.pods[pod_name] = "Terminated"
+                print(f"[K8s Reconcile] Terminated {pod_name}")
+                
+        return {"running": len([p for p, s in self.pods.items() if s == "Running"])}
 
-# ── Self-Verifying Unit Test & Execution Assertion Block ──
 if __name__ == '__main__':
-    print(f"Executing self-test suite for: Task 2: Implement Kubernetes Core Concepts...")
-    try:
-        # Automated runtime integrity check
-        assert True, "Verification failed"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
+    controller = K8sPodController(desired_replicas=3)
+    status = controller.reconcile()
+    assert status["running"] == 3
+    
+    # Scale out to 5 replicas during load spike
+    controller.desired_replicas = 5
+    status = controller.reconcile()
+    assert status["running"] == 5
+    print("✓ Kubernetes state controller reconciled successfully!")
 </pre>
                 </div>
               </div>
@@ -2257,33 +2270,49 @@ print(fname)</pre>
                     </div>
                   </div>
                   <pre>"""
-Production Implementation: Task 1: Parameterize vLLM Chart
-Module: Day 181 — Helm Charts for ML Stacks
+Production Implementation: Helm Values Template Engine for vLLM
+Module: Day 181 — Helm Package Manager & Cluster Deployments
 """
 
-# Production Pipeline Implementation for Day 181: Helm Charts for ML Stacks - Task 1: Parameterize vLLM Chart
-import numpy as np
+import yaml
 
-def run_pipeline():
-    print(f"Executing Helm Charts for ML Stacks: Task 1: Parameterize vLLM Chart...")
-    metrics = {"status": "SUCCESS", "accuracy": 0.965, "latency_ms": 12.4, "day": 181}
-    assert metrics["status"] == "SUCCESS"
-    print(f"Pipeline Result: {metrics}")
-    return metrics
+def generate_vllm_helm_deployment(model_name: str, gpu_count: int, max_model_len: int) -> dict:
+    """
+    Generates Kubernetes Deployment manifest parameterizing vLLM serving arguments.
+    """
+    return {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {"name": "vllm-inference-deployment"},
+        "spec": {
+            "replicas": 2,
+            "template": {
+                "spec": {
+                    "containers": [{
+                        "name": "vllm-engine",
+                        "image": "vllm/vllm-openai:latest",
+                        "args": [
+                            f"--model={model_name}",
+                            f"--tensor-parallel-size={gpu_count}",
+                            f"--max-model-len={max_model_len}"
+                        ],
+                        "resources": {
+                            "limits": {"nvidia.com/gpu": gpu_count, "memory": "32Gi"},
+                            "requests": {"nvidia.com/gpu": gpu_count, "memory": "32Gi"}
+                        }
+                    }]
+                }
+            }
+        }
+    }
 
-if __name__ == "__main__":
-    run_pipeline()
-
-# ── Self-Verifying Unit Test & Execution Assertion Block ──
 if __name__ == '__main__':
-    print(f"Executing self-test suite for: Task 1: Parameterize vLLM Chart...")
-    try:
-        # Automated runtime integrity check
-        assert True, "Verification failed"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
+    manifest = generate_vllm_helm_deployment("meta-llama/Meta-Llama-3-8B", gpu_count=2, max_model_len=8192)
+    container = manifest["spec"]["template"]["spec"]["containers"][0]
+    print("Generated Container Args:", container["args"])
+    assert container["resources"]["limits"]["nvidia.com/gpu"] == 2
+    assert "--model=meta-llama/Meta-Llama-3-8B" in container["args"]
+    print("✓ Helm parameterization verified!")
 </pre>
                 </div>
               </div>

@@ -1833,33 +1833,68 @@ print(len(chunks))</pre>
                     </div>
                   </div>
                   <pre>"""
-Production Implementation: Task 1: Semantic Chunking
-Module: Day 138 — Advanced Chunking Strategies
+Production Implementation: Semantic Chunking via Embedding Distance
+Module: Day 138 — Document Chunking & Ingestion Strategies
 """
 
-# Production Pipeline Implementation for Day 138: Advanced Chunking Strategies - Task 1: Semantic Chunking
 import numpy as np
+from typing import List
 
-def run_pipeline():
-    print(f"Executing Advanced Chunking Strategies: Task 1: Semantic Chunking...")
-    metrics = {"status": "SUCCESS", "accuracy": 0.965, "latency_ms": 12.4, "day": 138}
-    assert metrics["status"] == "SUCCESS"
-    print(f"Pipeline Result: {metrics}")
-    return metrics
+def cosine_similarity(v1: np.ndarray, v2: np.ndarray) -> float:
+    return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-9))
 
-if __name__ == "__main__":
-    run_pipeline()
+class SemanticChunker:
+    """
+    Splits text dynamically based on cosine distance thresholds between adjacent sentence embeddings.
+    """
+    def __init__(self, distance_threshold: float = 0.35):
+        self.distance_threshold = distance_threshold
 
-# ── Self-Verifying Unit Test & Execution Assertion Block ──
+    def chunk_sentences(self, sentences: List[str], embeddings: List[np.ndarray]) -> List[List[str]]:
+        if not sentences:
+            return []
+        
+        chunks = []
+        current_chunk = [sentences[0]]
+        
+        for i in range(len(embeddings) - 1):
+            sim = cosine_similarity(embeddings[i], embeddings[i + 1])
+            distance = 1.0 - sim
+            
+            # If distance exceeds threshold, boundary is detected
+            if distance > self.distance_threshold:
+                chunks.append(current_chunk)
+                current_chunk = [sentences[i + 1]]
+            else:
+                current_chunk.append(sentences[i + 1])
+                
+        if current_chunk:
+            chunks.append(current_chunk)
+            
+        return chunks
+
 if __name__ == '__main__':
-    print(f"Executing self-test suite for: Task 1: Semantic Chunking...")
-    try:
-        # Automated runtime integrity check
-        assert True, "Verification failed"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
+    # Test with 4 synthetic sentences
+    sents = [
+        "PyTorch is an open source deep learning framework.",
+        "It provides flexible tensor computations on GPUs.",
+        "The Italian restaurant serves authentic wood-fired pizza.",
+        "Pasta and risotto are popular Italian delicacies."
+    ]
+    # Two distinct topic clusters in 4D space
+    embs = [
+        np.array([0.9, 0.8, 0.1, 0.0]),
+        np.array([0.85, 0.82, 0.12, 0.05]),
+        np.array([0.05, 0.1, 0.95, 0.88]),
+        np.array([0.02, 0.08, 0.91, 0.92])
+    ]
+    chunker = SemanticChunker(distance_threshold=0.35)
+    result_chunks = chunker.chunk_sentences(sents, embs)
+    print(f"Generated {len(result_chunks)} semantic chunks:")
+    for idx, c in enumerate(result_chunks, 1):
+        print(f"  Chunk {idx}: {c}")
+    assert len(result_chunks) == 2, "Semantic boundary detection failed"
+    print("✓ All semantic chunking assertions passed!")
 </pre>
                 </div>
               </div>
@@ -4249,33 +4284,48 @@ print(decision)</pre>
                     </div>
                   </div>
                   <pre>"""
-Production Implementation: Task 1: Assemble the Pipeline · MEDIUM
-Module: Day 142 — Capstone: Production RAG
+Production Implementation: End-to-End Enterprise RAG Pipeline
+Module: Day 142 — Capstone: Production RAG System
 """
 
-# Production Pipeline Implementation for Day 142: Capstone: Production RAG - Task 1: Assemble the Pipeline · MEDIUM
 import numpy as np
+from typing import List, Dict, Any
 
-def run_pipeline():
-    print(f"Executing Capstone: Production RAG: Task 1: Assemble the Pipeline · MEDIUM...")
-    metrics = {"status": "SUCCESS", "accuracy": 0.965, "latency_ms": 12.4, "day": 142}
-    assert metrics["status"] == "SUCCESS"
-    print(f"Pipeline Result: {metrics}")
-    return metrics
+class ProductionRAGPipeline:
+    def __init__(self, corpus: List[str], embeddings: np.ndarray):
+        self.corpus = corpus
+        self.embeddings = embeddings
 
-if __name__ == "__main__":
-    run_pipeline()
+    def retrieve(self, query_vec: np.ndarray, top_k: int = 2) -> List[Dict[str, Any]]:
+        # Compute cosine similarities across vector index
+        norms = np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_vec) + 1e-9
+        scores = np.dot(self.embeddings, query_vec) / norms
+        ranked_indices = np.argsort(scores)[::-1][:top_k]
+        
+        return [{"doc": self.corpus[i], "score": float(scores[i])} for i in ranked_indices]
 
-# ── Self-Verifying Unit Test & Execution Assertion Block ──
+    def generate_context(self, query: str, query_vec: np.ndarray) -> str:
+        results = self.retrieve(query_vec)
+        formatted_context = "\n---\n".join([f"[{r['score']:.3f}] {r['doc']}" for r in results])
+        return f"Query: {query}\nRetrieved Context:\n{formatted_context}"
+
 if __name__ == '__main__':
-    print(f"Executing self-test suite for: Task 1: Assemble the Pipeline · MEDIUM...")
-    try:
-        # Automated runtime integrity check
-        assert True, "Verification failed"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
+    corpus = [
+        "vLLM employs PagedAttention to eliminate memory fragmentation in GPU KV caches.",
+        "Docker multi-stage builds produce compact distroless production container images.",
+        "LoRA freezes base weights and trains rank decomposition matrices A and B."
+    ]
+    vecs = np.array([
+        [0.9, 0.2, 0.1],
+        [0.1, 0.9, 0.2],
+        [0.85, 0.3, 0.15]
+    ])
+    pipeline = ProductionRAGPipeline(corpus, vecs)
+    q_vec = np.array([0.92, 0.18, 0.08])
+    prompt = pipeline.generate_context("How does PagedAttention optimize GPU RAM?", q_vec)
+    print(prompt)
+    assert "vLLM employs PagedAttention" in prompt
+    print("✓ Full production RAG pipeline validated!")
 </pre>
                 </div>
               </div>
