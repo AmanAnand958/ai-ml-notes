@@ -460,7 +460,7 @@ function checkPredict(arg1, arg2) {
 
   const normalize = (str) => {
     return String(str || '')
-      .replace(/\\r\\n|\\r|\\n/g, ' ')
+      .replace(/\r\n|\r|\n/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();

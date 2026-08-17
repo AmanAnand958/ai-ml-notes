@@ -43,7 +43,7 @@ if fp11.exists():
     if d75 and not d75.find(id='wgan-gp-enriched'):
         theory = d75.find('h2', class_='sh2', id='day-75-theory') or d75.find('h2', class_='sh2')
         if theory:
-            section = BeautifulSoup('''
+            section = BeautifulSoup(r'''
 <div id="wgan-gp-enriched" style="margin:1.5rem 0;">
   <h3 class="sh3">WGAN-GP: Gradient Penalty Formulation</h3>
   <div class="math-block" style="margin:1rem 0; padding:12px; background:var(--bg2); border-left:3px solid var(--accent); border-radius:6px; font-size:14px;">
