@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""
+apply_math_derivations_batch1.py
+Replaces the 19 EfficiencyScore boilerplate math blocks in Weeks 18, 19, and 20
+with authentic, domain-specific LaTeX derivations.
+"""
+
+import re
+from bs4 import BeautifulSoup
+
+WEEKS_DIR = "pages/weeks"
+
+# Maps (week, day_id) -> LaTeX math block content (without the <div class="math-block"> wrapper)
+MATH_BATCH_1 = {
+
+# ── WEEK 18 ──────────────────────────────────────────────────────────────────
+
+(18, 'day-125'): r"""$$ \text{PodAvailability} = \frac{\text{Uptime}}{\text{Uptime} + \text{Downtime}} \ge 1 - \left(\frac{1}{2}\right)^{\text{Replicas}} $$
+<p class="math-caption">High Availability probability scaling with Kubernetes replicas.</p>""",
+
+(18, 'day-126'): r"""$$ T_{deploy} = t_{build} + t_{test} + \sum_{k=1}^{K} t_{rollout}^{(k)} \le \text{SLA}_{target} $$
+<p class="math-caption">Total deployment pipeline latency bounded by target SLA.</p>""",
+
+(18, 'day-127'): r"""$$ \mathcal{L}_{track}(\theta) = \sum_{t=1}^{T} \alpha_t \cdot \text{Loss}(\theta_t) + \lambda \cdot |\text{Drift}(\theta_t, \theta_0)| $$
+<p class="math-caption">Tracking optimization function balancing performance loss and model drift over time.</p>""",
+
+(18, 'day-128'): r"""$$ R_{system} = 1 - \prod_{j=1}^{M} (1 - R_j) $$
+<p class="math-caption">Overall system reliability $R_{system}$ for parallel redundant components $M$.</p>""",
+
+(18, 'day-130'): r"""$$ \text{Throughput} = \frac{C \cdot \text{BatchSize}}{\text{Latency}_{avg}} \quad \text{where } C \text{ is concurrent workers.} $$
+<p class="math-caption">Theoretical maximum throughput for a FastAPI + Uvicorn worker architecture.</p>""",
+
+(18, 'day-131'): r"""$$ P(\text{Healthy}) = \lim_{n \to \infty} \left(1 - \frac{1}{n}\right)^{\text{Retries}} = e^{-1} \approx 36.8\% \text{ (baseline)} $$
+<p class="math-caption">Probability analysis of health-check success over repeated polling intervals.</p>""",
+
+(18, 'day-132'): r"""$$ \text{DocCoverage} = \frac{N_{documented}}{N_{total}} \times \left(1 - e^{-\lambda \cdot t_{update}}\right) $$
+<p class="math-caption">Documentation freshness and coverage decay over time $\lambda$.</p>""",
+
+(18, 'day-133'): r"""$$ \text{ATS\_Score} = \alpha \cdot \text{TF-IDF}(\text{Resume}, \text{JD}) + \beta \cdot \text{ImpactMetrics} $$
+<p class="math-caption">Heuristic scoring function for resume keyword matching and impact quantification.</p>""",
+
+(18, 'day-134'): r"""$$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}} \odot M\right)V $$
+<p class="math-caption">Self-attention mechanism with causal masking matrix $M$.</p>""",
+
+(18, 'day-135'): r"""$$ L_{p99} \approx \mu_{latency} + 2.33 \cdot \sigma_{latency} \le 200\text{ms} $$
+<p class="math-caption">Estimating P99 latency bounds under Gaussian assumption for system design.</p>""",
+
+# ── WEEK 19 ──────────────────────────────────────────────────────────────────
+
+(19, 'day-139'): r"""$$ \text{Dist}(q, p) = \sqrt{\sum_{i=1}^{d} (q_i - p_i)^2} \quad \text{approx. via } \text{IVF-PQ} $$
+<p class="math-caption">L2 distance approximation using Inverted File Index with Product Quantization.</p>""",
+
+(19, 'day-140'): r"""$$ \text{Centrality}(v) = \sum_{s \ne v \ne t} \frac{\sigma_{st}(v)}{\sigma_{st}} $$
+<p class="math-caption">Betweenness centrality calculation for node $v$ in a Neo4j knowledge graph.</p>""",
+
+(19, 'day-142'): r"""$$ \text{RRF}(d) = \sum_{r \in R} \frac{1}{k + \text{rank}_r(d)} $$
+<p class="math-caption">Reciprocal Rank Fusion score for document $d$ across multiple retrieval models $R$.</p>""",
+
+# ── WEEK 20 ──────────────────────────────────────────────────────────────────
+
+(20, 'day-143'): r"""$$ a_t = \arg\max_{a \in A} \mathbb{E}\left[ r(s_t, a) + \gamma V(s_{t+1}) \right] $$
+<p class="math-caption">Action selection step in the ReAct (Reasoning and Acting) loop.</p>""",
+
+(20, 'day-144'): r"""$$ P(\text{Valid} \mid X) = \prod_{i=1}^{F} \mathbb{I}(x_i \in \text{Schema}_i) $$
+<p class="math-caption">Probability of JSON payload validity given strict Pydantic schema constraints $F$.</p>""",
+
+(20, 'day-145'): r"""$$ S_{t+1} = \text{Update}(S_t, M_{t \to t+1}) $$
+<p class="math-caption">State transition function for multi-actor message passing environments.</p>""",
+
+(20, 'day-146'): r"""$$ \text{AgentScore} = w_1 \cdot \text{GoalAlignment} + w_2 \cdot \text{ToolEfficiency} $$
+<p class="math-caption">Evaluation metric for role-playing agents completing multi-step goals.</p>""",
+
+(20, 'day-148'): r"""$$ \text{State}(G) = \begin{cases} \text{PAUSED} & \text{if } \text{HumanInputRequired} \\ \text{RESUMED} & \text{if } \text{InputReceived} \end{cases} $$
+<p class="math-caption">State graph condition for human-in-the-loop interruption boundaries.</p>""",
+
+(20, 'day-149'): r"""$$ \text{Quality}(D) = \alpha \cdot \text{FactualAccuracy} + \beta \cdot \text{Coherence} - \gamma \cdot \text{Hallucinations} $$
+<p class="math-caption">Scoring function for final research outputs generated by multi-agent collaboration.</p>""",
+
+}
+
+def replace_math_in_section(html: str, day_id: str, new_math: str) -> tuple:
+    day_start = html.find(f'id="{day_id}"')
+    if day_start == -1:
+        return html, False
+    next_day = html.find('class="day-section"', day_start + 20)
+    section = html[day_start:next_day] if next_day != -1 else html[day_start:]
+    
+    # Check if the exact EfficiencyScore block is present
+    if 'EfficiencyScore' not in section:
+        return html, False
+        
+    # The target block
+    target_block_regex = r'<div class="math-block">\s*\$\$\\text\{EfficiencyScore\}.*?\$\$\s*</div>'
+    match = re.search(target_block_regex, section, re.DOTALL)
+    if not match:
+        return html, False
+        
+    new_block = f'<div class="math-block">\n{new_math}\n</div>'
+    new_section = section[:match.start()] + new_block + section[match.end():]
+    new_html = html[:day_start] + new_section + (html[next_day:] if next_day != -1 else '')
+    return new_html, True
+
+
+def main():
+    print("=" * 65)
+    print("MATH ENRICHMENT BATCH 1 — Weeks 18-20 (19 stubs)")
+    print("=" * 65)
+    
+    total = 0
+    for w in range(18, 21):
+        path = f"{WEEKS_DIR}/week{w}.html"
+        html = open(path, encoding='utf-8').read()
+        original = html
+        
+        soup = BeautifulSoup(html, 'html.parser')
+        days = [d.get('id', '') for d in soup.find_all('div', class_='day-section')]
+        
+        cnt = 0
+        for day_id in days:
+            key = (w, day_id)
+            if key not in MATH_BATCH_1:
+                continue
+            html, changed = replace_math_in_section(html, day_id, MATH_BATCH_1[key])
+            if changed:
+                cnt += 1
+                
+        if html != original:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(html)
+        total += cnt
+        print(f"  Week {w}: {cnt} math blocks replaced")
+        
+    print(f"\nBatch 1 total: {total} replacements completed.")
+
+
+if __name__ == '__main__':
+    main()
