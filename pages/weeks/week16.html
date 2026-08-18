@@ -5531,29 +5531,101 @@ print("✅ Streaming Response assertions passed")</pre>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-114-theory">
 <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Next.js &amp; Vercel AI SDK.</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Architectural Reference for Day 114: Next.js &amp; Vercel AI SDK
-import os
-import sys
 
-def execute_module():
-    print("Executing Next.js &amp; Vercel AI SDK pipeline...")
-    config = {"module": "Next.js &amp; Vercel AI SDK", "status": "ACTIVE", "day": 114}
-    print("Configuration:", config)
-    return config
-
-if __name__ == "__main__":
-    execute_module()</code></pre>
+<h3 class="sh3">1. Why Next.js for AI Applications?</h3>
+<p>Python backend frameworks like FastAPI are excellent for model inference, but delivering a <strong>real-time, streaming chat UI</strong> requires a frontend framework. Next.js bridges both worlds — it renders React components on the server (SSR/RSC) and handles API routes in the same codebase, eliminating the need for a separate Express or Flask layer for the web tier.</p>
+<div class="callout ci">
+  <strong>Key Architecture Insight:</strong>
+  <p>Vercel AI SDK's <code>useChat</code> hook consumes a streaming <code>ReadableStream</code> from your Next.js <code>/api/chat</code> route, updating React state token-by-token with zero-latency UX. The model never sends a full JSON blob — it streams deltas.</p>
 </div>
-<h3 class="sh3">
-       1. Vercel AI SDK
-      </h3>
-<p>
-       The Vercel AI SDK is an open-source library designed to help developers build conversational, streaming, and chat user interfaces in JavaScript and TypeScript frameworks like Next.js.
-      </p>
+
+<h3 class="sh3">2. Vercel AI SDK Core Primitives</h3>
+<table class="concept-table">
+  <tr><th>Primitive</th><th>Purpose</th><th>Runtime</th></tr>
+  <tr><td><code>streamText()</code></td><td>Stream LLM tokens from any model (OpenAI, Anthropic, Gemini, Ollama)</td><td>Server (Node/Edge)</td></tr>
+  <tr><td><code>useChat()</code></td><td>React hook: manages messages[], loading, and token streaming</td><td>Client (React)</td></tr>
+  <tr><td><code>useCompletion()</code></td><td>Single-shot streaming text completions</td><td>Client (React)</td></tr>
+  <tr><td><code>generateObject()</code></td><td>Structured JSON generation with Zod schema validation</td><td>Server</td></tr>
+  <tr><td><code>tool()</code></td><td>Define server-side tools the LLM can call (function calling)</td><td>Server</td></tr>
+</table>
+
+<h3 class="sh3">3. Streaming Architecture: Server to Client</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">typescript</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-typescript">// app/api/chat/route.ts — Server-side streaming endpoint
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+export const runtime = 'edge'; // Run on Vercel Edge Network for true streaming
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+  const result = streamText({
+    model: openai('gpt-4o-mini'),
+    messages,
+    maxTokens: 1024,
+    temperature: 0.7,
+  });
+  return result.toDataStreamResponse(); // Sends ReadableStream to client
+}
+
+// app/page.tsx — Client component
+'use client';
+import { useChat } from 'ai/react';
+
+export default function Chat() {
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat();
+  return (
+    &lt;div className="flex flex-col h-screen max-w-2xl mx-auto p-4"&gt;
+      &lt;div className="flex-1 overflow-y-auto"&gt;
+        {messages.map(m =&gt; (
+          &lt;div key={m.id}&gt;
+            &lt;strong&gt;{m.role}:&lt;/strong&gt; {m.content}
+          &lt;/div&gt;
+        ))}
+        {isLoading &amp;&amp; &lt;span className="animate-pulse"&gt;Thinking...&lt;/span&gt;}
+      &lt;/div&gt;
+      &lt;form onSubmit={handleSubmit} className="flex gap-2 mt-4"&gt;
+        &lt;input value={input} onChange={handleInputChange} className="flex-1 border rounded p-2" /&gt;
+        &lt;button type="submit" className="bg-blue-600 text-white px-4 rounded"&gt;Send&lt;/button&gt;
+      &lt;/form&gt;
+    &lt;/div&gt;
+  );
+}</code></pre>
+</div>
+
+<h3 class="sh3">4. Server Actions vs. API Routes for Streaming</h3>
+<p>Next.js 14+ allows calling server-side functions directly from client components using <strong>React Server Actions</strong>. However, for AI streaming, <code>/api/chat</code> routes are preferred because they return a raw <code>Response</code> object with a <code>ReadableStream</code>. React Server Actions return serialized data, not raw streams, so the <code>useChat</code> hook cannot consume them directly.</p>
+
+<h3 class="sh3">5. Multi-Provider Support</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">typescript</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-typescript">import { anthropic } from '@ai-sdk/anthropic';
+import { google } from '@ai-sdk/google';
+import { ollama } from 'ollama-ai-provider';
+
+// Anthropic Claude — same streamText() API
+const claudeResult = streamText({ model: anthropic('claude-3-5-sonnet-20241022'), messages });
+
+// Google Gemini
+const geminiResult = streamText({ model: google('gemini-2.0-flash'), messages });
+
+// Local Ollama (no API key, runs on localhost)
+const localResult = streamText({ model: ollama('llama3.2'), messages });</code></pre>
+</div>
+
+<div class="callout cw">
+  <strong>Production Note:</strong>
+  <p>Always set <code>export const runtime = 'edge'</code> for streaming routes on Vercel. The Node.js runtime buffers the response before sending, breaking the streaming UX. The Edge runtime pipes each token immediately as it arrives from the model.</p>
+</div>
+
+<h3 class="sh3">6. Token Streaming Latency Model</h3>
+<p>Time-to-first-token (TTFT) and streaming throughput:</p>
+<p>$$\text{TTFT} = t_{\text{network}} + t_{\text{model\_prefill}}$$</p>
+<p>$$\text{Total Latency} = \text{TTFT} + N_{\text{tokens}} \cdot \frac{1}{\text{TPS}}$$</p>
+<p>For GPT-4o, TPS is typically 100–120. Edge streaming ensures the client renders each token the instant it arrives, making TTFT the dominant user-perceived latency metric.</p>
+<!-- /theory -->
+<!-- /theory -->
 <!-- /theory -->
 <h2 class="sh2">
        ⚡ Tasks
@@ -6050,29 +6122,118 @@ print("✅ Next.js API Route assertions passed")</pre>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-115-theory">
 <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for LLM Observability with LangSmith &amp; Phoenix.</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Architectural Reference for Day 115: LLM Observability with LangSmith &amp; Phoenix
-import os
-import sys
 
-def execute_module():
-    print("Executing LLM Observability with LangSmith &amp; Phoenix pipeline...")
-    config = {"module": "LLM Observability with LangSmith &amp; Phoenix", "status": "ACTIVE", "day": 115}
-    print("Configuration:", config)
-    return config
-
-if __name__ == "__main__":
-    execute_module()</code></pre>
+<h3 class="sh3">1. Why LLM Observability is Different from Classical APM</h3>
+<p>Classical application performance monitoring tracks CPU, memory, latency, and error rates. LLMs introduce a qualitatively new failure mode: <strong>silent semantic errors</strong>. A hallucinated answer returns HTTP 200 with no exception. Standard APM tools see a successful request; the user sees a confident lie. LLM observability exists specifically to detect these invisible failures.</p>
+<div class="callout ci">
+  <strong>The Three Pillars of LLM Observability:</strong>
+  <ul>
+    <li><strong>Tracing:</strong> Full chain-of-calls visibility — what prompt was sent, what context was retrieved, latency per step</li>
+    <li><strong>Evaluation:</strong> Automated quality scoring (faithfulness, relevance, toxicity) via LLM-as-judge</li>
+    <li><strong>Monitoring:</strong> Cost per query, token usage trends, retrieval precision drift over time</li>
+  </ul>
 </div>
-<h3 class="sh3">
-       1. Why LLM Observability?
-      </h3>
-<p>
-       Unlike traditional software, LLMs are non-deterministic. Tracing helps you understand exactly what prompt was sent, what documents were retrieved, and where latency or errors occurred.
-      </p>
+
+<h3 class="sh3">2. LangSmith — Zero-Config LangChain Tracing</h3>
+<p>LangSmith is LangChain's official observability platform. Every <code>Runnable</code> in LangChain automatically emits structured traces when you set two environment variables — no code changes needed.</p>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">import os
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_API_KEY"] = "ls__your_key_here"
+os.environ["LANGCHAIN_PROJECT"] = "rag-production-v1"
+
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+prompt = ChatPromptTemplate.from_template("Answer in Hindi: {question}")
+chain = prompt | llm
+
+# This call is now automatically traced in LangSmith dashboard
+response = chain.invoke({"question": "What is RAG?"})
+
+# LangSmith records:
+# - Full rendered prompt (with injected values)
+# - Model name, temperature, max_tokens
+# - Input tokens, output tokens, total cost
+# - Latency per step (prompt formatting, LLM call, output parsing)
+# - Full response text
+# - Parent-child chain hierarchy (nested traces)</code></pre>
+</div>
+
+<h3 class="sh3">3. Arize Phoenix — Open-Source, Self-Hosted, Any Framework</h3>
+<p>Arize Phoenix uses OpenTelemetry (OTEL) standards and works with any LLM framework. It's self-hosted — essential for GDPR/HIPAA environments where shipping traces to a third-party SaaS violates data residency requirements.</p>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">import phoenix as px
+from openinference.instrumentation.openai import OpenAIInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+# Launch local Phoenix UI at http://localhost:6006
+session = px.launch_app()
+
+# Auto-instrument all OpenAI calls (works for LangChain, LlamaIndex too)
+OpenAIInstrumentor().instrument()
+
+from openai import OpenAI
+client = OpenAI()
+
+# Every completion call is now traced in Phoenix
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Explain KV caching in 2 sentences."}]
+)
+# Phoenix shows: span name, duration, token counts, 
+# full prompt/response text, embedding latencies, retrieval chains
+print(response.choices[0].message.content)</code></pre>
+</div>
+
+<h3 class="sh3">4. Key Metrics to Monitor in Production</h3>
+<table class="concept-table">
+  <tr><th>Metric</th><th>What It Catches</th><th>Alert Threshold</th></tr>
+  <tr><td>TTFT (Time-to-first-token)</td><td>Model serving latency degradation</td><td>&gt; 1.5s</td></tr>
+  <tr><td>Total tokens / query</td><td>Prompt bloat and cost overruns</td><td>&gt; 4000 tokens</td></tr>
+  <tr><td>Retrieval precision@5</td><td>Vector DB degradation after updates</td><td>&lt; 0.7</td></tr>
+  <tr><td>Hallucination rate (LLM judge)</td><td>Model drift, prompt regression post-deploy</td><td>&gt; 5%</td></tr>
+  <tr><td>Cost per query (USD)</td><td>Budget overrun from verbose prompts</td><td>&gt; $0.01</td></tr>
+</table>
+
+<h3 class="sh3">5. Sampling Strategy for High-Throughput Systems</h3>
+<p>Tracing 100% of LLM calls at 1000 QPS is prohibitively expensive. Use intelligent sampling:</p>
+<ul>
+  <li><strong>Head-based (10%):</strong> Sample randomly at request start. Simple, but misses rare failures.</li>
+  <li><strong>Tail-based (100% for slow/error):</strong> Capture all requests with latency &gt; P99 or error codes. Finds the interesting cases.</li>
+  <li><strong>Priority sampling:</strong> Always trace new prompt versions, A/B test cohorts, and user-flagged feedback.</li>
+</ul>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+from opentelemetry.sdk.trace import TracerProvider
+
+# Sample 20% of all traces randomly
+sampler = TraceIdRatioBased(fraction=0.20)
+provider = TracerProvider(sampler=sampler)
+
+# Custom logic: bump to 100% for slow queries
+import time
+def maybe_trace(fn, *args, **kwargs):
+    start = time.perf_counter()
+    result = fn(*args, **kwargs)
+    elapsed = time.perf_counter() - start
+    if elapsed > 1.5:  # Always trace slow queries
+        log_trace(args, kwargs, result, elapsed)
+    return result</code></pre>
+</div>
+
+<div class="callout ct">
+  <strong>Industry Pattern:</strong>
+  <p>At scale, teams use LangSmith for development-time debugging (full traces, per-developer isolation) and Phoenix self-hosted for production monitoring (data residency, custom dashboards). Both export in OpenTelemetry format for downstream Grafana or Datadog dashboards.</p>
+</div>
+<!-- /theory -->
+<!-- /theory -->
 <!-- /theory -->
 <h2 class="sh2">
        ⚡ Tasks
@@ -6545,40 +6706,124 @@ print("✅ LLM Observability assertions passed")</pre>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-116-theory">
 <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for LLM Evaluation (RAGAS &amp; TruLens).</p>
+
+<h3 class="sh3">1. The LLM Evaluation Problem</h3>
+<p>Traditional ML evaluation is simple: compare model predictions against ground-truth labels with F1, RMSE, or accuracy. LLMs break this entirely — there is no single correct answer. "Paris is the capital of France" and "The capital of France is Paris" are both correct but share no common n-grams. BLEU and ROUGE scores are therefore meaningless for generative LLMs. We need <strong>semantic evaluation powered by another LLM</strong>.</p>
+
+<h3 class="sh3">2. RAGAS — Automated RAG Pipeline Evaluation</h3>
+<p>RAGAS evaluates the three components of a RAG system independently: the <em>retriever</em>, the <em>generator</em>, and the end-to-end <em>answer quality</em>. Each metric is computed by a judge LLM (GPT-4o by default) using carefully designed evaluation prompts.</p>
 <div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Architectural Reference for Day 116: LLM Evaluation (RAGAS &amp; TruLens)
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from ragas import evaluate
+from ragas.metrics import (
+    faithfulness,        # Does the answer stick to the retrieved context?
+    answer_relevancy,   # Does the answer address the actual question?
+    context_precision,  # Are the retrieved chunks actually relevant?
+    context_recall,     # Did we retrieve all the necessary information?
+    answer_correctness, # How accurate is the answer vs. ground truth?
+)
+from datasets import Dataset
 
-def execute_module():
-    print("Executing LLM Evaluation (RAGAS &amp; TruLens) pipeline...")
-    config = {"module": "LLM Evaluation (RAGAS &amp; TruLens)", "status": "ACTIVE", "day": 116}
-    print("Configuration:", config)
-    return config
+# Evaluation dataset format — collect from production logs
+eval_dataset = Dataset.from_dict({
+    "question":     ["What is PagedAttention?", "What is vLLM?"],
+    "contexts":     [
+        ["PagedAttention manages KV cache like virtual memory pages in an OS."],
+        ["vLLM is a high-throughput LLM serving library with PagedAttention."]
+    ],
+    "answer":       [
+        "PagedAttention eliminates GPU memory fragmentation by paging KV cache blocks.",
+        "vLLM is a fast LLM serving system that uses PagedAttention for memory efficiency."
+    ],
+    "ground_truth": [
+        "PagedAttention is a memory-efficient attention algorithm for LLM serving.",
+        "vLLM is an open-source library for efficient LLM inference and serving."
+    ]
+})
 
-if __name__ == "__main__":
-    execute_module()</code></pre>
+results = evaluate(
+    eval_dataset,
+    metrics=[faithfulness, answer_relevancy, context_precision, context_recall, answer_correctness]
+)
+print(results)
+# {'faithfulness': 0.92, 'answer_relevancy': 0.87, 'context_precision': 0.83,
+#  'context_recall': 0.91, 'answer_correctness': 0.78}</code></pre>
 </div>
-<div id="ragas-theory-deep-dive" style="margin: 1.2rem 0; line-height: 1.7; font-size: 14px;">
-<p><strong>Automated LLM &amp; RAG Evaluation Triad (RAGAS &amp; TruLens):</strong> Evaluating production Retrieval-Augmented Generation systems requires quantifying three independent probabilistic dimensions:</p>
-<div style="background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 1rem 0;">
-<h4 style="color: var(--accent); margin-top: 0; margin-bottom: 8px; font-size: 14px;">📐 The Core RAG Triad Metrics:</h4>
-<ul style="margin: 0; padding-left: 20px; font-size: 13.5px; color: var(--text);">
-<li><strong>Faithfulness (Grounding):</strong> Measures if every factual claim in the generated answer can be mathematically derived from the retrieved context chunks, detecting model hallucination.</li>
-<li><strong>Answer Relevance:</strong> Measures whether the generated output directly addresses the user's specific prompt without drifting into tangential or unprompted assertions.</li>
-<li><strong>Context Precision &amp; Recall:</strong> Measures whether all relevant ground-truth chunks appear at the top of the retrieval rank ($K$), and whether extraneous noise chunks were filtered out.</li>
-</ul>
+
+<h3 class="sh3">3. RAGAS Metric Definitions</h3>
+<table class="concept-table">
+  <tr><th>Metric</th><th>Formula (Intuition)</th><th>What It Catches</th></tr>
+  <tr><td><strong>Faithfulness</strong></td><td>Supported claims ÷ Total claims in answer</td><td>Hallucinations: answer says things not grounded in context</td></tr>
+  <tr><td><strong>Answer Relevancy</strong></td><td>Cosine similarity(question, answer)</td><td>Off-topic responses: model answered a different question</td></tr>
+  <tr><td><strong>Context Precision</strong></td><td>Relevant chunks ÷ Total chunks retrieved</td><td>Retriever noise: irrelevant chunks diluting the context</td></tr>
+  <tr><td><strong>Context Recall</strong></td><td>Required info retrieved ÷ Total required info</td><td>Retriever gaps: missing key evidence</td></tr>
+  <tr><td><strong>Answer Correctness</strong></td><td>Semantic F1(answer, ground_truth)</td><td>End-to-end accuracy vs. human-written reference</td></tr>
+</table>
+
+<h3 class="sh3">4. TruLens — Real-Time Evaluation on Any LLM App</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from trulens_eval import TruChain, Feedback, Tru
+from trulens_eval.feedback.provider import OpenAI as TruOpenAI
+
+tru = Tru()
+tru.reset_database()
+openai_provider = TruOpenAI()
+
+# Define feedback functions (what to evaluate)
+f_relevance = Feedback(
+    openai_provider.relevance_with_cot_reasons,
+    name="Answer Relevance"
+).on_input_output()  # Takes (question, answer) as input
+
+f_groundedness = Feedback(
+    openai_provider.groundedness_measure_with_cot_reasons,
+    name="Groundedness"
+).on_input_output()
+
+# Wrap any LangChain chain
+tru_chain = TruChain(
+    my_rag_chain,        # Your LangChain chain object
+    app_id="rag-prod-v2",
+    feedbacks=[f_relevance, f_groundedness]
+)
+
+# Every invocation now records automatic feedback scores
+with tru_chain as recording:
+    response = my_rag_chain.invoke("What is vLLM?")
+
+# Launch interactive dashboard at http://localhost:8501
+tru.run_dashboard()</code></pre>
 </div>
+
+<h3 class="sh3">5. LLM-as-a-Judge Scoring Mechanism</h3>
+<p>The judge LLM receives a structured prompt instructing it to decompose and score an answer. The key insight is <strong>chain-of-thought reasoning</strong> before scoring dramatically improves reliability:</p>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">text</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-text">FAITHFULNESS JUDGE PROMPT:
+Given context: {context}
+Given answer: {answer}
+
+Step 1: List every factual claim made in the answer.
+Step 2: For each claim, determine if it is DIRECTLY SUPPORTED by the context.
+Step 3: Score = number_of_supported_claims / total_claims.
+
+Supported claims: [claim 1: YES, claim 2: NO, ...]
+Final score: 0.XX</code></pre>
 </div>
-<h3 class="sh3">
-       1. Evaluation Triad
-      </h3>
-<p>
-       Evaluating RAG involves testing: Context Relevance (did we retrieve the right docs?), Faithfulness (is the answer based on the docs?), and Answer Relevance (does it answer the query?).
-      </p>
+
+<h3 class="sh3">6. Evaluation Pipeline Best Practices</h3>
+<div class="callout ct">
+  <strong>Production Evaluation Strategy:</strong>
+  <ul>
+    <li><strong>Golden dataset:</strong> Maintain 200–500 Q&amp;A pairs with human-verified ground truths — update quarterly</li>
+    <li><strong>CI/CD gate:</strong> Run RAGAS on golden set in every PR. Block merge if faithfulness &lt; 0.80</li>
+    <li><strong>Shadow evaluation:</strong> Run TruLens on 10% of live traffic to catch distribution shift without user impact</li>
+    <li><strong>Human-in-the-loop:</strong> Automatically flag samples with any score &lt; 0.6 for human review; add corrected versions to golden set</li>
+  </ul>
+</div>
+<!-- /theory -->
+<!-- /theory -->
 <!-- /theory -->
 <h2 class="sh2">
        ⚡ Tasks
@@ -7049,9 +7294,127 @@ print("✅ RAGAS LLM Evaluation assertions passed")</pre>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-117-theory">
 <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<p>
-       The Production RAG Deployment Capstone combines vector databases, embedding pipelines, reranking mechanisms, FastAPI backend endpoints, Next.js frontend interfaces, and LangSmith evaluation tracing into an end-to-end production AI system.
-      </p>
+
+<h3 class="sh3">1. Production RAG System Architecture</h3>
+<p>A production RAG deployment is not a Python script calling ChromaDB and OpenAI. It is a distributed system with five distinct layers, each with its own scaling, failure, and observability requirements.</p>
+<div class="callout ci">
+  <strong>The Five Production RAG Layers:</strong>
+  <ol>
+    <li><strong>Ingestion Pipeline:</strong> Document loading → Chunking → Embedding → Vector DB upsert (async, batched, idempotent)</li>
+    <li><strong>Retrieval Engine:</strong> Query embedding → ANN search → Reranking (cross-encoder) → Context assembly</li>
+    <li><strong>LLM Generation:</strong> Prompt assembly → Streaming LLM call → Response validation</li>
+    <li><strong>API Layer:</strong> FastAPI with async handlers, rate limiting, JWT auth, health checks</li>
+    <li><strong>Observability:</strong> LangSmith/Phoenix tracing + RAGAS shadow evaluation + cost monitoring</li>
+  </ol>
+</div>
+
+<h3 class="sh3">2. Technology Stack for Production</h3>
+<table class="concept-table">
+  <tr><th>Layer</th><th>Dev Prototype</th><th>Production Standard</th><th>Why Upgrade</th></tr>
+  <tr><td>Vector DB</td><td>ChromaDB (local)</td><td>Pinecone / Qdrant Cloud</td><td>HA, autoscaling, backup</td></tr>
+  <tr><td>Embeddings</td><td>text-embedding-ada-002</td><td>text-embedding-3-large</td><td>+15% retrieval quality</td></tr>
+  <tr><td>Reranker</td><td>None</td><td>Cohere Rerank v3</td><td>+15-20% Precision@5</td></tr>
+  <tr><td>LLM</td><td>GPT-4o-mini</td><td>GPT-4o / Claude 3.5 Sonnet</td><td>Faithfulness, complex reasoning</td></tr>
+  <tr><td>API</td><td>Flask dev server</td><td>FastAPI + gunicorn + uvicorn</td><td>Async, auto-docs, type safety</td></tr>
+  <tr><td>Frontend</td><td>Gradio</td><td>Next.js + Vercel AI SDK</td><td>Streaming UX, production deployable</td></tr>
+</table>
+
+<h3 class="sh3">3. Production RAG FastAPI Backend</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_cohere import CohereRerank
+import logging
+
+app = FastAPI(title="Production RAG API v2.0")
+logger = logging.getLogger(__name__)
+
+# Initialise all components once at startup (not per-request)
+embeddings  = OpenAIEmbeddings(model="text-embedding-3-large")
+vectorstore = PineconeVectorStore(index_name="prod-rag", embedding=embeddings)
+reranker    = CohereRerank(model="rerank-english-v3.0", top_n=5)
+
+# Over-fetch 20 candidates, then rerank to top 5 — best quality
+retriever = vectorstore.as_retriever(search_kwargs={"k": 20})
+llm = ChatOpenAI(model="gpt-4o", streaming=True)
+
+SYSTEM_PROMPT = """You are a precise technical assistant.
+Answer ONLY based on the provided context.
+If the context doesn't contain the answer, say exactly: "I don't know based on the available documents."
+
+Context:
+{context}"""
+
+rag_chain = (
+    {"context": retriever | reranker, "question": RunnablePassthrough()}
+    | ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        ("human", "{question}")
+    ])
+    | llm
+)
+
+class QueryRequest(BaseModel):
+    question: str
+    session_id: str | None = None
+
+@app.post("/query/stream")
+async def query_stream(req: QueryRequest):
+    """Stream RAG response token-by-token via SSE."""
+    async def event_generator():
+        try:
+            async for chunk in rag_chain.astream(req.question):
+                if chunk.content:
+                    yield f"data: {chunk.content}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error(f"RAG error: {e}")
+            yield f"data: [ERROR] {str(e)}\n\n"
+    
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "version": "2.0.0"}</code></pre>
+</div>
+
+<h3 class="sh3">4. Docker Multi-Stage Production Build</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">dockerfile</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-dockerfile">FROM python:3.12-slim AS builder
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+FROM python:3.12-slim AS runtime
+WORKDIR /app
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY . .
+
+ENV PORT=8000
+EXPOSE 8000
+
+# 4 workers × 1 thread each — async-friendly for LLM streaming
+CMD ["gunicorn", "main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker",
+     "--bind", "0.0.0.0:8000", "--timeout", "120"]</code></pre>
+</div>
+
+<h3 class="sh3">5. Retrieval Quality Targets</h3>
+<p>RAG quality is dominated by retrieval, not generation. Target these baselines before tuning the LLM prompt:</p>
+<ul>
+  <li>$$\text{Precision@5} = \frac{|\text{Relevant in top 5}|}{5} > 0.75$$</li>
+  <li>$$\text{MRR} = \frac{1}{|Q|} \sum_{q} \frac{1}{\text{rank}_{q}} > 0.60$$</li>
+  <li>RAGAS Faithfulness $&gt; 0.85$ on your golden eval set</li>
+  <li>P99 end-to-end latency $&lt; 3s$ including retrieval, reranking, and first token</li>
+</ul>
+<!-- /theory -->
+<!-- /theory -->
 <h2 class="sh2">
        ⚡ Tasks
       </h2>

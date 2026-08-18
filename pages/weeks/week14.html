@@ -2659,111 +2659,101 @@ print(f"BLEU-2 Score: {compute_bleu(cand, ref):.4f}")</pre>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-97-theory">
 <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">
-       1. Subword Tokenization Algorithms
-      </h3>
-<p>
-       Out of Vocabulary (OOV) issues break word-level tokenization. Modern models use subwords:
-      </p>
-<ul>
-<li>
-<strong>
-         BPE (Byte Pair Encoding):
-        </strong>
-        Merges the most frequent pairs of bytes/characters iteratively. Used in GPT.
-       </li>
-<li>
-<strong>
-         WordPiece:
-        </strong>
-        Merges pairs that maximize the language model likelihood (Score = freq(ab) / (freq(a)*freq(b))). Used in BERT.
-       </li>
-<li>
-<strong>
-         SentencePiece (Unigram):
-        </strong>
-        Starts with a massive vocabulary and iteratively prunes tokens that cause the smallest drop in total probability. Used in LLaMA / ALBERT.
-       </li>
-</ul>
-<h3 class="sh3">
-       2. Fast Tokenizers in Rust
-      </h3>
-<p>
-       Hugging Face's
-       
-        tokenizers
-       
-       library is written in Rust, utilizing a highly parallelized pipeline allowing encoding of 1GB of text in under 20 seconds. The pipeline consists of:
-      </p>
-<ul>
-<li>
-<strong>
-         Normalizer:
-        </strong>
-        Lowercases, strips accents, applies unicode normalization (NFC, NFKC).
-       </li>
-<li>
-<strong>
-         Pre-tokenizer:
-        </strong>
-        Splits text into initial chunks (usually by whitespace and punctuation) to restrict subword boundaries.
-       </li>
-<li>
-<strong>
-         Model:
-        </strong>
-        Applies the actual algorithm (BPE, WordPiece) to the chunks.
-       </li>
-<li>
-<strong>
-         Post-processor:
-        </strong>
-        Injects special tokens like [CLS] and [SEP] for BERT.
-       </li>
-</ul>
-<div class="mermaid">
-graph TD
-  Raw["Raw Input Text"] --&gt; Norm["Normalizer\nLowercase, Strip Accents, Unicode NFC"]
-  Norm --&gt; PreT["Pre-Tokenizer\nWhitespace and Punctuation Splitting"]
-  PreT --&gt; Mod["Model\nBPE / WordPiece Subword Fitting"]
-  Mod --&gt; PostP["Post-Processor\nAdd CLS, SEP Special Tokens"]
-  PostP --&gt; Out["Encoded Output\nToken IDs and Attention Mask"]
+
+<h3 class="sh3">1. Why Tokenization Matters</h3>
+<p>Every LLM processes text as a sequence of <strong>integer token IDs</strong>, not raw characters or words. The tokenizer converts string input to the integer IDs the model understands, and back again. A poor tokenizer wastes context budget, inflates API costs, and cripples multilingual performance. Tokenizer choice is frozen at training time — you cannot swap tokenizers with a pretrained model without retraining from scratch.</p>
+<div class="callout ci">
+  <strong>Cost Implication:</strong>
+  <p>GPT-4o charges per token. An English sentence of ~15 words ≈ 20 tokens. The same sentence in Hindi may consume 30–45 tokens depending on the tokenizer's vocabulary coverage of Hindi script. Choosing a multilingual model with good Hindi tokenization (like Llama 3) can reduce token count by 30%+ for Hindi-heavy applications.</p>
 </div>
+
+<h3 class="sh3">2. BPE — Byte Pair Encoding (GPT family)</h3>
+<p>BPE begins with individual bytes/characters and iteratively merges the most frequent adjacent pair into a new vocabulary token, repeated until the vocabulary reaches a target size (e.g., 50,257 for GPT-2; 100,000+ for GPT-4).</p>
 <div class="cb">
-<div class="cb-head">
-<span class="cb-lang">
-         python — train_tokenizer.py
-        </span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">
-          copy
-         </button>
-<button class="run-btn" onclick="runCode(this)" style="margin-left: 4px;">
-          Run
-         </button>
-</div>
-</div>
-<pre><code class="language-html"><span class="kw">from</span> tokenizers <span class="kw">import</span> Tokenizer
-<span class="kw">from</span> tokenizers.models <span class="kw">import</span> BPE
-<span class="kw">from</span> tokenizers.trainers <span class="kw">import</span> BpeTrainer
-<span class="kw">from</span> tokenizers.pre_tokenizers <span class="kw">import</span> Whitespace
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">import tiktoken  # OpenAI's BPE library
 
-<span class="cm"># 1. Initialize empty BPE model</span>
-tokenizer = <span class="fn">Tokenizer</span>(<span class="fn">BPE</span>(unk_token=<span class="str">"[UNK]"</span>))
-tokenizer.pre_tokenizer = <span class="fn">Whitespace</span>()
+enc = tiktoken.encoding_for_model("gpt-4o")
 
-<span class="cm"># 2. Configure trainer</span>
-trainer = <span class="fn">BpeTrainer</span>(special_tokens=[<span class="str">"[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"</span>])
+examples = [
+    "Tokenization is the first step in NLP.",
+    "LLMs use subword tokenization.",
+    "PagedAttention eliminates KV cache fragmentation.",
+]
+for text in examples:
+    tokens = enc.encode(text)
+    decoded_tokens = [enc.decode([t]) for t in tokens]
+    print(f"Text: {text!r}")
+    print(f"  Tokens ({len(tokens)}): {decoded_tokens}\n")
 
-<span class="cm"># 3. Train on text files</span>
-files = [<span class="str">"corpus.txt"</span>]
-tokenizer.<span class="fn">train</span>(files, trainer)
-
-<span class="cm"># 4. Save to JSON</span>
-tokenizer.<span class="fn">save</span>(<span class="str">"custom-bpe.json"</span>)</code></pre>
+# "preprocessing" → ['pre', 'process', 'ing'] = 3 tokens (not 1!)
+# Rule of thumb: ~1.33 tokens/word for English</code></pre>
 </div>
+
+<h3 class="sh3">3. WordPiece — BERT Family</h3>
+<p>WordPiece uses a likelihood-maximization merge criterion instead of raw frequency. It marks continuation subwords with a <code>##</code> prefix. Example: <code>tokenization</code> → <code>token</code> + <code>##ization</code>. Used by BERT, DistilBERT, RoBERTa, and all BERT-family encoder models.</p>
+
+<h3 class="sh3">4. SentencePiece — Multilingual Models</h3>
+<p>SentencePiece treats text as a raw byte stream without language-specific whitespace tokenization. This is essential for CJK languages (Chinese, Japanese, Korean), Arabic, and Hindi which lack whitespace word boundaries. Used by Llama 2/3, Mistral, Gemma, mT5.</p>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from transformers import AutoTokenizer
+
+# Llama 3 uses SentencePiece with 128K vocabulary
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
+
+texts = {
+    "English": "Hello world, how are you?",
+    "Hindi": "नमस्ते दुनिया, आप कैसे हैं?",
+    "Japanese": "こんにちは世界、お元気ですか？",
+}
+
+for lang, text in texts.items():
+    tokens = tokenizer.encode(text)
+    print(f"{lang}: {len(tokens)} tokens for {len(text.split())} words")
+    print(f"  IDs: {tokens[:8]}...")</code></pre>
 </div>
-<!-- PREDICT THE OUTPUT -->
+
+<h3 class="sh3">5. Hugging Face Core APIs</h3>
+<table class="concept-table">
+  <tr><th>API</th><th>Purpose</th><th>Common Usage</th></tr>
+  <tr><td><code>AutoTokenizer.from_pretrained()</code></td><td>Load correct tokenizer for any model</td><td>Preprocessing text inputs</td></tr>
+  <tr><td><code>AutoModelForCausalLM</code></td><td>Decoder-only LLM (GPT-style generation)</td><td>Text generation, chat</td></tr>
+  <tr><td><code>AutoModelForSequenceClassification</code></td><td>Classification head on encoder</td><td>Sentiment, intent</td></tr>
+  <tr><td><code>pipeline(task)</code></td><td>High-level one-liner inference</td><td>Fast prototyping</td></tr>
+  <tr><td><code>datasets.load_dataset()</code></td><td>Load 100K+ public datasets</td><td>Fine-tuning data</td></tr>
+</table>
+
+<h3 class="sh3">6. Chat Templates — The Hidden Gotcha</h3>
+<p>Each instruction-tuned model uses a unique prompt format. Ignoring this causes severe performance degradation:</p>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3")
+
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is gradient descent?"},
+]
+
+# apply_chat_template handles model-specific formatting automatically
+prompt = tokenizer.apply_chat_template(
+    messages,
+    tokenize=False,
+    add_generation_prompt=True  # Appends model-turn start token
+)
+print(repr(prompt))
+# Mistral: '[INST] You are a helpful assistant.\nWhat is gradient descent? [/INST]'
+# Llama 3: '<|begin_of_text|><|start_header_id|>system<|end_header_id|>...'</code></pre>
+</div>
+
+<div class="callout cw">
+  <strong>Critical:</strong>
+  <p>Always use <code>apply_chat_template()</code> when prompting instruction-tuned models. Manually formatting prompts with the wrong template causes the model to generate garbled, role-confused outputs — the most common mistake when switching between open-source models.</p>
+</div>
+<!-- /theory -->
+<!-- /theory -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
 <p>What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?</p>
@@ -3921,58 +3911,113 @@ assert loss is not None, "loss should not be None"</pre>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-99-theory">
 <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Production Implementation &amp; Architecture</h3>
-<p>Core engineering patterns and implementation reference for Capstone Part 1: Advanced Information Retrieval (RAG).</p>
+
+<h3 class="sh3">1. RAG Architecture Deep Dive</h3>
+<p>Retrieval-Augmented Generation (Lewis et al., 2020) addresses a fundamental LLM limitation: static parametric knowledge baked into weights during training becomes stale and hallucination-prone on factual queries. RAG conditions the LLM on retrieved, up-to-date documents at inference time.</p>
+<p>$$P(y \mid x) = \sum_{z \in \text{top-}k} P(y \mid x, z) \cdot P(z \mid x)$$</p>
+<p>Where $z$ = retrieved document chunk, $x$ = user query. In practice: retrieve top-$k$ chunks, concatenate as context, pass to LLM.</p>
+
+<h3 class="sh3">2. Retrieval Strategies</h3>
+<table class="concept-table">
+  <tr><th>Strategy</th><th>Method</th><th>Speed</th><th>Best For</th></tr>
+  <tr><td>Sparse (BM25)</td><td>TF-IDF inverted index keyword matching</td><td>~1ms</td><td>Exact keyword queries, legal/code search</td></tr>
+  <tr><td>Dense (ANN)</td><td>Embedding cosine similarity via FAISS</td><td>10–50ms</td><td>Semantic search, paraphrases</td></tr>
+  <tr><td>Hybrid</td><td>BM25 + ANN → Reciprocal Rank Fusion</td><td>20–80ms</td><td>Production: best of both worlds</td></tr>
+</table>
+
+<h3 class="sh3">3. Production RAG Pipeline — End to End</h3>
 <div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Architectural Reference for Day 99: Capstone Part 1: Advanced Information Retrieval (RAG)
-import os
-import sys
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_chroma import Chroma
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 
-def execute_module():
-    print("Executing Capstone Part 1: Advanced Information Retrieval (RAG) pipeline...")
-    config = {"module": "Capstone Part 1: Advanced Information Retrieval (RAG)", "status": "ACTIVE", "day": 99}
-    print("Configuration:", config)
-    return config
+# ── STEP 1: Ingestion ─────────────────────────────────────
+loader = DirectoryLoader("./docs/", glob="**/*.pdf", loader_cls=PyPDFLoader)
+documents = loader.load()
+print(f"Loaded {len(documents)} document pages")
 
-if __name__ == "__main__":
-    execute_module()</code></pre>
+# ── STEP 2: Chunking (semantic-aware) ────────────────────
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=512,         # ~380 tokens — fits well in context
+    chunk_overlap=64,       # 12.5% overlap prevents boundary information loss
+    separators=["\n\n", "\n", ". ", " "]  # Try paragraph breaks first
+)
+chunks = splitter.split_documents(documents)
+print(f"Chunks: {len(chunks)} (avg {sum(len(c.page_content) for c in chunks)//len(chunks)} chars)")
+
+# ── STEP 3: Embedding & Vector Indexing ──────────────────
+embeddings = OpenAIEmbeddings(model="text-embedding-3-large")  # 3072-dim
+vectorstore = Chroma.from_documents(
+    chunks, embeddings, persist_directory="./chroma_db"
+)
+
+# MMR: Maximum Marginal Relevance — balances relevance and diversity
+retriever = vectorstore.as_retriever(
+    search_type="mmr",
+    search_kwargs={"k": 6, "fetch_k": 20, "lambda_mult": 0.7}
+)
+
+# ── STEP 4: Generation Chain ─────────────────────────────
+SYSTEM = """Answer ONLY based on the context below.
+If the answer isn't in the context, say "I don't know based on the provided documents."
+
+Context:
+{context}"""
+
+prompt = ChatPromptTemplate.from_messages([("system", SYSTEM), ("human", "{question}")])
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+def format_docs(docs):
+    return "\n\n---\n\n".join(
+        f"[Source {i+1}, Page {d.metadata.get('page', '?')}]:\n{d.page_content}"
+        for i, d in enumerate(docs)
+    )
+
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | prompt | llm | StrOutputParser()
+)
+
+# ── STEP 5: Query ─────────────────────────────────────────
+response = rag_chain.invoke("What is PagedAttention and how does it help GPU memory?")
+print(response)</code></pre>
 </div>
-<h3 class="sh3">
-       1. The Need for RAG
-      </h3>
-<p>
-       Instead of fine-tuning a model on proprietary data (which causes hallucinations, requires constant retraining, and is very expensive), we use dense vector embeddings (generated by models like
-       
-        all-MiniLM-L6-v2
-       
-       ) to index our documents in a vector store (ChromaDB / FAISS). Upon a user query, we retrieve the Top-$K$ chunks via cosine similarity and inject them into an LLM's context window.
-      </p>
-<div class="mermaid">
-graph TD
-subgraph "1. Document Ingestion"
-  Doc["Raw Documents"] --&gt; Chunk["Document Chunker"]
-  Chunk --&gt; Embed["Embedding Model\nSentence-Transformers"]
-  Embed --&gt; DB["FAISS Vector DB"]
-end
-subgraph "2. Retrieval and Generation"
-  UserQ["User Query"] --&gt; QEmbed["Query Embedding"]
-  QEmbed --&gt; Search["FAISS Semantic Search"]
-  DB --&gt; Search
-  Search --&gt; Context["Retrieve Top-K Chunks"]
-  Context --&gt; Prompt["Build Prompt: Context + Query"]
-  Prompt --&gt; LLM["Language Model"]
-  LLM --&gt; Response["Final Answer"]
-end
+
+<h3 class="sh3">4. Chunking Strategy Comparison</h3>
+<table class="concept-table">
+  <tr><th>Strategy</th><th>How</th><th>When to Use</th></tr>
+  <tr><td>Fixed-size</td><td>Split every N characters</td><td>Simple baseline, uniform data</td></tr>
+  <tr><td>Recursive character</td><td>Try \n\n → \n → . → space</td><td>General text (default choice)</td></tr>
+  <tr><td>Semantic</td><td>Embed sentences, split at embedding distance spikes</td><td>Dense academic papers</td></tr>
+  <tr><td>Hierarchical</td><td>Chunk + parent-doc summary for multi-level retrieval</td><td>Long structured documents</td></tr>
+</table>
+
+<h3 class="sh3">5. Advanced: Hypothetical Document Embeddings (HyDE)</h3>
+<p>HyDE improves retrieval precision for complex questions. Instead of embedding the sparse query directly, you ask an LLM to generate a <em>hypothetical answer document</em>, then embed that richer text for retrieval. The hypothetical document is much closer in embedding space to the actual source documents.</p>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from langchain_core.prompts import PromptTemplate
+
+# Step 1: Generate hypothetical answer
+hyde_prompt = PromptTemplate.from_template(
+    "Write a 3-sentence paragraph that would directly answer this question: {question}"
+)
+hyde_chain = hyde_prompt | ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+# Step 2: Use hypothetical answer as retrieval query
+def hyde_retriever(question: str):
+    hypothetical_doc = hyde_chain.invoke({"question": question}).content
+    return retriever.invoke(hypothetical_doc)  # Retrieve against the hypothetical
+
+# HyDE consistently improves recall by 10–20% on complex technical queries</code></pre>
 </div>
-<h3 class="sh3">
-       2. Vector Search (FAISS)
-      </h3>
-<p>
-       Doing a dot product between a query vector and 10 million document vectors is slow. FAISS utilizes algorithms like HNSW (Hierarchical Navigable Small World) graphs to perform approximate nearest neighbor search in sub-millisecond times.
-      </p>
-</div>
-<!-- PREDICT THE OUTPUT -->
+<!-- /theory -->
+<!-- /theory -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
 <p>What is the cosine similarity between identical normalized unit vectors?</p>
@@ -4501,75 +4546,122 @@ assert outputs is not None, "outputs should not be None"</pre>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-100-theory">
 <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">
-       1. FastAPI for Machine Learning
-      </h3>
-<p>
-       Flask and Django are synchronous and can block when running heavy GPU inference. FastAPI leverages Python's
-       
-        asyncio
-       
-       , allowing the web server to handle thousands of requests while waiting for the GPU to finish batch processing.
-      </p>
-<h3 class="sh3">
-       2. Docker Containerization
-      </h3>
-<p>
-       Dependency hell is a massive problem in ML (CUDA versions, PyTorch builds). A
-       
-        Dockerfile
-       
-       guarantees that your model runs exactly the same on an AWS server as it does on your local machine.
-      </p>
+
+<h3 class="sh3">1. ML Deployment Patterns</h3>
+<p>Deploying an ML model differs fundamentally from deploying a CRUD API. Models are CPU/GPU-bound, stateful (weights loaded into memory), non-deterministic, and memory-intensive. Three patterns dominate production:</p>
+<div class="callout ci">
+  <ul>
+    <li><strong>Synchronous REST:</strong> Client sends request, waits for full prediction. Best for &lt;100ms inference (tabular models, embeddings).</li>
+    <li><strong>Streaming (SSE/WebSocket):</strong> Server pushes tokens as they generate. Required for LLMs where TTFT matters.</li>
+    <li><strong>Async batch:</strong> Queue thousands of inputs, process overnight. Used for nightly scoring, embedding bulk data.</li>
+    <li><strong>Serverless:</strong> AWS Lambda, Vercel Edge. Cost-efficient for sparse traffic; cold-start is the tradeoff.</li>
+  </ul>
+</div>
+
+<h3 class="sh3">2. FastAPI ML Serving — Production Pattern</h3>
 <div class="cb">
-<div class="cb-head">
-<span class="cb-lang">
-         Dockerfile
-        </span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">
-          copy
-         </button>
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from contextlib import asynccontextmanager
+from transformers import pipeline
+import torch, logging, time
+
+logger = logging.getLogger(__name__)
+ml_models = {}  # Module-level singleton — loaded once, reused forever
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup: load model into memory (GPU if available) ──
+    logger.info("Loading model...")
+    ml_models["classifier"] = pipeline(
+        "text-classification",
+        model="distilbert-base-uncased-finetuned-sst-2-english",
+        device=0 if torch.cuda.is_available() else -1
+    )
+    logger.info(f"Model ready on {'GPU' if torch.cuda.is_available() else 'CPU'}")
+    yield
+    # ── Shutdown: cleanup ──
+    ml_models.clear()
+
+app = FastAPI(title="ML Serving API v1.0", lifespan=lifespan)
+
+class PredictRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=512)
+
+class PredictResponse(BaseModel):
+    label: str
+    score: float
+    latency_ms: float
+
+@app.post("/predict", response_model=PredictResponse)
+async def predict(req: PredictRequest):
+    if "classifier" not in ml_models:
+        raise HTTPException(503, "Model not loaded yet — try again shortly")
+    
+    start = time.perf_counter()
+    result = ml_models["classifier"](req.text)[0]
+    latency_ms = round((time.perf_counter() - start) * 1000, 2)
+    
+    return PredictResponse(label=result["label"], score=round(result["score"], 4),
+                            latency_ms=latency_ms)
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "model_ready": "classifier" in ml_models}</code></pre>
 </div>
+
+<h3 class="sh3">3. GPU Batching — The Critical Efficiency Pattern</h3>
+<p>Single-request inference wastes 95%+ of GPU capacity. The GPU is a massively parallel SIMD processor — batch size 1 is criminal. Dynamic batching groups concurrent requests:</p>
+<p>$$\text{GPU Utilisation} = \frac{\text{Compute for batch}}{\text{Peak FLOPS}} \approx \frac{B \cdot d^2}{\text{FLOPS}_{\text{peak}}}$$</p>
+<p>Where $B$ = batch size, $d$ = model hidden dim. Linear scaling with batch size up to memory limits.</p>
+
+<h3 class="sh3">4. Key Serving Metrics</h3>
+<table class="concept-table">
+  <tr><th>Metric</th><th>Definition</th><th>Target</th></tr>
+  <tr><td>QPS (Throughput)</td><td>Queries per second processed</td><td>&gt; 100 for REST; &gt; 10 for LLM streaming</td></tr>
+  <tr><td>P50 Latency</td><td>Median response time</td><td>&lt; 100ms for tabular models</td></tr>
+  <tr><td>P99 Latency</td><td>99th percentile — worst-case experienced</td><td>&lt; 500ms REST, &lt; 3s LLM first-token</td></tr>
+  <tr><td>GPU Utilisation</td><td>% of GPU compute actually used</td><td>&gt; 70% (idle GPU = wasted $)</td></tr>
+  <tr><td>Error Rate</td><td>% requests failing (5xx)</td><td>&lt; 0.1%</td></tr>
+</table>
+
+<h3 class="sh3">5. Containerised Production Deployment</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">bash</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-bash"># Build and run — production gunicorn config
+docker build -t ml-api:latest .
+
+docker run -d \
+  --gpus all \
+  -p 8000:8000 \
+  -e OPENAI_API_KEY=$OPENAI_API_KEY \
+  --restart unless-stopped \
+  ml-api:latest \
+  gunicorn main:app \
+    -w 4 -k uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:8000 \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile -
+
+# Verify health
+curl http://localhost:8000/health
+# {"status": "ok", "model_ready": true}
+
+# Test prediction
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "This model is incredibly fast!"}'
+# {"label": "POSITIVE", "score": 0.9998, "latency_ms": 12.4}</code></pre>
 </div>
-<pre><code class="language-docker">FROM python:<span class="num">3.9</span>-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD [<span class="str">"uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"</span>]</code></pre>
+
+<div class="callout ct">
+  <strong>Scaling Beyond One Container:</strong>
+  <p>For &gt;1000 QPS, deploy behind a load balancer (Nginx / AWS ALB) with multiple replicas. Use a shared Redis cache for identical queries (cache hit rate often 15–30% in production). For GPU-heavy LLMs, vLLM with PagedAttention is the industry standard over raw Hugging Face <code>generate()</code>.</p>
 </div>
-<div class="mermaid">
-graph TD
-  User["User / Client Browser"] --&gt;|1. Submit Query| Gradio["Gradio Web UI Frontend"]
-  Gradio --&gt;|2. Async HTTP POST  or query| API["FastAPI Application Server"]
-subgraph "Docker Container Sandbox"
-  API --&gt;|3. Query Embeddings| DB["FAISS Vector Index"]
-  DB --&gt;|4. Retrieve Context Chunks| API
-  API --&gt;|5. Context + Prompt| Model["Local PyTorch LLM"]
-  Model --&gt;|6. Streamed Text Output| API
-end
-  API --&gt;|7. JSON Response| Gradio
-  Gradio --&gt;|8. Render Output| User
-</div>
-<div class="diagram-container" style="background:var(--bg3); padding:1.2rem; border-radius:8px; margin:1.5rem auto; border:1px solid var(--border); text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-<h4 style="color:var(--accent); margin-top:0; font-size:1.05rem;">Architecture Blueprint: HNSW Hierarchical Navigable Small World Graph</h4>
-<div class="mermaid">
-graph TD
-    subgraph TopLayer["Layer 2 (Expressway - Long Jumps)"]
-        L2_1["Entry Node"] --&gt; L2_2["Node B"]
-    end
-    subgraph MidLayer["Layer 1 (Regional Grid)"]
-        L1_1["Node A"] --&gt; L1_2["Node B"] --&gt; L1_3["Node C"]
-    end
-    subgraph BaseLayer["Layer 0 (All Vectors Dense Graph)"]
-        L0_1["v1"] --- L0_2["v2"] --- L0_3["v3"] --- L0_4["Target Nearest Neighbor"]
-    end
-    TopLayer --&gt; MidLayer --&gt; BaseLayer
-</div>
-</div>
-</div>
-<!-- PREDICT THE OUTPUT -->
+<!-- /theory -->
+<!-- /theory -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
 <p>What is the computed throughput (requests per second) for 100 requests served in 2.0 seconds?</p>

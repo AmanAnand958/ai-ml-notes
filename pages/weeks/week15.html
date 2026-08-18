@@ -5731,85 +5731,116 @@ print("✓ Production agent runtime verified.")</pre>
 
         <!-- THEORY SECTION -->
         <div id="day-107-theory" class="theory">
-          <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-          <p><strong>Topic Overview:</strong> This day covers core concepts of <em>Capstone — Agentic Systems</em>, building foundational knowledge for subsequent lessons.</p><div class="debug-block">
-<div class="debug-label">
-        🛠️ WEEKLY DEBUGGING CHALLENGE
-       </div>
-<h3> style="font-family:var(--font-head); font-size:14px; margin-bottom:0.5rem; color:var(--pink);">
-        Debug: Embedding Dimension Mismatch in Vector DB
-       </h3>
-<p style="font-size:13px; margin-bottom:0.8rem; line-height:1.6;">
-        Querying the vector store returns a dimensionality mismatch error or fails to load vectors.
-       </p>
-<div class="cb">
-<div class="cb-head">
-<span class="cb-lang">
-          python
-         </span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)" style="margin-left: 4px;">Run</button></div>
-</div>
-<pre><code class="language-html"><span class="kw">from</span> langchain_community.vectorstores <span class="kw">import</span> Chroma
-<span class="kw">from</span> langchain_openai <span class="kw">import</span> OpenAIEmbeddings
-<span class="kw">from</span> langchain_huggingface <span class="kw">import</span> HuggingFaceEmbeddings
-<span class="cm"># Index documents with OpenAI (1536 dimensions)</span>
-db = Chroma.<span class="fn">from_texts</span>([<span class="str">"Text content"</span>], <span class="fn">OpenAIEmbeddings</span>())
-<span class="cm"># Query the database with HuggingFace embeddings (384 dimensions)</span>
-retriever = db.<span class="fn">as_retriever</span>(search_kwargs={<span class="str">"embeddings"</span>: <span class="fn">HuggingFaceEmbeddings</span>()})</code></pre>
-</div>
-<button class="solution-toggle" onclick="toggleSolution('debug-sol-15')">
-<span>
-         🔍 Reveal Bug &amp; Fix
-        </span>
-</button>
-<div class="solution-box" id="debug-sol-15">
-<div class="sol-header">
-         SOLUTION &amp; EXPLANATION
-        </div>
-<div style="padding:1rem; background:rgba(0,0,0,0.2); font-size:13px; line-height:1.6;">
-<strong>
-          The Bug:
-         </strong>
-         A vector database operates inside a metric space of a specific dimension. The vectors you query must reside in the exact same dimension and vector space as the vectors indexed. Using different embedding models for index and search causes dimensionality conflicts.
-         <br/>
-<br/>
-<strong>
-          The Fix:
-         </strong>
-<div class="cb">
-<div class="cb-head">
-<span class="cb-lang">
-            python
-           </span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">
-             copy
-            </button>
-<button class="run-btn" onclick="runCode(this)">
-             Run
-            </button>
-</div>
-</div>
-<pre><code class="language-html"><span class="kw">from</span> langchain_community.vectorstores <span class="kw">import</span> Chroma
-<span class="kw">from</span> langchain_openai <span class="kw">import</span> OpenAIEmbeddings
-embeddings = <span class="fn">OpenAIEmbeddings</span>()
-<span class="cm"># Use identical embedding models for both database creation and retrieval</span>
-db = Chroma.<span class="fn">from_texts</span>([<span class="str">"Text content"</span>], embeddings)
-retriever = db.<span class="fn">as_retriever</span>()</code></pre>
-</div>
-</div>
-</div>
-</div><h2 class="sh2">
-        🃏 Revision Flashcards — Day 107
-       </h2><p class="flashcard-hint" style="font-size: 12px; font-family:var(--font-mono); color:var(--muted); text-transform:uppercase; margin-bottom:8px;">
-        CLICK EACH CARD TO FLIP ↓
-       </p>
-<!-- /day-107-theory -->
-        </div>
+<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
 
-        <!-- PREDICT THE OUTPUT -->
-        <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
+<h3 class="sh3">1. What Distinguishes an Agent from an LLM</h3>
+<p>An LLM is <em>reactive</em>: give it a prompt, get a response. An <em>agent</em> is <em>proactive</em>: it perceives the current state, selects an action, executes a tool, observes the result, and repeats until it achieves a goal. The core loop is the <strong>Observe → Think → Act</strong> cycle.</p>
+<div class="callout ci">
+  <strong>Agent = LLM + Memory + Tools + Feedback Loop</strong>
+  <p>At step $t$: agent observes $(\text{Goal}, \text{History}_{1:t})$ → selects action $a_t$ (tool call or final answer) → receives observation $o_t$ → appends $(a_t, o_t)$ to history → repeats. Terminates when goal is met or max steps exceeded.</p>
+</div>
+
+<h3 class="sh3">2. Agent Architecture Comparison</h3>
+<table class="concept-table">
+  <tr><th>Architecture</th><th>Strengths</th><th>Weaknesses</th></tr>
+  <tr><td>ReAct (Reason+Act)</td><td>Simple, interpretable, trace-friendly</td><td>Sequential only, can loop infinitely</td></tr>
+  <tr><td>LangGraph</td><td>Deterministic state machine, parallel branches, checkpointing</td><td>More boilerplate to define graph</td></tr>
+  <tr><td>AutoGen</td><td>Multi-agent conversation, role specialisation</td><td>Non-deterministic agent coordination</td></tr>
+  <tr><td>CrewAI</td><td>Opinionated role-based crews, easy to define</td><td>Less control over execution flow</td></tr>
+</table>
+
+<h3 class="sh3">3. LangGraph Stateful Agent — Full Implementation</h3>
+<div class="cb">
+  <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+  <pre><code class="language-python">from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, ToolMessage
+from typing import TypedDict, Annotated, List
+import operator
+
+# ── 1. State: the accumulated conversation history ────────
+class AgentState(TypedDict):
+    messages: Annotated[List, operator.add]  # Accumulates — never overwritten
+
+# ── 2. Tool definitions ───────────────────────────────────
+def search_web(query: str) -> str:
+    """Search the web and return relevant results."""
+    # Production: replace with Tavily or SerpAPI client
+    return f"[Search results for '{query}']: Found 5 relevant documents about {query}."
+
+def run_python(code: str) -> str:
+    """Execute Python code in a secure sandbox."""
+    # Production: replace with E2B or Modal sandbox
+    return f"[Execution output]: Code ran successfully. Result: computed."
+
+# ── 3. LLM with tools bound ───────────────────────────────
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
+tools = [search_web, run_python]
+llm_with_tools = llm.bind_tools(tools)
+
+# ── 4. Graph nodes ────────────────────────────────────────
+def agent_node(state: AgentState) -> AgentState:
+    """LLM decides: answer directly or call a tool."""
+    response = llm_with_tools.invoke(state["messages"])
+    return {"messages": [response]}
+
+def tool_node(state: AgentState) -> AgentState:
+    """Execute all tool calls from the last LLM message."""
+    results = []
+    for tool_call in state["messages"][-1].tool_calls:
+        fn = {"search_web": search_web, "run_python": run_python}.get(tool_call["name"])
+        result = fn(**tool_call["args"]) if fn else f"Unknown tool: {tool_call['name']}"
+        results.append(ToolMessage(content=result, tool_call_id=tool_call["id"]))
+    return {"messages": results}
+
+def should_continue(state: AgentState) -> str:
+    """Route: if LLM called tools → execute them; otherwise → end."""
+    last = state["messages"][-1]
+    return "tools" if getattr(last, "tool_calls", None) else END
+
+# ── 5. Build and compile the graph ────────────────────────
+builder = StateGraph(AgentState)
+builder.add_node("agent", agent_node)
+builder.add_node("tools", tool_node)
+builder.set_entry_point("agent")
+builder.add_conditional_edges("agent", should_continue)
+builder.add_edge("tools", "agent")  # Always loop back after tool execution
+
+# Persistent checkpointing: resume after failure, multi-turn memory
+checkpointer = SqliteSaver.from_conn_string("agent_state.db")
+agent = builder.compile(checkpointer=checkpointer)
+
+# ── 6. Run with session tracking ──────────────────────────
+config = {"configurable": {"thread_id": "user-session-001"}}
+result = agent.invoke(
+    {"messages": [HumanMessage(content="Search for vLLM benchmarks and write a Python script to plot them.")]},
+    config
+)
+print("Final answer:", result["messages"][-1].content)</code></pre>
+</div>
+
+<h3 class="sh3">4. Production Agent Safety</h3>
+<div class="callout cw">
+  <strong>Agent Guardrails (Non-Negotiable):</strong>
+  <ul>
+    <li><strong>Max steps limit:</strong> Terminate after N iterations (typically 10–15) to prevent infinite loops</li>
+    <li><strong>Tool output sanitisation:</strong> Never pass raw web content to LLM without length/injection checks</li>
+    <li><strong>Budget tracking:</strong> Monitor token cost per session; kill agent if over threshold</li>
+    <li><strong>Human checkpoint:</strong> Pause before irreversible actions (database writes, emails, API mutations)</li>
+    <li><strong>Scope restriction:</strong> Use system prompt to explicitly list allowed/forbidden actions</li>
+  </ul>
+</div>
+
+<h3 class="sh3">5. Multi-Agent Systems</h3>
+<p>Complex tasks benefit from specialised agents working in parallel. Common patterns:</p>
+<ul>
+  <li><strong>Hierarchical:</strong> Orchestrator agent breaks task → delegates to specialist workers → aggregates results</li>
+  <li><strong>Pipeline:</strong> Agent A (research) → Agent B (synthesise) → Agent C (write) → Agent D (review)</li>
+  <li><strong>Debate:</strong> Two agents argue opposing positions → third agent judges → better accuracy on hard reasoning tasks</li>
+</ul>
+<!-- /theory -->
+<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
           <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
           <p>What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?</p>
           <input class="predict-input" id="p107-input" placeholder="Type your prediction here..."/>
