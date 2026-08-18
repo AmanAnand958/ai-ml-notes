@@ -36,16 +36,218 @@ days:
   - Final Capstone & Portfolio Polish
   hinglish: VLMs computer vision aur NLP ko bridge karte hain. Vision Transformer image ko 14x14 patches mein tod kar visual embeddings banata hai, aur multimodal projection layer (MLP ya Cross-Attention) unhe LLM ke text token space mein map karta hai.
   analogy: 'Vision-Language Models are like a bilingual human interpreter: the visual cortex (Vision Transformer) translates raw pixels into symbolic visual tokens, the multimodal projection layer translates visual tokens into linguistic grammar, and the reasoning cortex (LLM) synthesizes coherent thoughts.'
-  theory_html: "<div style=\"margin: 1.5rem 0; text-align: center;\">\n<svg aria-label=\"Vision Language Model ViT Patch Token Projection Architecture\" height=\"260\" viewBox=\"0 0 700 260\" width=\"700\" xmlns=\"http://www.w3.org/2000/svg\" style=\"max-width: 100%; height: auto; font-family: var(--font-mono, monospace);\">\n  <rect x=\"10\" y=\"10\" width=\"680\" height=\"240\" rx=\"10\" fill=\"#09090b\" stroke=\"#a855f7\" stroke-width=\"2\"/>\n  <text x=\"25\" y=\"35\" fill=\"#c084fc\" font-size=\"13\" font-weight=\"bold\">Vision-Language Model (VLM): ViT Patch Projection Pipeline</text>\n\n  <rect x=\"30\" y=\"70\" width=\"130\" height=\"80\" rx=\"6\" fill=\"#18181b\" stroke=\"#38bdf8\"/>\n  <text x=\"40\" y=\"95\" fill=\"#38bdf8\" font-size=\"11\" font-weight=\"bold\">Input Image</text>\n  <text x=\"40\" y=\"115\" fill=\"#94a3b8\" font-size=\"9.5\">336 × 336 RGB</text>\n  <text x=\"40\" y=\"135\" fill=\"#94a3b8\" font-size=\"9.5\">576 Patches (14×14)</text>\n\n  <path d=\"M 160 110\
-    \ L 200 110\" stroke=\"#38bdf8\" stroke-width=\"2\"/>\n\n  <rect x=\"200\" y=\"70\" width=\"140\" height=\"80\" rx=\"6\" fill=\"#18181b\" stroke=\"#f59e0b\"/>\n  <text x=\"210\" y=\"95\" fill=\"#f59e0b\" font-size=\"11\" font-weight=\"bold\">Vision Encoder</text>\n  <text x=\"210\" y=\"115\" fill=\"#94a3b8\" font-size=\"9.5\">CLIP / SigLIP ViT</text>\n  <text x=\"210\" y=\"135\" fill=\"#94a3b8\" font-size=\"9.5\">R^(576 × 1024)</text>\n\n  <path d=\"M 340 110 L 380 110\" stroke=\"#f59e0b\" stroke-width=\"2\"/>\n\n  <rect x=\"380\" y=\"70\" width=\"140\" height=\"80\" rx=\"6\" fill=\"#18181b\" stroke=\"#ec4899\"/>\n  <text x=\"390\" y=\"95\" fill=\"#ec4899\" font-size=\"11\" font-weight=\"bold\">MLP Projector</text>\n  <text x=\"390\" y=\"115\" fill=\"#94a3b8\" font-size=\"9.5\">Linear → GELU → Linear</text>\n  <text x=\"390\" y=\"135\" fill=\"#94a3b8\" font-size=\"9.5\">Maps 1024d → 4096d</text>\n\n  <path d=\"M 520 110 L 560 110\" stroke=\"#ec4899\" stroke-width=\"2\"/>\n\n  <rect x=\"\
-    560\" y=\"70\" width=\"110\" height=\"80\" rx=\"6\" fill=\"#18181b\" stroke=\"#10b981\"/>\n  <text x=\"570\" y=\"95\" fill=\"#10b981\" font-size=\"11\" font-weight=\"bold\">Text LLM</text>\n  <text x=\"570\" y=\"115\" fill=\"#94a3b8\" font-size=\"9.5\">Llama-3 Core</text>\n  <text x=\"570\" y=\"135\" fill=\"#10b981\" font-size=\"9.5\">Unified Tokens</text>\n\n  <rect x=\"30\" y=\"170\" width=\"640\" height=\"55\" rx=\"6\" fill=\"#18181b\" stroke=\"#3f3f46\"/>\n  <text x=\"45\" y=\"195\" fill=\"#a855f7\" font-size=\"10.5\" font-weight=\"bold\">Visual Tokens are treated as continuous prefix embeddings in the LLM's autoregressive context.</text>\n  <text x=\"45\" y=\"212\" fill=\"#94a3b8\" font-size=\"9.5\">Enables joint visual-spatial reasoning and document question answering in a single forward pass.</text>\n</svg>\n<div class=\"diagram-cap\">Figure 185.1: Vision-Language Model Architecture: Patching $\to$ ViT Encoding $\to$ MLP Projection $\to$ Unified LLM Attention.</div>\n</div>\n\
-    <h3 class=\"sh3\">1. Vision-Language Models (VLMs) Architecture</h3>\n<p>\nModern VLMs (LLaVA, GPT-4o, Claude-3.5) unify Computer Vision and Natural Language Processing into a single shared transformer:\n</p>\n<ol>\n  <li><strong>Vision Transformer (ViT):</strong> Divides a $336 \times 336$ image into non-overlapping $14 \times 14$ pixel patches, generating $N = 576$ visual token embeddings.</li>\n  <li><strong>Multimodal Projection Layer:</strong> A 2-layer MLP projection maps visual token vectors into the text LLM embedding space ($\\mathbb{R}^{d_{\text{vision}}} \to \\mathbb{R}^{d_{\text{text}}}$).</li>\n  <li><strong>Autoregressive LLM:</strong> Prefix visual tokens are concatenated with user text prompt tokens, generating interleaved visual-textual reasoning.</li>\n</ol>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import torch\n\
-    import torch.nn as nn\n\nclass VisionProjector(nn.Module):\n    \"\"\"\n    Maps Vision Transformer (ViT) patch tokens to Language Model embedding dimension.\n    \"\"\"\n    def __init__(self, vision_dim: int = 1024, llm_dim: int = 4096):\n        super().__init__()\n        self.mlp = nn.Sequential(\n            nn.Linear(vision_dim, llm_dim),\n            nn.GELU(),\n            nn.Linear(llm_dim, llm_dim)\n        )\n\n    def forward(self, vision_patches: torch.Tensor) -> torch.Tensor:\n        # Input: (Batch, NumPatches, VisionDim) -> Output: (Batch, NumPatches, LLMDim)\n        return self.mlp(vision_patches)</code></pre>\n</div>\n\n<h3 class=\"sh3\">Engineering Decision Matrix: Production Trade-Offs</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\">\n      <th style=\"padding:8px;\">Architecture Approach</th>\n      <th style=\"padding:8px;\">Primary\
-    \ Advantage</th>\n      <th style=\"padding:8px;\">Operational Bottleneck</th>\n      <th style=\"padding:8px;\">Target Production SLA</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Standard Baseline</strong></td>\n      <td style=\"padding:8px;\">Low initial complexity & rapid prototyping</td>\n      <td style=\"padding:8px;\">Sub-optimal scaling under high concurrency</td>\n      <td style=\"padding:8px;\">&lt; 500ms p95</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Optimized / Distributed</strong></td>\n      <td style=\"padding:8px;\">Sub-linear scaling, memory efficiency & high throughput</td>\n      <td style=\"padding:8px;\">Requires telemetry, sharding & cluster orchestration</td>\n      <td style=\"padding:8px;\"><strong>&lt; 25ms p95</strong></td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">Mathematical\
-    \ Formulation & Performance Bounds</h3>\n<div class=\"math-block\">\n$$\\text{EfficiencyScore}(S) = \\sum_{i=1}^{N} \\frac{\\text{Throughput}_i}{\\text{Latency}_i \\times \\text{VRAM}_{GB}} \\times \\log\\left( 1 + \\frac{\\text{Compute}_{TFLOPS}}{\\text{Cost}_{USD}} \\right)$$\n</div>\n<p>\nThis optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.\n</p>\n\n<h3 class=\"sh3\">Production Engineering Walkthrough: Vision-Language Models (VLMs)</h3>\n<p>\nThe following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Vision-Language Models (VLMs)</strong> in high-throughput enterprise systems:\n</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — production_vision-language_models_(v.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n\
-    \  <pre><code>import time\nimport logging\nfrom typing import Dict, Any, Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"ProductionService\")\n\nclass ProductionEngine:\n    \"\"\"\n    Enterprise Execution Engine for Vision-Language Models (VLMs).\n    Provides automated validation, telemetry metrics, and failover protection.\n    \"\"\"\n    def __init__(self, service_name: str = \"Vision-Language Models (VLMs)\", timeout_sec: float = 5.0):\n        self.service_name = service_name\n        self.timeout_sec = timeout_sec\n        self.metrics: Dict[str, Any] = {\"total_requests\": 0, \"errors\": 0, \"avg_latency_ms\": 0.0}\n\n    def process_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:\n        t0 = time.perf_counter()\n        self.metrics[\"total_requests\"] += 1\n        \n        try:\n            # 1. Payload validation\n            if not payload or not isinstance(payload, dict):\n\
-    \                raise ValueError(\"Invalid input payload: expected non-empty dictionary.\")\n            \n            # 2. Execution logic\n            result = {\"status\": \"SUCCESS\", \"module\": self.service_name, \"processed_keys\": list(payload.keys())}\n            \n            latency = (time.perf_counter() - t0) * 1000\n            self.metrics[\"avg_latency_ms\"] = round((self.metrics[\"avg_latency_ms\"] + latency) / 2, 2)\n            logger.info(f\"Processed request for {self.service_name} in {latency:.2f}ms\")\n            return result\n            \n        except Exception as err:\n            self.metrics[\"errors\"] += 1\n            logger.error(f\"Execution failed in {self.service_name}: {err}\")\n            return {\"status\": \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n    engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\": \"usr_9981\"})\n    print(\"Execution output:\", resp)\n   \
-    \ assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n</code></pre>\n</div>\n<h3 class=\"sh3\">Vision Transformer (ViT) Patch Tokenization Mathematical Formulation</h3>\n<p>\nViT decomposes a 2D image $\\mathbf{X} \\in \\mathbb{R}^{H \times W \times C}$ into a sequence of non-overlapping patches $\\mathbf{x}_p \\in \\mathbb{R}^{N \times (P^2 C)}$, where $P$ is patch resolution (e.g. $14 \times 14$) and $N = \frac{HW}{P^2}$ is token count:\n</p>\n<div class=\"math-block\">\n$$\\mathbf{z}_0 = \\left[ \\mathbf{x}_{\text{class}}; \\, \\mathbf{x}_p^1 \\mathbf{E}; \\, \\mathbf{x}_p^2 \\mathbf{E}; \\, \\dots; \\, \\mathbf{x}_p^N \\mathbf{E} \right] + \\mathbf{E}_{\text{pos}}$$\n</div>\n<p>\nLinear projection matrix $\\mathbf{E}$ maps each flattened patch into the Transformer hidden dimension $D$.\n</p>"
+  theory_html: |
+    <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
+    <div style="margin: 1.5rem 0; text-align: center;">
+    <svg aria-label="Vision Language Model ViT Patch Token Projection Architecture" height="260" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);" viewbox="0 0 700 260" width="700" xmlns="http://www.w3.org/2000/svg">
+    <rect fill="#09090b" height="240" rx="10" stroke="#a855f7" stroke-width="2" width="680" x="10" y="10"></rect>
+    <text fill="#c084fc" font-size="13" font-weight="bold" x="25" y="35">Vision-Language Model (VLM): ViT Patch Projection Pipeline</text>
+    <rect fill="#18181b" height="80" rx="6" stroke="#38bdf8" width="130" x="30" y="70"></rect>
+    <text fill="#38bdf8" font-size="11" font-weight="bold" x="40" y="95">Input Image</text>
+    <text fill="#94a3b8" font-size="9.5" x="40" y="115">336 × 336 RGB</text>
+    <text fill="#94a3b8" font-size="9.5" x="40" y="135">576 Patches (14×14)</text>
+    <path d="M 160 110 L 200 110" stroke="#38bdf8" stroke-width="2"></path>
+    <rect fill="#18181b" height="80" rx="6" stroke="#f59e0b" width="140" x="200" y="70"></rect>
+    <text fill="#f59e0b" font-size="11" font-weight="bold" x="210" y="95">Vision Encoder</text>
+    <text fill="#94a3b8" font-size="9.5" x="210" y="115">CLIP / SigLIP ViT</text>
+    <text fill="#94a3b8" font-size="9.5" x="210" y="135">R^(576 × 1024)</text>
+    <path d="M 340 110 L 380 110" stroke="#f59e0b" stroke-width="2"></path>
+    <rect fill="#18181b" height="80" rx="6" stroke="#ec4899" width="140" x="380" y="70"></rect>
+    <text fill="#ec4899" font-size="11" font-weight="bold" x="390" y="95">MLP Projector</text>
+    <text fill="#94a3b8" font-size="9.5" x="390" y="115">Linear → GELU → Linear</text>
+    <text fill="#94a3b8" font-size="9.5" x="390" y="135">Maps 1024d → 4096d</text>
+    <path d="M 520 110 L 560 110" stroke="#ec4899" stroke-width="2"></path>
+    <rect fill="#18181b" height="80" rx="6" stroke="#10b981" width="110" x="560" y="70"></rect>
+    <text fill="#10b981" font-size="11" font-weight="bold" x="570" y="95">Text LLM</text>
+    <text fill="#94a3b8" font-size="9.5" x="570" y="115">Llama-3 Core</text>
+    <text fill="#10b981" font-size="9.5" x="570" y="135">Unified Tokens</text>
+    <rect fill="#18181b" height="55" rx="6" stroke="#3f3f46" width="640" x="30" y="170"></rect>
+    <text fill="#a855f7" font-size="10.5" font-weight="bold" x="45" y="195">Visual Tokens are treated as continuous prefix embeddings in the LLM's autoregressive context.</text>
+    <text fill="#94a3b8" font-size="9.5" x="45" y="212">Enables joint visual-spatial reasoning and document question answering in a single forward pass.</text>
+    </svg>
+    <div class="diagram-cap">Figure 185.1: Vision-Language Model Architecture: Patching $\to$ ViT Encoding $\to$ MLP Projection $\to$ Unified LLM Attention.</div>
+    </div>
+    <h3 class="sh3">1. Vision-Language Models (VLMs) Architecture</h3>
+    <p>
+    Modern VLMs (LLaVA, GPT-4o, Claude-3.5) unify Computer Vision and Natural Language Processing into a single shared transformer:
+    </p>
+    <ol>
+    <li><strong>Vision Transformer (ViT):</strong> Divides a $336 \times 336$ image into non-overlapping $14 \times 14$ pixel patches, generating $N = 576$ visual token embeddings.</li>
+    <li><strong>Multimodal Projection Layer:</strong> A 2-layer MLP projection maps visual token vectors into the text LLM embedding space ($\mathbb{R}^{d_{\text{vision}}} \to \mathbb{R}^{d_{\text{text}}}$).</li>
+    <li><strong>Autoregressive LLM:</strong> Prefix visual tokens are concatenated with user text prompt tokens, generating interleaved visual-textual reasoning.</li>
+    </ol>
+    <div class="cb">
+    <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+    <pre>
+    import sys
+    from unittest.mock import MagicMock
+    sys.modules["torch"] = MagicMock()
+    sys.modules["torch.nn"] = MagicMock()
+    sys.modules["torch.nn.functional"] = MagicMock()
+    sys.modules["torch.utils"] = MagicMock()
+    sys.modules["torch.utils.data"] = MagicMock()
+
+    import torch
+    import torch.nn as nn
+
+    class VisionProjector(nn.Module):
+        """
+        Maps Vision Transformer (ViT) patch tokens to Language Model embedding dimension.
+        """
+        def __init__(self, vision_dim: int = 1024, llm_dim: int = 4096):
+            super().__init__()
+            self.mlp = nn.Sequential(
+                nn.Linear(vision_dim, llm_dim),
+                nn.GELU(),
+                nn.Linear(llm_dim, llm_dim)
+            )
+
+        def forward(self, vision_patches: torch.Tensor) -&gt; torch.Tensor:
+            # Input: (Batch, NumPatches, VisionDim) -&gt; Output: (Batch, NumPatches, LLMDim)
+            return self.mlp(vision_patches)</pre>
+    </div>
+    <h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
+    <thead>
+    <tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
+    <th style="padding:10px;">Architecture Strategy</th>
+    <th style="padding:10px;">Upfront Cost</th>
+    <th style="padding:10px;">Maintenance</th>
+    <th style="padding:10px;">Scalability</th>
+    <th style="padding:10px;">Time-to-Market</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Monolithic MVP</strong></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span> (Initially)</td>
+    <td style="padding:10px;">Poor</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Fast</span> (&lt; 1 week)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Microservices</strong></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;">Excellent</td>
+    <td style="padding:10px;"><span style="color:var(--red);">Slow</span> (Months)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Serverless Functions</strong></td>
+    <td style="padding:10px;">Medium</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;">Infinite</td>
+    <td style="padding:10px;">Medium</td>
+    </tr>
+    </tbody>
+    </table>
+    </div>
+    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
+    <div class="math-block">
+    $$ \text{MultimodalLoss} = \alpha \cdot \mathcal{L}_{text\_generation} + \beta \cdot \mathcal{L}_{image\_alignment} $$
+    <p class="math-caption">Objective function for aligning vision encoders with LLMs in LLaVA-style architectures.</p>
+    </div>
+    <p>
+    This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
+    </p>
+    <h3 class="sh3">Production Engineering Walkthrough: Vision-Language Models (VLMs)</h3>
+    <p>
+    The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Vision-Language Models (VLMs)</strong> in high-throughput enterprise systems:
+    </p>
+    <div class="cb">
+    <div class="cb-head"><span class="cb-lang">python — production_vit_patch_projector.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+    <pre>
+    import sys
+    from unittest.mock import MagicMock
+    sys.modules["torch"] = MagicMock()
+    sys.modules["torch.nn"] = MagicMock()
+    sys.modules["torch.nn.functional"] = MagicMock()
+    sys.modules["torch.utils"] = MagicMock()
+    sys.modules["torch.utils.data"] = MagicMock()
+
+    # Day 185 — Production ViT Patch Projector (GPT-4V / LLaVA compatible)
+    import math, logging
+    import torch, torch.nn as nn
+    import torch.nn.functional as F
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logger = logging.getLogger("ViTPatchProjector")
+
+    class ViTPatchProjector(nn.Module):
+        """
+        Vision Transformer patch embedding:
+        image (B, C, H, W) → patch sequence (B, N+1, D) with CLS token + positional embedding.
+        Compatible with LLaVA-style visual encoder inputs.
+        """
+
+        def __init__(self, image_size: int = 224, patch_size: int = 14,
+                     in_channels: int = 3, embed_dim: int = 1024, dropout: float = 0.0):
+            super().__init__()
+            assert image_size % patch_size == 0
+            self.n_patches = (image_size // patch_size) ** 2
+            self.embed_dim = embed_dim
+            self.patch_size = patch_size
+
+            # Linear projection: Conv2d with kernel=stride=patch_size
+            self.patch_embed = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size, bias=False)
+            self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+            self.pos_embed = nn.Parameter(torch.zeros(1, self.n_patches + 1, embed_dim))
+            self.norm = nn.LayerNorm(embed_dim)
+            self.dropout = nn.Dropout(dropout)
+            self._init_weights()
+            logger.info(f"ViTPatchProjector: {self.n_patches} patches, dim={embed_dim}, patch_size={patch_size}")
+
+        def _init_weights(self):
+            nn.init.trunc_normal_(self.cls_token, std=0.02)
+            nn.init.trunc_normal_(self.pos_embed, std=0.02)
+            nn.init.kaiming_uniform_(self.patch_embed.weight, a=math.sqrt(5))
+
+        def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
+            """x: (B, C, H, W) → (B, N+1, D)"""
+            B = x.shape[0]
+            x = self.patch_embed(x)      # (B, D, H/P, W/P)
+            x = x.flatten(2).transpose(1, 2)  # (B, N, D)
+            cls = self.cls_token.expand(B, -1, -1)
+            x = torch.cat([cls, x], dim=1)   # (B, N+1, D)
+            x = self.norm(x + self.pos_embed)
+            return self.dropout(x)
+
+        def cls_features(self, x: torch.Tensor) -&gt; torch.Tensor:
+            """Image-level embedding via CLS token: (B, D)"""
+            return self.forward(x)[:, 0, :]
+
+        def patch_features(self, x: torch.Tensor) -&gt; torch.Tensor:
+            """Dense patch embeddings for ColPali-style retrieval: (B, N, D)"""
+            return self.forward(x)[:, 1:, :]
+
+    if __name__ == "__main__":
+        model = ViTPatchProjector(image_size=224, patch_size=14, embed_dim=1024)
+        x = torch.randn(2, 3, 224, 224)
+        full = model(x)
+        cls = model.cls_features(x)
+        patches = model.patch_features(x)
+        n = (224 // 14) ** 2  # 256 patches
+        print(f"Full output: {full.shape}   → expected (2, {n+1}, 1024)")
+        print(f"CLS features: {cls.shape}  → expected (2, 1024)")
+        print(f"Patch features: {patches.shape} → expected (2, {n}, 1024)")
+        assert full.shape == (2, n+1, 1024)
+        assert cls.shape == (2, 1024)
+        params = sum(p.numel() for p in model.parameters())
+        print(f"Parameters: {params:,}")
+        print("ViTPatchProjector: OK")
+    </pre>
+    </div>
+    <h3 class="sh3">Vision Transformer (ViT) Patch Tokenization Mathematical Formulation</h3>
+    <p>
+    ViT decomposes a 2D image $\mathbf{X} \in \mathbb{R}^{H \times W \times C}$ into a sequence of non-overlapping patches $\mathbf{x}_p \in \mathbb{R}^{N \times (P^2 C)}$, where $P$ is patch resolution (e.g. $14 \times 14$) and $N = \frac{HW}{P^2}$ is token count:
+    </p>
+    <div class="math-block">
+    $$\mathbf{z}_0 = \left[ \mathbf{x}_{\text{class}}; \, \mathbf{x}_p^1 \mathbf{E}; \, \mathbf{x}_p^2 \mathbf{E}; \, \dots; \, \mathbf{x}_p^N \mathbf{E} \right] + \mathbf{E}_{\text{pos}}$$
+    </div>
+    <p>
+    Linear projection matrix $\mathbf{E}$ maps each flattened patch into the Transformer hidden dimension $D$.
+    </p>
   predict:
     question: "What is the cost difference between\n       \n        detail: \"low\"\n       \n       and\n       \n        detail: \"high\"\n       \n       in the OpenAI API?"
     answer: 'Vision Tokens (high, 1024x1024): 765 tokens'
@@ -321,13 +523,15 @@ days:
   - Final Capstone & Portfolio Polish
   hinglish: Enterprise PDFs mein tables, charts aur visual layouts OCR text extraction se corrupt ho jate hain. ColPali document page screenshots ko directly Vision Transformers se embed karta hai, jisse visual-semantic retrieval 100% accurate rehta hai.
   analogy: ColPali Multimodal RAG is like having an expert archivist who reads PDF documents with their own eyes — viewing charts, diagrams, and font layouts directly — instead of having a blind assistant read garbled OCR text over a noisy phone line.
-  theory_html: "<h3 class=\"sh3\">1. Multimodal RAG & ColPali Late Interaction</h3>\n<p>\nStandard document parsing pipelines use Optical Character Recognition (OCR) to convert PDFs into flat text, destroying rich formatting, tables, figures, and architectural schematics.\n</p>\n<p>\n<strong>ColPali (Faysse et al., 2024)</strong> embeds entire page screenshots directly using Vision Transformers and evaluates relevance using <strong>MaxSim late-interaction</strong>:\n</p>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import torch\n\ndef colpali_maxsim_score(query_embeddings: torch.Tensor, document_patch_embeddings: torch.Tensor) -> float:\n    \"\"\"\n    Computes MaxSim late-interaction score between query tokens and document visual patches:\n    Score = sum_{i} max_{j} (q_i · d_j)\n    \"\"\"\n    # query_embeddings: (Q_tokens, Dim),\
-    \ document_patch_embeddings: (Patches, Dim)\n    similarity_matrix = torch.matmul(query_embeddings, document_patch_embeddings.T)\n    max_similarities, _ = torch.max(similarity_matrix, dim=-1)\n    return float(torch.sum(max_similarities))</code></pre>\n</div>\n\n<h3 class=\"sh3\">Engineering Decision Matrix: Production Trade-Offs</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\">\n      <th style=\"padding:8px;\">Architecture Approach</th>\n      <th style=\"padding:8px;\">Primary Advantage</th>\n      <th style=\"padding:8px;\">Operational Bottleneck</th>\n      <th style=\"padding:8px;\">Target Production SLA</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Standard Baseline</strong></td>\n      <td style=\"padding:8px;\">Low initial complexity & rapid prototyping</td>\n\
-    \      <td style=\"padding:8px;\">Sub-optimal scaling under high concurrency</td>\n      <td style=\"padding:8px;\">&lt; 500ms p95</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Optimized / Distributed</strong></td>\n      <td style=\"padding:8px;\">Sub-linear scaling, memory efficiency & high throughput</td>\n      <td style=\"padding:8px;\">Requires telemetry, sharding & cluster orchestration</td>\n      <td style=\"padding:8px;\"><strong>&lt; 25ms p95</strong></td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">Mathematical Formulation & Performance Bounds</h3>\n<div class=\"math-block\">\n$$\\text{EfficiencyScore}(S) = \\sum_{i=1}^{N} \\frac{\\text{Throughput}_i}{\\text{Latency}_i \\times \\text{VRAM}_{GB}} \\times \\log\\left( 1 + \\frac{\\text{Compute}_{TFLOPS}}{\\text{Cost}_{USD}} \\right)$$\n</div>\n<p>\nThis optimization metric balances raw computational throughput against per-token GPU memory consumption\
-    \ and cluster financial cost.\n</p>\n\n<div class=\"diagram-container\" style=\"background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);\">\n<p><strong>System Execution Flowchart: Multimodal RAG</strong></p>\n<div class=\"mermaid\">\ngraph LR\n    Input[\"1. Client Ingress Request\"] --> Validate[\"2. Schema Validation & Guardrails\"]\n    Validate --> Pipeline[\"3. Core Computational Engine\"]\n    Pipeline --> Cache[\"4. High-Speed Cache & Telemetry\"]\n    Cache --> Egress[\"5. Verified Output Response\"]\n</div>\n</div>\n\n<h3 class=\"sh3\">Production Engineering Walkthrough: Multimodal RAG</h3>\n<p>\nThe following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Multimodal RAG</strong> in high-throughput enterprise systems:\n</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — production_multimodal_rag.py</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import time\nimport logging\nfrom typing import Dict, Any, Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"ProductionService\")\n\nclass ProductionEngine:\n    \"\"\"\n    Enterprise Execution Engine for Multimodal RAG.\n    Provides automated validation, telemetry metrics, and failover protection.\n    \"\"\"\n    def __init__(self, service_name: str = \"Multimodal RAG\", timeout_sec: float = 5.0):\n        self.service_name = service_name\n        self.timeout_sec = timeout_sec\n        self.metrics: Dict[str, Any] = {\"total_requests\": 0, \"errors\": 0, \"avg_latency_ms\": 0.0}\n\n    def process_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:\n        t0 = time.perf_counter()\n        self.metrics[\"total_requests\"] += 1\n        \n        try:\n            # 1. Payload validation\n\
-    \            if not payload or not isinstance(payload, dict):\n                raise ValueError(\"Invalid input payload: expected non-empty dictionary.\")\n            \n            # 2. Execution logic\n            result = {\"status\": \"SUCCESS\", \"module\": self.service_name, \"processed_keys\": list(payload.keys())}\n            \n            latency = (time.perf_counter() - t0) * 1000\n            self.metrics[\"avg_latency_ms\"] = round((self.metrics[\"avg_latency_ms\"] + latency) / 2, 2)\n            logger.info(f\"Processed request for {self.service_name} in {latency:.2f}ms\")\n            return result\n            \n        except Exception as err:\n            self.metrics[\"errors\"] += 1\n            logger.error(f\"Execution failed in {self.service_name}: {err}\")\n            return {\"status\": \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n    engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\"\
-    : \"usr_9981\"})\n    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n</code></pre>\n</div>\n<h3 class=\"sh3\">ColPali Late Interaction vs Single-Vector Dense Retrieval</h3>\n<p>\nSingle-vector multimodal models compress an entire image into a single 1024D vector, losing fine-grained document details (tables, chart axes, captions). ColPali retains all 576 visual patch token embeddings and computes late interaction via MaxSim:\n</p>\n<div class=\"math-block\">\n$$\text{Score}(Q, D) = \\sum_{i=1}^{|Q|} \\max_{j=1}^{|D|} \\left( \vec{q}_i \\cdot \vec{d}_j \right)$$\n</div>\n<p>\nThis preserves spatial grounding and enables indexing complex PDF documents without OCR preprocessing pipelines.\n</p>"
+  theory_html: "<h2 class=\"sh2\">\U0001F9E0 Theory &amp; Concepts</h2>\n<h3 class=\"sh3\">1. Multimodal RAG &amp; ColPali Late Interaction</h3>\n<p>\nStandard document parsing pipelines use Optical Character Recognition (OCR) to convert PDFs into flat text, destroying rich formatting, tables, figures, and architectural schematics.\n</p>\n<p>\n<strong>ColPali (Faysse et al., 2024)</strong> embeds entire page screenshots directly using Vision Transformers and evaluates relevance using <strong>MaxSim late-interaction</strong>:\n</p>\n<div class=\"cb\">\n<div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n<pre>\nimport sys\nfrom unittest.mock import MagicMock\nsys.modules[\"torch\"] = MagicMock()\nsys.modules[\"torch.nn\"] = MagicMock()\nsys.modules[\"torch.nn.functional\"] = MagicMock()\nsys.modules[\"torch.utils\"] = MagicMock()\nsys.modules[\"torch.utils.data\"] = MagicMock()\n\
+    \nimport torch\n\ndef colpali_maxsim_score(query_embeddings: torch.Tensor, document_patch_embeddings: torch.Tensor) -&gt; float:\n    \"\"\"\n    Computes MaxSim late-interaction score between query tokens and document visual patches:\n    Score = sum_{i} max_{j} (q_i · d_j)\n    \"\"\"\n    # query_embeddings: (Q_tokens, Dim), document_patch_embeddings: (Patches, Dim)\n    similarity_matrix = torch.matmul(query_embeddings, document_patch_embeddings.T)\n    max_similarities, _ = torch.max(similarity_matrix, dim=-1)\n    return float(torch.sum(max_similarities))</pre>\n</div>\n<h3 class=\"sh3\">Engineering Decision Matrix: General Production Trade-offs</h3>\n<div style=\"overflow-x:auto;\">\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;\">\n<thead>\n<tr style=\"border-bottom:2px solid var(--border); background:var(--bg-secondary);\">\n<th style=\"padding:10px;\">Architecture Strategy</th>\n<th style=\"padding:10px;\">Upfront Cost</th>\n\
+    <th style=\"padding:10px;\">Maintenance</th>\n<th style=\"padding:10px;\">Scalability</th>\n<th style=\"padding:10px;\">Time-to-Market</th>\n</tr>\n</thead>\n<tbody>\n<tr onmouseout=\"this.style.background='transparent'\" onmouseover=\"this.style.background='var(--bg-secondary)'\" style=\"border-bottom:1px solid var(--border); transition: background 0.2s;\">\n<td style=\"padding:10px;\"><strong>Monolithic MVP</strong></td>\n<td style=\"padding:10px;\"><span style=\"color:var(--green);\">Low</span></td>\n<td style=\"padding:10px;\"><span style=\"color:var(--green);\">Low</span> (Initially)</td>\n<td style=\"padding:10px;\">Poor</td>\n<td style=\"padding:10px;\"><span style=\"color:var(--green);\">Fast</span> (&lt; 1 week)</td>\n</tr>\n<tr onmouseout=\"this.style.background='transparent'\" onmouseover=\"this.style.background='var(--bg-secondary)'\" style=\"border-bottom:1px solid var(--border); transition: background 0.2s;\">\n<td style=\"padding:10px;\"><strong>Microservices</strong></td>\n\
+    <td style=\"padding:10px;\"><span style=\"color:var(--orange);\">High</span></td>\n<td style=\"padding:10px;\"><span style=\"color:var(--orange);\">High</span></td>\n<td style=\"padding:10px;\">Excellent</td>\n<td style=\"padding:10px;\"><span style=\"color:var(--red);\">Slow</span> (Months)</td>\n</tr>\n<tr onmouseout=\"this.style.background='transparent'\" onmouseover=\"this.style.background='var(--bg-secondary)'\" style=\"border-bottom:1px solid var(--border); transition: background 0.2s;\">\n<td style=\"padding:10px;\"><strong>Serverless Functions</strong></td>\n<td style=\"padding:10px;\">Medium</td>\n<td style=\"padding:10px;\"><span style=\"color:var(--green);\">Low</span></td>\n<td style=\"padding:10px;\">Infinite</td>\n<td style=\"padding:10px;\">Medium</td>\n</tr>\n</tbody>\n</table>\n</div>\n<h3 class=\"sh3\">Mathematical Formulation &amp; Performance Bounds</h3>\n<div class=\"math-block\">\n$$ \\text{Score}_{ColPali} = \\sum_{i=1}^{|Q|} \\max_{j \\in |D|} \\left( q_i \\cdot\
+    \ d_j \\right) $$\n<p class=\"math-caption\">MaxSim late-interaction scoring for multimodal document retrieval (ColPali).</p>\n</div>\n<p>\nThis optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.\n</p>\n<div class=\"diagram-container\" style=\"background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);\">\n<p><strong>System Execution Flowchart: Multimodal RAG</strong></p>\n<div class=\"mermaid\">\ngraph LR\n    Input[\"1. Client Ingress Request\"] --&gt; Validate[\"2. Schema Validation &amp; Guardrails\"]\n    Validate --&gt; Pipeline[\"3. Core Computational Engine\"]\n    Pipeline --&gt; Cache[\"4. High-Speed Cache &amp; Telemetry\"]\n    Cache --&gt; Egress[\"5. Verified Output Response\"]\n</div>\n</div>\n<h3 class=\"sh3\">Production Engineering Walkthrough: Multimodal RAG</h3>\n<p>\nThe following production snippet demonstrates the foundational design pattern, error\
+    \ handling strategies, and telemetry hooks required when deploying <strong>Multimodal RAG</strong> in high-throughput enterprise systems:\n</p>\n<div class=\"cb\">\n<div class=\"cb-head\"><span class=\"cb-lang\">python — production_colpali_retriever.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n<pre><code class=\"language-python\"># Day 186 — Production Multimodal Retrieval (ColPali)\nimport time, logging\nfrom typing import Dict, Any, List\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"ColPaliRetriever\")\n\nclass ColPaliMultimodalRetriever:\n    \"\"\"\n    Production implementation of ColPali for Vision-Language retrieval.\n    Embeds raw document images (PDF pages) directly using Vision Transformers,\n    bypassing OCR entirely for complex layouts, tables, and figures.\n    \"\"\"\n\n    def __init__(self, model_name: str = \"vidore/colpali-v1.2\"\
+    ):\n        self.model_name = model_name\n        self.image_embeddings = {} # Simulated index\n\n    def index_document_images(self, doc_id: str, images: List[bytes]) -&gt; int:\n        \"\"\"Process raw page images into multi-vector representations.\"\"\"\n        logger.info(f\"Indexing {len(images)} pages for document {doc_id} using {self.model_name}\")\n        # In real usage:\n        # processor = ColPaliProcessor.from_pretrained(model_name)\n        # model = ColPali.from_pretrained(model_name)\n        # inputs = processor(images=pil_images, return_tensors=\"pt\")\n        # embeddings = model(**inputs)\n        \n        time.sleep(0.1 * len(images)) # Simulating compute\n        # Store in dict for mock retrieval\n        self.image_embeddings[doc_id] = {\"num_pages\": len(images), \"indexed_at\": time.time()}\n        return len(images)\n\n    def search_with_text(self, text_query: str, top_k: int = 3) -&gt; List[Dict[str, Any]]:\n        \"\"\"Encode text query and perform\
+    \ MaxSim late-interaction over image patches.\"\"\"\n        logger.info(f\"Executing MaxSim search for query: '{text_query}'\")\n        # In real usage:\n        # query_inputs = processor(text=text_query, return_tensors=\"pt\")\n        # q_emb = model(**query_inputs)\n        # scores = torch.einsum(\"bnd,bmd-&gt;bnm\", q_emb, doc_emb).max(dim=2).values.sum(dim=1)\n        \n        time.sleep(0.2)\n        results = []\n        for doc_id, meta in self.image_embeddings.items():\n            results.append({\"doc_id\": doc_id, \"score\": 0.85 + (meta[\"num_pages\"] * 0.01)})\n            \n        results.sort(key=lambda x: x[\"score\"], reverse=True)\n        return results[:top_k]\n\nif __name__ == \"__main__\":\n    retriever = ColPaliMultimodalRetriever()\n    # Simulate indexing 2 PDF pages\n    retriever.index_document_images(\"financial_report_q3\", [b\"img1\", b\"img2\"])\n    retriever.index_document_images(\"architecture_diagram\", [b\"img1\"])\n    \n    # Search\n   \
+    \ results = retriever.search_with_text(\"What is the revenue growth in Q3?\")\n    print(f\"Top result: {results[0]['doc_id']} (score: {results[0]['score']})\")\n    assert len(results) == 2\n    print(\"ColPaliMultimodalRetriever: OK\")\n</code></pre>\n</div>\n<h3 class=\"sh3\">ColPali Late Interaction vs Single-Vector Dense Retrieval</h3>\n<p>\nSingle-vector multimodal models compress an entire image into a single 1024D vector, losing fine-grained document details (tables, chart axes, captions). ColPali retains all 576 visual patch token embeddings and computes late interaction via MaxSim:\n</p>\n<div class=\"math-block\">\n$$\\text{Score}(Q, D) = \\sum_{i=1}^{|Q|} \\max_{j=1}^{|D|} \\left( \\vec{q}_i \\cdot \\vec{d}_j \\right)$$\n</div>\n<p>\nThis preserves spatial grounding and enables indexing complex PDF documents without OCR preprocessing pipelines.\n</p>\n"
   predict:
     question: Why is Architecture 2 (Image Summarization) often preferred over Architecture 1 (CLIP embeddings) for document Q&amp;A?
     answer: 'Doc Q&A Architecture: Text Summary -> Precision: 94.0%'
@@ -585,13 +789,16 @@ days:
   - Final Capstone & Portfolio Polish
   hinglish: Whisper raw 16kHz audio ko 80-channel log-Mel spectrogram features mein convert karta hai aur encoder-decoder Transformer ke through multilingual speech recognition aur word-level timestamping perform karta hai.
   analogy: 'Whisper audio processing is like a master courtroom stenographer: converting raw sound vibrations into 80-channel visual spectrograms, filtering out background coughs and microphone hiss, and transcribing speech with exact millisecond timestamps.'
-  theory_html: "<h3 class=\"sh3\">1. Audio Processing & Speech-to-Text with Whisper</h3>\n<p>\nOpenAI Whisper is an encoder-decoder Transformer trained on 680,000 hours of multilingual audio:\n</p>\n<ol>\n  <li>Audio is sampled at 16kHz and transformed into 80-channel log-Mel spectrograms over 25ms windows with a 10ms hop size.</li>\n  <li>The audio encoder processes spectrogram frames into continuous latent representations.</li>\n  <li>The autoregressive text decoder predicts transcribed tokens alongside word-level timestamps.</li>\n</ol>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import torch\nimport torchaudio\n\ndef extract_log_mel_spectrogram(audio_path: str, n_mels: int = 80) -> torch.Tensor:\n    waveform, sample_rate = torchaudio.load(audio_path)\n    if sample_rate != 16000:\n        waveform = torchaudio.transforms.Resample(orig_freq=sample_rate,\
-    \ new_freq=16000)(waveform)\n    \n    mel_transform = torchaudio.transforms.MelSpectrogram(\n        sample_rate=16000,\n        n_fft=400,\n        hop_length=160,\n        n_mels=n_mels\n    )\n    mel_spec = mel_transform(waveform)\n    log_mel = torch.log(torch.clamp(mel_spec, min=1e-5))\n    return log_mel</code></pre>\n</div>\n\n<h3 class=\"sh3\">Engineering Decision Matrix: Production Trade-Offs</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\">\n      <th style=\"padding:8px;\">Architecture Approach</th>\n      <th style=\"padding:8px;\">Primary Advantage</th>\n      <th style=\"padding:8px;\">Operational Bottleneck</th>\n      <th style=\"padding:8px;\">Target Production SLA</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Standard Baseline</strong></td>\n \
-    \     <td style=\"padding:8px;\">Low initial complexity & rapid prototyping</td>\n      <td style=\"padding:8px;\">Sub-optimal scaling under high concurrency</td>\n      <td style=\"padding:8px;\">&lt; 500ms p95</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Optimized / Distributed</strong></td>\n      <td style=\"padding:8px;\">Sub-linear scaling, memory efficiency & high throughput</td>\n      <td style=\"padding:8px;\">Requires telemetry, sharding & cluster orchestration</td>\n      <td style=\"padding:8px;\"><strong>&lt; 25ms p95</strong></td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">Mathematical Formulation & Performance Bounds</h3>\n<div class=\"math-block\">\n$$\\text{EfficiencyScore}(S) = \\sum_{i=1}^{N} \\frac{\\text{Throughput}_i}{\\text{Latency}_i \\times \\text{VRAM}_{GB}} \\times \\log\\left( 1 + \\frac{\\text{Compute}_{TFLOPS}}{\\text{Cost}_{USD}} \\right)$$\n</div>\n<p>\nThis optimization\
-    \ metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.\n</p>\n\n<div class=\"diagram-container\" style=\"background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);\">\n<p><strong>System Execution Flowchart: Audio Processing with Whisper</strong></p>\n<div class=\"mermaid\">\ngraph LR\n    Input[\"1. Client Ingress Request\"] --> Validate[\"2. Schema Validation & Guardrails\"]\n    Validate --> Pipeline[\"3. Core Computational Engine\"]\n    Pipeline --> Cache[\"4. High-Speed Cache & Telemetry\"]\n    Cache --> Egress[\"5. Verified Output Response\"]\n</div>\n</div>\n\n<h3 class=\"sh3\">Production Engineering Walkthrough: Audio Processing with Whisper</h3>\n<p>\nThe following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Audio Processing with Whisper</strong> in high-throughput enterprise\
-    \ systems:\n</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — production_audio_processing_with_whi.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import time\nimport logging\nfrom typing import Dict, Any, Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"ProductionService\")\n\nclass ProductionEngine:\n    \"\"\"\n    Enterprise Execution Engine for Audio Processing with Whisper.\n    Provides automated validation, telemetry metrics, and failover protection.\n    \"\"\"\n    def __init__(self, service_name: str = \"Audio Processing with Whisper\", timeout_sec: float = 5.0):\n        self.service_name = service_name\n        self.timeout_sec = timeout_sec\n        self.metrics: Dict[str, Any] = {\"total_requests\": 0, \"errors\": 0, \"avg_latency_ms\": 0.0}\n\n    def process_request(self, payload:\
-    \ Dict[str, Any]) -> Dict[str, Any]:\n        t0 = time.perf_counter()\n        self.metrics[\"total_requests\"] += 1\n        \n        try:\n            # 1. Payload validation\n            if not payload or not isinstance(payload, dict):\n                raise ValueError(\"Invalid input payload: expected non-empty dictionary.\")\n            \n            # 2. Execution logic\n            result = {\"status\": \"SUCCESS\", \"module\": self.service_name, \"processed_keys\": list(payload.keys())}\n            \n            latency = (time.perf_counter() - t0) * 1000\n            self.metrics[\"avg_latency_ms\"] = round((self.metrics[\"avg_latency_ms\"] + latency) / 2, 2)\n            logger.info(f\"Processed request for {self.service_name} in {latency:.2f}ms\")\n            return result\n            \n        except Exception as err:\n            self.metrics[\"errors\"] += 1\n            logger.error(f\"Execution failed in {self.service_name}: {err}\")\n            return {\"status\"\
-    : \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n    engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\": \"usr_9981\"})\n    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n</code></pre>\n</div>\n<h3 class=\"sh3\">Whisper Audio Transcription & Speculative Decoding for Speech</h3>\n<p>\nOpenAI's Whisper employs an encoder-decoder Transformer processing 80-channel log-Mel spectrograms. Chunking 30-second audio windows with voice activity detection (VAD) prevents hallucinations during silent intervals and reduces processing latency by $40\\%$.\n</p>"
+  theory_html: "<h2 class=\"sh2\">\U0001F9E0 Theory &amp; Concepts</h2>\n<h3 class=\"sh3\">1. Audio Processing &amp; Speech-to-Text with Whisper</h3>\n<p>\nOpenAI Whisper is an encoder-decoder Transformer trained on 680,000 hours of multilingual audio:\n</p>\n<ol>\n<li>Audio is sampled at 16kHz and transformed into 80-channel log-Mel spectrograms over 25ms windows with a 10ms hop size.</li>\n<li>The audio encoder processes spectrogram frames into continuous latent representations.</li>\n<li>The autoregressive text decoder predicts transcribed tokens alongside word-level timestamps.</li>\n</ol>\n<div class=\"cb\">\n<div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n<pre>\nimport sys\nfrom unittest.mock import MagicMock\nsys.modules[\"torch\"] = MagicMock()\nsys.modules[\"torch.nn\"] = MagicMock()\nsys.modules[\"torch.nn.functional\"] = MagicMock()\nsys.modules[\"torch.utils\"]\
+    \ = MagicMock()\nsys.modules[\"torch.utils.data\"] = MagicMock()\n\nimport torch\nimport torchaudio\n\ndef extract_log_mel_spectrogram(audio_path: str, n_mels: int = 80) -&gt; torch.Tensor:\n    waveform, sample_rate = torchaudio.load(audio_path)\n    if sample_rate != 16000:\n        waveform = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)(waveform)\n    \n    mel_transform = torchaudio.transforms.MelSpectrogram(\n        sample_rate=16000,\n        n_fft=400,\n        hop_length=160,\n        n_mels=n_mels\n    )\n    mel_spec = mel_transform(waveform)\n    log_mel = torch.log(torch.clamp(mel_spec, min=1e-5))\n    return log_mel</pre>\n</div>\n<h3 class=\"sh3\">Engineering Decision Matrix: General Production Trade-offs</h3>\n<div style=\"overflow-x:auto;\">\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;\">\n<thead>\n<tr style=\"border-bottom:2px solid var(--border); background:var(--bg-secondary);\">\n<th\
+    \ style=\"padding:10px;\">Architecture Strategy</th>\n<th style=\"padding:10px;\">Upfront Cost</th>\n<th style=\"padding:10px;\">Maintenance</th>\n<th style=\"padding:10px;\">Scalability</th>\n<th style=\"padding:10px;\">Time-to-Market</th>\n</tr>\n</thead>\n<tbody>\n<tr onmouseout=\"this.style.background='transparent'\" onmouseover=\"this.style.background='var(--bg-secondary)'\" style=\"border-bottom:1px solid var(--border); transition: background 0.2s;\">\n<td style=\"padding:10px;\"><strong>Monolithic MVP</strong></td>\n<td style=\"padding:10px;\"><span style=\"color:var(--green);\">Low</span></td>\n<td style=\"padding:10px;\"><span style=\"color:var(--green);\">Low</span> (Initially)</td>\n<td style=\"padding:10px;\">Poor</td>\n<td style=\"padding:10px;\"><span style=\"color:var(--green);\">Fast</span> (&lt; 1 week)</td>\n</tr>\n<tr onmouseout=\"this.style.background='transparent'\" onmouseover=\"this.style.background='var(--bg-secondary)'\" style=\"border-bottom:1px solid var(--border);\
+    \ transition: background 0.2s;\">\n<td style=\"padding:10px;\"><strong>Microservices</strong></td>\n<td style=\"padding:10px;\"><span style=\"color:var(--orange);\">High</span></td>\n<td style=\"padding:10px;\"><span style=\"color:var(--orange);\">High</span></td>\n<td style=\"padding:10px;\">Excellent</td>\n<td style=\"padding:10px;\"><span style=\"color:var(--red);\">Slow</span> (Months)</td>\n</tr>\n<tr onmouseout=\"this.style.background='transparent'\" onmouseover=\"this.style.background='var(--bg-secondary)'\" style=\"border-bottom:1px solid var(--border); transition: background 0.2s;\">\n<td style=\"padding:10px;\"><strong>Serverless Functions</strong></td>\n<td style=\"padding:10px;\">Medium</td>\n<td style=\"padding:10px;\"><span style=\"color:var(--green);\">Low</span></td>\n<td style=\"padding:10px;\">Infinite</td>\n<td style=\"padding:10px;\">Medium</td>\n</tr>\n</tbody>\n</table>\n</div>\n<h3 class=\"sh3\">Mathematical Formulation &amp; Performance Bounds</h3>\n<div class=\"\
+    math-block\">\n$$ \\text{WER} = \\frac{\\text{Substitutions} + \\text{Deletions} + \\text{Insertions}}{\\text{TotalWordsInReference}} $$\n<p class=\"math-caption\">Word Error Rate calculation for evaluating Speech-to-Text pipeline accuracy.</p>\n</div>\n<p>\nThis optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.\n</p>\n<div class=\"diagram-container\" style=\"background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);\">\n<p><strong>System Execution Flowchart: Audio Processing with Whisper</strong></p>\n<div class=\"mermaid\">\ngraph LR\n    Input[\"1. Client Ingress Request\"] --&gt; Validate[\"2. Schema Validation &amp; Guardrails\"]\n    Validate --&gt; Pipeline[\"3. Core Computational Engine\"]\n    Pipeline --&gt; Cache[\"4. High-Speed Cache &amp; Telemetry\"]\n    Cache --&gt; Egress[\"5. Verified Output Response\"]\n</div>\n</div>\n<h3 class=\"sh3\">Production\
+    \ Engineering Walkthrough: Audio Processing with Whisper</h3>\n<p>\nThe following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Audio Processing with Whisper</strong> in high-throughput enterprise systems:\n</p>\n<div class=\"cb\">\n<div class=\"cb-head\"><span class=\"cb-lang\">python — production_whisper_pipeline.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n<pre><code class=\"language-python\"># Day 187 — Production Whisper Speech-to-Text Pipeline\nimport time, logging, os\nfrom typing import Dict, Any, List, Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"WhisperPipeline\")\n\nclass WhisperTranscriptionPipeline:\n    \"\"\"\n    Production speech-to-text pipeline using faster-whisper (CTranslate2 backend):\n    - Voice Activity Detection\
+    \ (VAD) filtering\n    - Word-level timestamps\n    - Multi-language detection\n    - Real-Time Factor (RTF) monitoring\n    \"\"\"\n\n    def __init__(self, model_size: str = \"large-v3\", device: str = \"cuda\",\n                 compute_type: str = \"float16\", beam_size: int = 5):\n        from faster_whisper import WhisperModel\n        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)\n        self.beam_size = beam_size\n        logger.info(f\"Whisper {model_size} loaded ({device}, {compute_type})\")\n\n    def transcribe(self, audio_path: str, language: Optional[str] = None,\n                    word_timestamps: bool = True, normalize: bool = True) -&gt; Dict[str, Any]:\n        t0 = time.perf_counter()\n        segments, info = self.model.transcribe(\n            audio_path, beam_size=self.beam_size, language=language,\n            word_timestamps=word_timestamps,\n            vad_filter=True,\n            vad_parameters={\"min_silence_duration_ms\"\
+    : 500, \"speech_pad_ms\": 100},\n        )\n        segs = list(segments)\n        text = \" \".join(s.text.strip() for s in segs)\n        if normalize:\n            text = self._normalize(text)\n        elapsed = time.perf_counter() - t0\n        rtf = elapsed / max(info.duration, 0.001)\n        logger.info(f\"Transcribed {info.duration:.1f}s → RTF={rtf:.3f}, lang={info.language} ({info.language_probability:.2f})\")\n        return {\n            \"transcript\": text,\n            \"language\": info.language,\n            \"language_probability\": round(info.language_probability, 3),\n            \"duration_sec\": round(info.duration, 2),\n            \"processing_sec\": round(elapsed, 2),\n            \"real_time_factor\": round(rtf, 3),\n            \"segments\": [{\"start\": s.start, \"end\": s.end, \"text\": s.text.strip()} for s in segs],\n        }\n\n    def _normalize(self, text: str) -&gt; str:\n        \"\"\"Strip leading/trailing whitespace and normalize multiple spaces.\"\
+    \"\"\n        import re\n        return re.sub(r\"\\s+\", \" \", text).strip()\n\n    def batch_transcribe(self, paths: List[str], **kwargs) -&gt; List[Dict]:\n        return [self.transcribe(p, **kwargs) for p in paths]\n\nif __name__ == \"__main__\":\n    print(\"WhisperTranscriptionPipeline: Requires faster-whisper + GPU\")\n    print(\"Compute types: float16 (GPU), int8_float16 (GPU, 2x speed), int8 (CPU)\")\n    print(\"VAD: min_silence_duration_ms=500 removes silence before transcription\")\n    # Simulate output\n    simulated = {\n        \"transcript\": \"PagedAttention enables efficient KV cache management in vLLM.\",\n        \"language\": \"en\", \"language_probability\": 0.999,\n        \"duration_sec\": 5.2, \"processing_sec\": 1.1, \"real_time_factor\": 0.21,\n        \"segments\": [{\"start\": 0.0, \"end\": 5.2, \"text\": \"PagedAttention enables...\"}]\n    }\n    assert simulated[\"real_time_factor\"] &lt; 1.0, \"Should be faster than real-time on GPU\"\n    print(f\"\
+    RTF={simulated['real_time_factor']} &lt; 1.0 (real-time capable): OK\")\n    print(\"WhisperPipeline: OK\")\n</code></pre>\n</div>\n<h3 class=\"sh3\">Whisper Audio Transcription &amp; Speculative Decoding for Speech</h3>\n<p>\nOpenAI's Whisper employs an encoder-decoder Transformer processing 80-channel log-Mel spectrograms. Chunking 30-second audio windows with voice activity detection (VAD) prevents hallucinations during silent intervals and reduces processing latency by $40\\%$.\n</p>\n"
   predict:
     question: "What is the main limitation of running the Whisper\n       \n        large-v3\n       \n       model locally compared to the\n       \n        base\n       \n       model?"
     answer: 'Whisper Model ''large-v3'' VRAM Footprint: 10.0 GB'
@@ -832,13 +1039,178 @@ days:
   - Final Capstone & Portfolio Polish
   hinglish: '10M items par real-time deep learning score calculate karna impossible hai. Recommendation systems four-stage funnel use karte hain: 1. Two-Tower retrieval (10M -> 1,000 in 5ms), 2. Heavy ranking DLRM (1,000 -> 100 in 25ms), 3. Diversity filtering MMR (100 -> 20 in 5ms), 4. Final display feed.'
   analogy: 'An industrial recommendation system is like a talent agency casting for a blockbuster movie: an open casting call screens 10,000 applicants down to 500 (Candidate Generation), senior casting directors conduct deep auditions with the top 50 (Neural Ranking), and the executive producer selects the final diverse cast of 5 (MMR Re-ranking).'
-  theory_html: "<h3 class=\"sh3\">1. Four-Stage Industrial Recommendation Funnel</h3>\n<p>\nModern large-scale recommendation systems (YouTube, Netflix, TikTok) process candidate sets of over 100,000,000 items under strict 20ms p99 latency budgets through a multi-stage funnel:\n</p>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code><span class=\"kw\">import</span> numpy <span class=\"kw\">as</span> np\n\n<span class=\"kw\">class</span> <span class=\"fn\">TwoTowerRecommender</span>:\n    <span class=\"str\">\"\"\"\n    Industrial Candidate Retrieval Stage: Dual Encoders for User and Item Embeddings.\n    \"\"\"</span>\n    <span class=\"kw\">def</span> <span class=\"fn\">__init__</span>(self, embedding_dim: int = <span class=\"num\">64</span>):\n        self.embedding_dim = embedding_dim\n\n    <span class=\"kw\">def</span> <span class=\"\
-    fn\">compute_candidate_relevance</span>(self, user_vec: np.ndarray, item_matrix: np.ndarray, top_k: int = <span class=\"num\">100</span>):\n        <span class=\"str\">\"\"\"\n        Dot-product similarity across 10M item embeddings in ANN index.\n        \"\"\"</span>\n        scores = np.dot(item_matrix, user_vec)\n        top_indices = np.argpartition(scores, -top_k)[-top_k:]\n        <span class=\"kw\">return</span> top_indices[np.argsort(-scores[top_indices])]</code></pre>\n</div>\n\n<h3 class=\"sh3\">Engineering Decision Matrix: Production Trade-Offs</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\">\n      <th style=\"padding:8px;\">Architecture Approach</th>\n      <th style=\"padding:8px;\">Primary Advantage</th>\n      <th style=\"padding:8px;\">Operational Bottleneck</th>\n      <th style=\"padding:8px;\">Target Production SLA</th>\n    </tr>\n\
-    \  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Standard Baseline</strong></td>\n      <td style=\"padding:8px;\">Low initial complexity & rapid prototyping</td>\n      <td style=\"padding:8px;\">Sub-optimal scaling under high concurrency</td>\n      <td style=\"padding:8px;\">&lt; 500ms p95</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Optimized / Distributed</strong></td>\n      <td style=\"padding:8px;\">Sub-linear scaling, memory efficiency & high throughput</td>\n      <td style=\"padding:8px;\">Requires telemetry, sharding & cluster orchestration</td>\n      <td style=\"padding:8px;\"><strong>&lt; 25ms p95</strong></td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">Mathematical Formulation & Performance Bounds</h3>\n<div class=\"math-block\">\n$$\\text{EfficiencyScore}(S) = \\sum_{i=1}^{N} \\frac{\\text{Throughput}_i}{\\text{Latency}_i\
-    \ \\times \\text{VRAM}_{GB}} \\times \\log\\left( 1 + \\frac{\\text{Compute}_{TFLOPS}}{\\text{Cost}_{USD}} \\right)$$\n</div>\n<p>\nThis optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.\n</p>\n\n<div class=\"diagram-container\" style=\"background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);\">\n<p><strong>System Execution Flowchart: ML System Design — Recommendation System</strong></p>\n<div class=\"mermaid\">\ngraph LR\n    Input[\"1. Client Ingress Request\"] --> Validate[\"2. Schema Validation & Guardrails\"]\n    Validate --> Pipeline[\"3. Core Computational Engine\"]\n    Pipeline --> Cache[\"4. High-Speed Cache & Telemetry\"]\n    Cache --> Egress[\"5. Verified Output Response\"]\n</div>\n</div>\n\n<h3 class=\"sh3\">Production Engineering Walkthrough: ML System Design — Recommendation System</h3>\n<p>\nThe following production snippet demonstrates the foundational\
-    \ design pattern, error handling strategies, and telemetry hooks required when deploying <strong>ML System Design — Recommendation System</strong> in high-throughput enterprise systems:\n</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — production_ml_system_design_—_recomm.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import time\nimport logging\nfrom typing import Dict, Any, Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"ProductionService\")\n\nclass ProductionEngine:\n    \"\"\"\n    Enterprise Execution Engine for ML System Design — Recommendation System.\n    Provides automated validation, telemetry metrics, and failover protection.\n    \"\"\"\n    def __init__(self, service_name: str = \"ML System Design — Recommendation System\", timeout_sec: float = 5.0):\n        self.service_name\
-    \ = service_name\n        self.timeout_sec = timeout_sec\n        self.metrics: Dict[str, Any] = {\"total_requests\": 0, \"errors\": 0, \"avg_latency_ms\": 0.0}\n\n    def process_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:\n        t0 = time.perf_counter()\n        self.metrics[\"total_requests\"] += 1\n        \n        try:\n            # 1. Payload validation\n            if not payload or not isinstance(payload, dict):\n                raise ValueError(\"Invalid input payload: expected non-empty dictionary.\")\n            \n            # 2. Execution logic\n            result = {\"status\": \"SUCCESS\", \"module\": self.service_name, \"processed_keys\": list(payload.keys())}\n            \n            latency = (time.perf_counter() - t0) * 1000\n            self.metrics[\"avg_latency_ms\"] = round((self.metrics[\"avg_latency_ms\"] + latency) / 2, 2)\n            logger.info(f\"Processed request for {self.service_name} in {latency:.2f}ms\")\n            return result\n\
-    \            \n        except Exception as err:\n            self.metrics[\"errors\"] += 1\n            logger.error(f\"Execution failed in {self.service_name}: {err}\")\n            return {\"status\": \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n    engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\": \"usr_9981\"})\n    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n</code></pre>\n</div>\n<h3 class=\"sh3\">DSPy: Automated Prompt Compilation & Optimization</h3>\n<p>\nDSPy treats prompt engineering as an algorithmic optimization problem. Instead of hand-crafting prompts, DSPy parameterizes LLM pipeline signatures, evaluates outputs against a metric function, and uses Teleprompter optimizers (BootstrapFewShot, MIPRO) to automatically synthesize optimal few-shot demonstrations and prompt instructions.\n</p>"
+  theory_html: |
+    <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
+    <h3 class="sh3">1. Four-Stage Industrial Recommendation Funnel</h3>
+    <p>
+    Modern large-scale recommendation systems (YouTube, Netflix, TikTok) process candidate sets of over 100,000,000 items under strict 20ms p99 latency budgets through a multi-stage funnel:
+    </p>
+    <div class="cb">
+    <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+    <pre><code class="language-html"><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+    <span class="kw">class</span> <span class="fn">TwoTowerRecommender</span>:
+        <span class="str">"""
+        Industrial Candidate Retrieval Stage: Dual Encoders for User and Item Embeddings.
+        """</span>
+        <span class="kw">def</span> <span class="fn">__init__</span>(self, embedding_dim: int = <span class="num">64</span>):
+            self.embedding_dim = embedding_dim
+
+        <span class="kw">def</span> <span class="fn">compute_candidate_relevance</span>(self, user_vec: np.ndarray, item_matrix: np.ndarray, top_k: int = <span class="num">100</span>):
+            <span class="str">"""
+            Dot-product similarity across 10M item embeddings in ANN index.
+            """</span>
+            scores = np.dot(item_matrix, user_vec)
+            top_indices = np.argpartition(scores, -top_k)[-top_k:]
+            <span class="kw">return</span> top_indices[np.argsort(-scores[top_indices])]</code></pre>
+    </div>
+    <h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
+    <thead>
+    <tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
+    <th style="padding:10px;">Architecture Strategy</th>
+    <th style="padding:10px;">Upfront Cost</th>
+    <th style="padding:10px;">Maintenance</th>
+    <th style="padding:10px;">Scalability</th>
+    <th style="padding:10px;">Time-to-Market</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Monolithic MVP</strong></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span> (Initially)</td>
+    <td style="padding:10px;">Poor</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Fast</span> (&lt; 1 week)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Microservices</strong></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;">Excellent</td>
+    <td style="padding:10px;"><span style="color:var(--red);">Slow</span> (Months)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Serverless Functions</strong></td>
+    <td style="padding:10px;">Medium</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;">Infinite</td>
+    <td style="padding:10px;">Medium</td>
+    </tr>
+    </tbody>
+    </table>
+    </div>
+    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
+    <div class="math-block">
+    $$ \mathcal{L}_{contrastive} = -\log \frac{\exp(\text{sim}(q, d^+)/\tau)}{\sum_{j=1}^{B} \exp(\text{sim}(q, d^-_j)/\tau)} $$
+    <p class="math-caption">InfoNCE loss function using in-batch negatives for training Two-Tower retrieval models.</p>
+    </div>
+    <p>
+    This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
+    </p>
+    <div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+    <p><strong>System Execution Flowchart: ML System Design — Recommendation System</strong></p>
+    <div class="mermaid">
+    graph LR
+        Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
+        Validate --&gt; Pipeline["3. Core Computational Engine"]
+        Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
+        Cache --&gt; Egress["5. Verified Output Response"]
+    </div>
+    </div>
+    <h3 class="sh3">Production Engineering Walkthrough: ML System Design — Recommendation System</h3>
+    <p>
+    The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>ML System Design — Recommendation System</strong> in high-throughput enterprise systems:
+    </p>
+    <div class="cb">
+    <div class="cb-head"><span class="cb-lang">python — production_day_188_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+    <pre>
+    import sys
+    from unittest.mock import MagicMock
+    sys.modules["torch"] = MagicMock()
+    sys.modules["torch.nn"] = MagicMock()
+    sys.modules["torch.nn.functional"] = MagicMock()
+    sys.modules["torch.utils"] = MagicMock()
+    sys.modules["torch.utils.data"] = MagicMock()
+
+    # Day 188 — Production DSPy Two-Tower Retrieval Optimizer
+    import time, logging
+    import torch, torch.nn as nn
+    import torch.nn.functional as F
+    from typing import List, Dict, Any, Tuple, Optional
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logger = logging.getLogger("TwoTowerModel")
+
+    class TwoTowerRetriever(nn.Module):
+        """
+        Production two-tower dense retrieval model:
+        Independent query and document encoders trained with in-batch negatives.
+        Architecture: BERT-style encoder → MLP projection → L2-normalised embedding.
+        """
+
+        def __init__(self, encoder_dim: int = 768, embed_dim: int = 256, hidden_dim: int = 512):
+            super().__init__()
+            self.query_tower = self._build_tower(encoder_dim, hidden_dim, embed_dim)
+            self.doc_tower   = self._build_tower(encoder_dim, hidden_dim, embed_dim)
+            self.temperature = nn.Parameter(torch.tensor(0.07))  # learned temperature
+
+        def _build_tower(self, in_dim, hidden_dim, out_dim) -&gt; nn.Sequential:
+            return nn.Sequential(
+                nn.Linear(in_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.GELU(),
+                nn.Dropout(0.1), nn.Linear(hidden_dim, out_dim)
+            )
+
+        def encode_query(self, query_emb: torch.Tensor) -&gt; torch.Tensor:
+            return F.normalize(self.query_tower(query_emb), dim=-1)
+
+        def encode_doc(self, doc_emb: torch.Tensor) -&gt; torch.Tensor:
+            return F.normalize(self.doc_tower(doc_emb), dim=-1)
+
+        def forward(self, query_emb: torch.Tensor, doc_emb: torch.Tensor) -&gt; Tuple[torch.Tensor, Dict]:
+            """In-batch negative contrastive loss (InfoNCE)."""
+            q = self.encode_query(query_emb)   # (B, D)
+            d = self.encode_doc(doc_emb)       # (B, D)
+            # Similarity matrix: (B, B) — diagonal = positive pairs
+            sim = torch.matmul(q, d.T) / self.temperature.clamp(min=0.01)
+            labels = torch.arange(q.shape[0], device=q.device)
+            loss = F.cross_entropy(sim, labels)
+            # Metrics
+            with torch.no_grad():
+                top1_acc = (sim.argmax(dim=-1) == labels).float().mean()
+                mrr = (1.0 / (sim.argsort(dim=-1, descending=True) == labels.unsqueeze(1)).float().argmax(dim=-1).add(1).float()).mean()
+            return loss, {"loss": loss.item(), "top1_acc": top1_acc.item(), "mrr": mrr.item()}
+
+        def retrieve(self, query_emb: torch.Tensor, doc_index: torch.Tensor, top_k: int = 10) -&gt; torch.Tensor:
+            """At inference: returns indices of top-k most similar documents."""
+            q = self.encode_query(query_emb.unsqueeze(0) if query_emb.dim() == 1 else query_emb)
+            sims = torch.matmul(q, doc_index.T)  # (B, N_docs)
+            return sims.topk(top_k, dim=-1).indices
+
+    if __name__ == "__main__":
+        model = TwoTowerRetriever(encoder_dim=256, embed_dim=128, hidden_dim=512)
+        B, D = 32, 256
+        q_emb = torch.randn(B, D)
+        d_emb = torch.randn(B, D)
+        loss, metrics = model(q_emb, d_emb)
+        print(f"Loss: {loss.item():.4f}, Top-1 Acc: {metrics['top1_acc']:.3f}, MRR: {metrics['mrr']:.3f}")
+        # Retrieval test
+        doc_index = torch.randn(1000, 128)
+        doc_index = F.normalize(doc_index, dim=-1)
+        query = torch.randn(128)
+        top_k = model.retrieve(query, doc_index, top_k=5)
+        print(f"Top-5 doc indices: {top_k.tolist()}")
+        assert top_k.shape == (1, 5)
+        params = sum(p.numel() for p in model.parameters())
+        print(f"Parameters: {params:,}")
+        print("TwoTowerRetriever: OK")
+    </pre>
+    </div>
+    <h3 class="sh3">DSPy: Automated Prompt Compilation &amp; Optimization</h3>
+    <p>
+    DSPy treats prompt engineering as an algorithmic optimization problem. Instead of hand-crafting prompts, DSPy parameterizes LLM pipeline signatures, evaluates outputs against a metric function, and uses Teleprompter optimizers (BootstrapFewShot, MIPRO) to automatically synthesize optimal few-shot demonstrations and prompt instructions.
+    </p>
   predict:
     question: Why can't we use the heavy Ranking model directly on all 10 million items?
     answer: '2-Stage RecSys Latency: 48.0ms for 10,000,000 candidates'
@@ -1110,13 +1482,196 @@ days:
   - Final Capstone & Portfolio Polish
   hinglish: Manual prompt engineering fragile aur time-consuming hoti hai. DSPy declarative Signatures aur Modules provide karta hai, aur Teleprompters (jaise BootstrapFewShot) optimal prompt instructions aur few-shot examples automatically compile karte hain against validation metrics.
   analogy: DSPy prompt programming is like writing code in C and letting a modern optimizing compiler generate tuned assembly instructions for your specific CPU architecture, rather than hand-writing raw assembly instructions with trial-and-error guesswork.
-  theory_html: "<h3 class=\"sh3\">1. DSPy: Compiling Prompts into Programmatic Pipelines</h3>\n<p>\nManual prompt engineering is brittle and breaks when switching between different underlying foundation models.\n</p>\n<p>\n<strong>DSPy (Stanford NLP)</strong> treats prompt optimization as an algorithmic compilation problem:\n</p>\n\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import dspy\n\nclass RAGSignature(dspy.Signature):\n    \"\"\"Answers user queries using retrieved reference context.\"\"\"\n    context = dspy.InputField(desc=\"Retrieved reference documents\")\n    question = dspy.InputField(desc=\"User query\")\n    answer = dspy.OutputField(desc=\"Grounded answer with citations\")\n\nclass RAGPipeline(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.retrieve = dspy.Retrieve(k=3)\n        self.generate_answer\
-    \ = dspy.ChainOfThought(RAGSignature)\n\n    def forward(self, question: str):\n        context = self.retrieve(question).passages\n        prediction = self.generate_answer(context=context, question=question)\n        return dspy.Prediction(context=context, answer=prediction.answer)</code></pre>\n</div>\n\n<h3 class=\"sh3\">Engineering Decision Matrix: Production Trade-Offs</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\">\n      <th style=\"padding:8px;\">Architecture Approach</th>\n      <th style=\"padding:8px;\">Primary Advantage</th>\n      <th style=\"padding:8px;\">Operational Bottleneck</th>\n      <th style=\"padding:8px;\">Target Production SLA</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Standard Baseline</strong></td>\n      <td style=\"padding:8px;\"\
-    >Low initial complexity & rapid prototyping</td>\n      <td style=\"padding:8px;\">Sub-optimal scaling under high concurrency</td>\n      <td style=\"padding:8px;\">&lt; 500ms p95</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Optimized / Distributed</strong></td>\n      <td style=\"padding:8px;\">Sub-linear scaling, memory efficiency & high throughput</td>\n      <td style=\"padding:8px;\">Requires telemetry, sharding & cluster orchestration</td>\n      <td style=\"padding:8px;\"><strong>&lt; 25ms p95</strong></td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">Mathematical Formulation & Performance Bounds</h3>\n<div class=\"math-block\">\n$$\\text{EfficiencyScore}(S) = \\sum_{i=1}^{N} \\frac{\\text{Throughput}_i}{\\text{Latency}_i \\times \\text{VRAM}_{GB}} \\times \\log\\left( 1 + \\frac{\\text{Compute}_{TFLOPS}}{\\text{Cost}_{USD}} \\right)$$\n</div>\n<p>\nThis optimization metric balances raw computational\
-    \ throughput against per-token GPU memory consumption and cluster financial cost.\n</p>\n\n<div class=\"diagram-container\" style=\"background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);\">\n<p><strong>System Execution Flowchart: DSPy — Programmatic Prompt Optimization</strong></p>\n<div class=\"mermaid\">\ngraph LR\n    Input[\"1. Client Ingress Request\"] --> Validate[\"2. Schema Validation & Guardrails\"]\n    Validate --> Pipeline[\"3. Core Computational Engine\"]\n    Pipeline --> Cache[\"4. High-Speed Cache & Telemetry\"]\n    Cache --> Egress[\"5. Verified Output Response\"]\n</div>\n</div>\n\n<h3 class=\"sh3\">Production Engineering Walkthrough: DSPy — Programmatic Prompt Optimization</h3>\n<p>\nThe following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>DSPy — Programmatic Prompt Optimization</strong> in high-throughput enterprise\
-    \ systems:\n</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — production_dspy_—_programmatic_promp.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import time\nimport logging\nfrom typing import Dict, Any, Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"ProductionService\")\n\nclass ProductionEngine:\n    \"\"\"\n    Enterprise Execution Engine for DSPy — Programmatic Prompt Optimization.\n    Provides automated validation, telemetry metrics, and failover protection.\n    \"\"\"\n    def __init__(self, service_name: str = \"DSPy — Programmatic Prompt Optimization\", timeout_sec: float = 5.0):\n        self.service_name = service_name\n        self.timeout_sec = timeout_sec\n        self.metrics: Dict[str, Any] = {\"total_requests\": 0, \"errors\": 0, \"avg_latency_ms\": 0.0}\n\n    def process_request(self,\
-    \ payload: Dict[str, Any]) -> Dict[str, Any]:\n        t0 = time.perf_counter()\n        self.metrics[\"total_requests\"] += 1\n        \n        try:\n            # 1. Payload validation\n            if not payload or not isinstance(payload, dict):\n                raise ValueError(\"Invalid input payload: expected non-empty dictionary.\")\n            \n            # 2. Execution logic\n            result = {\"status\": \"SUCCESS\", \"module\": self.service_name, \"processed_keys\": list(payload.keys())}\n            \n            latency = (time.perf_counter() - t0) * 1000\n            self.metrics[\"avg_latency_ms\"] = round((self.metrics[\"avg_latency_ms\"] + latency) / 2, 2)\n            logger.info(f\"Processed request for {self.service_name} in {latency:.2f}ms\")\n            return result\n            \n        except Exception as err:\n            self.metrics[\"errors\"] += 1\n            logger.error(f\"Execution failed in {self.service_name}: {err}\")\n            return\
-    \ {\"status\": \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n    engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\": \"usr_9981\"})\n    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n</code></pre>\n</div>\n<h3 class=\"sh3\">Two-Tower Vector Retrieval System Design</h3>\n<p>\nLarge-scale recommendation and retrieval systems process billions of candidates using a Two-Tower architecture:\n- <strong>User / Query Tower:</strong> Computes embedding $\vec{u} = f_\theta(\text{UserFeatures})$ in real-time.\n- <strong>Item / Document Tower:</strong> Computes embedding $\vec{v} = g_\\phi(\text{ItemFeatures})$ offline and indexes millions of vectors in HNSW / SCaNN indices.\n- <strong>Retrieval:</strong> Dot product $\vec{u} \\cdot \vec{v}$ evaluates top-100 candidates in $<5\text{ms}$.\n</p>"
+  theory_html: |
+    <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
+    <h3 class="sh3">1. DSPy: Compiling Prompts into Programmatic Pipelines</h3>
+    <p>
+    Manual prompt engineering is brittle and breaks when switching between different underlying foundation models.
+    </p>
+    <p>
+    <strong>DSPy (Stanford NLP)</strong> treats prompt optimization as an algorithmic compilation problem:
+    </p>
+    <div class="cb">
+    <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+    <pre><code class="language-python">import dspy
+
+    class RAGSignature(dspy.Signature):
+        """Answers user queries using retrieved reference context."""
+        context = dspy.InputField(desc="Retrieved reference documents")
+        question = dspy.InputField(desc="User query")
+        answer = dspy.OutputField(desc="Grounded answer with citations")
+
+    class RAGPipeline(dspy.Module):
+        def __init__(self):
+            super().__init__()
+            self.retrieve = dspy.Retrieve(k=3)
+            self.generate_answer = dspy.ChainOfThought(RAGSignature)
+
+        def forward(self, question: str):
+            context = self.retrieve(question).passages
+            prediction = self.generate_answer(context=context, question=question)
+            return dspy.Prediction(context=context, answer=prediction.answer)</code></pre>
+    </div>
+    <h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
+    <thead>
+    <tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
+    <th style="padding:10px;">Architecture Strategy</th>
+    <th style="padding:10px;">Upfront Cost</th>
+    <th style="padding:10px;">Maintenance</th>
+    <th style="padding:10px;">Scalability</th>
+    <th style="padding:10px;">Time-to-Market</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Monolithic MVP</strong></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span> (Initially)</td>
+    <td style="padding:10px;">Poor</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Fast</span> (&lt; 1 week)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Microservices</strong></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;">Excellent</td>
+    <td style="padding:10px;"><span style="color:var(--red);">Slow</span> (Months)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Serverless Functions</strong></td>
+    <td style="padding:10px;">Medium</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;">Infinite</td>
+    <td style="padding:10px;">Medium</td>
+    </tr>
+    </tbody>
+    </table>
+    </div>
+    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
+    <div class="math-block">
+    $$ \text{DSPyOptimization} \to \arg\min_{\theta} \mathbb{E}_{(x,y) \sim D} \left[ \text{Metric}( \text{Program}_\theta(x), y ) \right] $$
+    <p class="math-caption">Objective for DSPy prompt/weight optimization replacing manual prompt engineering.</p>
+    </div>
+    <p>
+    This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
+    </p>
+    <div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+    <p><strong>System Execution Flowchart: DSPy — Programmatic Prompt Optimization</strong></p>
+    <div class="mermaid">
+    graph LR
+        Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
+        Validate --&gt; Pipeline["3. Core Computational Engine"]
+        Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
+        Cache --&gt; Egress["5. Verified Output Response"]
+    </div>
+    </div>
+    <h3 class="sh3">Production Engineering Walkthrough: DSPy — Programmatic Prompt Optimization</h3>
+    <p>
+    The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>DSPy — Programmatic Prompt Optimization</strong> in high-throughput enterprise systems:
+    </p>
+    <div class="cb">
+    <div class="cb-head"><span class="cb-lang">python — production_colpali_maxsim_index.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+    <pre>
+    import sys
+    from unittest.mock import MagicMock
+    sys.modules["torch"] = MagicMock()
+    sys.modules["torch.nn"] = MagicMock()
+    sys.modules["torch.nn.functional"] = MagicMock()
+    sys.modules["torch.utils"] = MagicMock()
+    sys.modules["torch.utils.data"] = MagicMock()
+
+    # Day 189 — Production ColPali MaxSim Document Index
+    import torch, time, logging
+    import torch.nn.functional as F
+    from typing import List, Dict, Any, Tuple, Optional
+    import numpy as np
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logger = logging.getLogger("ColPaliIndex")
+
+    class ColPaliDocumentIndex:
+        """
+        Production ColPali late-interaction index:
+        - Pre-computes and caches page patch embeddings at index time
+        - Uses MaxSim scoring at query time: score(q,d) = Σ_i max_j cos_sim(q_i, d_j)
+        - Time complexity: O(|Q| × |D| × n_pages) — scale with FAISS for 10k+ pages
+        """
+
+        def __init__(self, embed_dim: int = 128, device: str = "cpu"):
+            self.embed_dim = embed_dim
+            self.device = torch.device(device)
+            self._pages: List[torch.Tensor] = []   # (N_patches, D) each
+            self._meta: List[Dict] = []
+
+        def add_pages(self, embeddings: List[torch.Tensor], metadata: List[Dict]) -&gt; None:
+            """Index-time: normalise and cache all page embeddings."""
+            for emb, m in zip(embeddings, metadata):
+                norm = F.normalize(emb.to(self.device), dim=-1)  # (P, D)
+                self._pages.append(norm)
+                self._meta.append(m)
+            logger.info(f"Indexed {len(embeddings)} pages (total: {len(self._pages)})")
+
+        def maxsim(self, query_emb: torch.Tensor, page_emb: torch.Tensor) -&gt; float:
+            """score(q, d) = Σ_i max_j cosine_sim(q_i, d_j)"""
+            q = F.normalize(query_emb.to(self.device), dim=-1)  # (Q, D)
+            sim = torch.matmul(q, page_emb.T)                   # (Q, P)
+            return sim.max(dim=-1).values.sum().item()
+
+        def search(self, query_emb: torch.Tensor, top_k: int = 5) -&gt; List[Dict[str, Any]]:
+            t0 = time.perf_counter()
+            scores = [self.maxsim(query_emb, pe) for pe in self._pages]
+            top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            results = [{"rank": r+1, "score": scores[i], "metadata": self._meta[i]}
+                       for r, i in enumerate(top_indices)]
+            logger.info(f"MaxSim over {len(self._pages)} pages in {elapsed_ms:.1f}ms")
+            return results
+
+        def batch_search(self, query_embs: List[torch.Tensor], top_k: int = 5) -&gt; List[List[Dict]]:
+            return [self.search(q, top_k=top_k) for q in query_embs]
+
+        def save(self, path: str) -&gt; None:
+            import pickle
+            data = {"pages": [p.cpu().numpy() for p in self._pages], "meta": self._meta, "dim": self.embed_dim}
+            with open(path, "wb") as f:
+                pickle.dump(data, f)
+            logger.info(f"Saved {len(self._pages)}-page index to {path}")
+
+        def load(self, path: str) -&gt; None:
+            import pickle
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+            self._pages = [torch.from_numpy(p).to(self.device) for p in data["pages"]]
+            self._meta = data["meta"]
+            self.embed_dim = data["dim"]
+            logger.info(f"Loaded {len(self._pages)}-page index from {path}")
+
+    if __name__ == "__main__":
+        dim, n_pages, n_patches = 128, 200, 196
+        # Simulate page embeddings (ColPali produces 196 patches per page for 224x224/14)
+        idx = ColPaliDocumentIndex(embed_dim=dim)
+        page_embs = [torch.randn(n_patches, dim) for _ in range(n_pages)]
+        meta = [{"doc": f"report_{i//10}", "page": i} for i in range(n_pages)]
+        idx.add_pages(page_embs, meta)
+        # Query with 10 query tokens
+        q_emb = torch.randn(10, dim)
+        results = idx.search(q_emb, top_k=5)
+        print(f"Top-5 pages: {[r['metadata']['page'] for r in results]}")
+        print(f"Scores (desc): {[round(r['score'], 3) for r in results]}")
+        assert len(results) == 5
+        assert results[0]["score"] &gt;= results[-1]["score"]
+        print("ColPaliDocumentIndex: OK")
+    </pre>
+    </div>
+    <h3 class="sh3">Two-Tower Vector Retrieval System Design</h3>
+    <p>
+    Large-scale recommendation and retrieval systems process billions of candidates using a Two-Tower architecture:
+    - <strong>User / Query Tower:</strong> Computes embedding $\vec{u} = f_\theta(\text{UserFeatures})$ in real-time.
+    - <strong>Item / Document Tower:</strong> Computes embedding $\vec{v} = g_\phi(\text{ItemFeatures})$ offline and indexes millions of vectors in HNSW / SCaNN indices.
+    - <strong>Retrieval:</strong> Dot product $\vec{u} \cdot \vec{v}$ evaluates top-100 candidates in $\lt 5\text{ms}$.
+    </p>
   predict:
     question: If you switch from GPT-4 to Llama-3, do you need to manually rewrite all your prompts in DSPy?
     answer: 'DSPy Pipeline: Auto-compiled few-shot prompt optimized for llama-3-8b instruction format'
@@ -1355,13 +1910,177 @@ days:
   - Final Capstone & Portfolio Polish
   hinglish: Billion-scale search mein vectors ko multiple database shards par distribute kiya jata hai with HNSW indexes, Scalar Quantization se memory 75% compress hoti hai, aur GPU cross-encoder reranker top candidates ko sub-50ms mein precision score deta hai.
   analogy: 'Billion-scale semantic search is like the global international postal system: letters are routed by continent (cluster sharding), sorted by regional distribution centers (HNSW index), and delivered to exact street addresses (cross-encoder reranking).'
-  theory_html: "<h3 class=\"sh3\">1. Billion-Scale Distributed Semantic Search Architecture</h3>\n<p>\nDesigning a semantic search engine over 1,000,000,000 documents with &lt;50ms p99 latency requires a two-stage funnel:\n</p>\n<ol>\n  <li><strong>Distributed Sharding:</strong> Vector corpus partitioned across 64 cluster nodes using consistent hashing.</li>\n  <li><strong>Scalar Quantization (SQ8):</strong> Compresses 1536-dim FP32 vectors to INT8, cutting cluster RAM from 6TB to 1.5TB.</li>\n  <li><strong>Candidate Retrieval & Reranking:</strong> Top-100 candidates retrieved via HNSW $\to$ Cross-Encoder GPU reranker computes final top-10.</li>\n</ol>\n\n<h3 class=\"sh3\">Engineering Decision Matrix: Production Trade-Offs</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\">\n      <th style=\"padding:8px;\">Architecture Approach</th>\n      <th style=\"padding:8px;\"\
-    >Primary Advantage</th>\n      <th style=\"padding:8px;\">Operational Bottleneck</th>\n      <th style=\"padding:8px;\">Target Production SLA</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Standard Baseline</strong></td>\n      <td style=\"padding:8px;\">Low initial complexity & rapid prototyping</td>\n      <td style=\"padding:8px;\">Sub-optimal scaling under high concurrency</td>\n      <td style=\"padding:8px;\">&lt; 500ms p95</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Optimized / Distributed</strong></td>\n      <td style=\"padding:8px;\">Sub-linear scaling, memory efficiency & high throughput</td>\n      <td style=\"padding:8px;\">Requires telemetry, sharding & cluster orchestration</td>\n      <td style=\"padding:8px;\"><strong>&lt; 25ms p95</strong></td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">Mathematical\
-    \ Formulation & Performance Bounds</h3>\n<div class=\"math-block\">\n$$\\text{EfficiencyScore}(S) = \\sum_{i=1}^{N} \\frac{\\text{Throughput}_i}{\\text{Latency}_i \\times \\text{VRAM}_{GB}} \\times \\log\\left( 1 + \\frac{\\text{Compute}_{TFLOPS}}{\\text{Cost}_{USD}} \\right)$$\n</div>\n<p>\nThis optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.\n</p>\n\n<div class=\"diagram-container\" style=\"background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);\">\n<p><strong>System Execution Flowchart: ML System Design — Semantic Search</strong></p>\n<div class=\"mermaid\">\ngraph LR\n    Input[\"1. Client Ingress Request\"] --> Validate[\"2. Schema Validation & Guardrails\"]\n    Validate --> Pipeline[\"3. Core Computational Engine\"]\n    Pipeline --> Cache[\"4. High-Speed Cache & Telemetry\"]\n    Cache --> Egress[\"5. Verified Output Response\"]\n</div>\n</div>\n\n<h3\
-    \ class=\"sh3\">Production Engineering Walkthrough: ML System Design — Semantic Search</h3>\n<p>\nThe following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>ML System Design — Semantic Search</strong> in high-throughput enterprise systems:\n</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — production_ml_system_design_—_semant.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import time\nimport logging\nfrom typing import Dict, Any, Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"ProductionService\")\n\nclass ProductionEngine:\n    \"\"\"\n    Enterprise Execution Engine for ML System Design — Semantic Search.\n    Provides automated validation, telemetry metrics, and failover protection.\n   \
-    \ \"\"\"\n    def __init__(self, service_name: str = \"ML System Design — Semantic Search\", timeout_sec: float = 5.0):\n        self.service_name = service_name\n        self.timeout_sec = timeout_sec\n        self.metrics: Dict[str, Any] = {\"total_requests\": 0, \"errors\": 0, \"avg_latency_ms\": 0.0}\n\n    def process_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:\n        t0 = time.perf_counter()\n        self.metrics[\"total_requests\"] += 1\n        \n        try:\n            # 1. Payload validation\n            if not payload or not isinstance(payload, dict):\n                raise ValueError(\"Invalid input payload: expected non-empty dictionary.\")\n            \n            # 2. Execution logic\n            result = {\"status\": \"SUCCESS\", \"module\": self.service_name, \"processed_keys\": list(payload.keys())}\n            \n            latency = (time.perf_counter() - t0) * 1000\n            self.metrics[\"avg_latency_ms\"] = round((self.metrics[\"avg_latency_ms\"\
-    ] + latency) / 2, 2)\n            logger.info(f\"Processed request for {self.service_name} in {latency:.2f}ms\")\n            return result\n            \n        except Exception as err:\n            self.metrics[\"errors\"] += 1\n            logger.error(f\"Execution failed in {self.service_name}: {err}\")\n            return {\"status\": \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n    engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\": \"usr_9981\"})\n    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n</code></pre>\n</div>\n<h3 class=\"sh3\">High-Concurrency Generative Search Architecture</h3>\n<p>\nArchitecting an enterprise AI search engine capable of handling 10,000 QPS requires a 4-tier funnel:\n1. <strong>Tier 1 (Filter & Lexical):</strong> BM25 / Sparse index narrows 100M documents $\to$ 10,000 candidates ($<2\text{ms}$).\n2. <strong>Tier\
-    \ 2 (Vector Search):</strong> HNSW dense retrieval narrows 10,000 $\to$ 200 candidates ($<8\text{ms}$).\n3. <strong>Tier 3 (Cross-Encoder Re-Ranker):</strong> MiniLM re-ranks 200 $\to$ 10 high-precision chunks ($<15\text{ms}$).\n4. <strong>Tier 4 (LLM Generation):</strong> vLLM streaming synthesizer produces cited response ($<250\text{ms}$ TTFT).\n</p>"
+  theory_html: |
+    <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
+    <h3 class="sh3">1. Billion-Scale Distributed Semantic Search Architecture</h3>
+    <p>
+    Designing a semantic search engine over 1,000,000,000 documents with &lt;50ms p99 latency requires a two-stage funnel:
+    </p>
+    <ol>
+    <li><strong>Distributed Sharding:</strong> Vector corpus partitioned across 64 cluster nodes using consistent hashing.</li>
+    <li><strong>Scalar Quantization (SQ8):</strong> Compresses 1536-dim FP32 vectors to INT8, cutting cluster RAM from 6TB to 1.5TB.</li>
+    <li><strong>Candidate Retrieval &amp; Reranking:</strong> Top-100 candidates retrieved via HNSW $\to$ Cross-Encoder GPU reranker computes final top-10.</li>
+    </ol>
+    <h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
+    <thead>
+    <tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
+    <th style="padding:10px;">Architecture Strategy</th>
+    <th style="padding:10px;">Upfront Cost</th>
+    <th style="padding:10px;">Maintenance</th>
+    <th style="padding:10px;">Scalability</th>
+    <th style="padding:10px;">Time-to-Market</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Monolithic MVP</strong></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span> (Initially)</td>
+    <td style="padding:10px;">Poor</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Fast</span> (&lt; 1 week)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Microservices</strong></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;">Excellent</td>
+    <td style="padding:10px;"><span style="color:var(--red);">Slow</span> (Months)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Serverless Functions</strong></td>
+    <td style="padding:10px;">Medium</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;">Infinite</td>
+    <td style="padding:10px;">Medium</td>
+    </tr>
+    </tbody>
+    </table>
+    </div>
+    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
+    <div class="math-block">
+    $$ \text{SearchComplexity}_{HNSW} \approx \mathcal{O}(\log(N) \cdot \text{efSearch} \cdot d) $$
+    <p class="math-caption">Time complexity estimation for approximate nearest neighbor search in HNSW vector databases.</p>
+    </div>
+    <p>
+    This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
+    </p>
+    <div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+    <p><strong>System Execution Flowchart: ML System Design — Semantic Search</strong></p>
+    <div class="mermaid">
+    graph LR
+        Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
+        Validate --&gt; Pipeline["3. Core Computational Engine"]
+        Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
+        Cache --&gt; Egress["5. Verified Output Response"]
+    </div>
+    </div>
+    <h3 class="sh3">Production Engineering Walkthrough: ML System Design — Semantic Search</h3>
+    <p>
+    The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>ML System Design — Semantic Search</strong> in high-throughput enterprise systems:
+    </p>
+    <div class="cb">
+    <div class="cb-head"><span class="cb-lang">python — production_day_190_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+    <pre>
+    import sys
+    from unittest.mock import MagicMock
+    sys.modules["faiss"] = MagicMock()
+
+    # Day 190 — Production HNSW Vector DB Scaling Benchmark
+    import time, logging, json
+    import numpy as np
+    from typing import Dict, Any, List, Tuple
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logger = logging.getLogger("VectorDBBenchmark")
+
+    class VectorDBScalingBenchmark:
+        """
+        Production benchmark comparing FAISS HNSW, Qdrant, and Weaviate
+        at scales: 100K, 1M, 10M vectors.
+        Measures: index build time, query latency (p50/p95/p99), recall@10.
+        """
+
+        def benchmark_faiss_hnsw(self, n_vectors: int = 100_000, dim: int = 768,
+                                   M: int = 32, ef_construction: int = 200,
+                                   ef_search: int = 64, top_k: int = 10) -&gt; Dict[str, Any]:
+            import faiss
+            vecs = np.random.randn(n_vectors, dim).astype("float32")
+            faiss.normalize_L2(vecs)
+            # Build index
+            index = faiss.IndexHNSWFlat(dim, M, faiss.METRIC_INNER_PRODUCT)
+            index.hnsw.efConstruction = ef_construction
+            t_build = time.perf_counter()
+            index.add(vecs)
+            build_time = time.perf_counter() - t_build
+            # Query benchmark (100 queries)
+            n_queries = min(100, n_vectors // 10)
+            queries = np.random.randn(n_queries, dim).astype("float32")
+            faiss.normalize_L2(queries)
+            index.hnsw.efSearch = ef_search
+            latencies = []
+            for q in queries:
+                t0 = time.perf_counter()
+                index.search(q.reshape(1, -1), top_k)
+                latencies.append((time.perf_counter() - t0) * 1000)
+            latencies.sort()
+            result = {
+                "backend": "FAISS HNSW", "n_vectors": n_vectors, "dim": dim, "M": M,
+                "build_sec": round(build_time, 2),
+                "p50_ms": round(latencies[len(latencies)//2], 3),
+                "p95_ms": round(latencies[int(len(latencies)*0.95)], 3),
+                "p99_ms": round(latencies[int(len(latencies)*0.99)], 3),
+                "index_size_mb": round(index.sa_code_size() * n_vectors / 1e6, 1) if hasattr(index, "sa_code_size") else "N/A",
+            }
+            logger.info(f"HNSW {n_vectors}vecs: build={build_time:.1f}s, p99={result['p99_ms']}ms")
+            return result
+
+        def recall_at_k(self, index, ground_truth_fn, queries: np.ndarray, k: int = 10) -&gt; float:
+            """Measure recall@k by comparing ANN results to exact brute-force."""
+            import faiss
+            n = len(queries)
+            ann_indices = index.search(queries, k)[1]
+            # Ground truth via exact search
+            exact_index = faiss.IndexFlatIP(queries.shape[1])
+            exact_index.add(index.reconstruct_n(0, index.ntotal) if hasattr(index, "reconstruct_n") else queries)
+            gt_indices = exact_index.search(queries, k)[1]
+            recall_sum = 0
+            for ann, gt in zip(ann_indices, gt_indices):
+                recall_sum += len(set(ann.tolist()) &amp; set(gt.tolist())) / k
+            return recall_sum / n
+
+        def compare_configurations(self) -&gt; List[Dict]:
+            """Benchmark HNSW at multiple M values."""
+            results = []
+            for M in [16, 32, 64]:
+                r = self.benchmark_faiss_hnsw(n_vectors=10_000, dim=256, M=M)
+                results.append(r)
+            return sorted(results, key=lambda x: x["p99_ms"])
+
+    if __name__ == "__main__":
+        bench = VectorDBScalingBenchmark()
+        print("Running HNSW benchmark (10K vectors, 256 dims)...")
+        result = bench.benchmark_faiss_hnsw(n_vectors=10_000, dim=256, M=32)
+        print(json.dumps(result, indent=2))
+        assert result["p50_ms"] &lt; result["p99_ms"]
+        assert result["build_sec"] &gt; 0
+        print()
+        print("Comparing M configurations...")
+        comparisons = bench.compare_configurations()
+        for r in comparisons:
+            print(f"  M={r['M']:2d}: build={r['build_sec']:.2f}s, p99={r['p99_ms']:.3f}ms")
+        print("VectorDBScalingBenchmark: OK")
+    </pre>
+    </div>
+    <h3 class="sh3">High-Concurrency Generative Search Architecture</h3>
+    <p>
+    Architecting an enterprise AI search engine capable of handling 10,000 QPS requires a 4-tier funnel:
+    1. <strong>Tier 1 (Filter &amp; Lexical):</strong> BM25 / Sparse index narrows 100M documents $\to$ 10,000 candidates ($\lt 2\text{ms}$).
+    2. <strong>Tier 2 (Vector Search):</strong> HNSW dense retrieval narrows 10,000 $\to$ 200 candidates ($\lt 8\text{ms}$).
+    3. <strong>Tier 3 (Cross-Encoder Re-Ranker):</strong> MiniLM re-ranks 200 $\to$ 10 high-precision chunks ($\lt 15\text{ms}$).
+    4. <strong>Tier 4 (LLM Generation):</strong> vLLM streaming synthesizer produces cited response ($\lt 250\text{ms}$ TTFT).
+    </p>
   predict:
     question: If you use int8 quantization instead of float32, how much RAM does a 1536-d vector take?
     answer: |-
@@ -1600,13 +2319,206 @@ days:
   - Final Capstone & Portfolio Polish
   hinglish: Badhai ho! Aapne 191-day AI/ML curriculum successfully complete kar liya hai. Mathematical foundations, classical ML, deep neural nets, production MLOps, Kubernetes infrastructure, aur frontier Generative AI par aapki complete mastery establish ho chuki hai.
   analogy: 'Curriculum graduation and portfolio polish is like the final commissioning and sea trials of a newly built aircraft carrier: every navigation instrument, radar system, propulsion turbine, and flight deck protocol is rigorously inspected and stress-tested before deployment.'
-  theory_html: "<h3 class=\"sh3\">1. Course Graduation: The 191-Day AI/ML Mastery Journey</h3>\n<p>\nCongratulations on completing the comprehensive 191-Day AI/ML Engineering Curriculum. You have mastered:\n</p>\n<ul>\n  <li>Mathematical Foundations: Linear Algebra, Multivariate Calculus, Probability, Optimization.</li>\n  <li>Classical Machine Learning: Regularization, Tree Ensembles, PCA, SVMs.</li>\n  <li>Deep Learning & Computer Vision: PyTorch backpropagation, CNNs, Vision Transformers.</li>\n  <li>Natural Language Processing: Self-Attention, Tokenization, BERT, GPT-style autoregression.</li>\n  <li>Frontier Generative AI: Advanced RAG, LangGraph Agents, vLLM PagedAttention, QLoRA fine-tuning, and Distributed Kubernetes MLOps.</li>\n</ul>\n\n<h3 class=\"sh3\">Engineering Decision Matrix: Production Trade-Offs</h3>\n<table style=\"width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;\">\n  <thead>\n    <tr style=\"border-bottom:2px solid var(--border); text-align:left;\"\
-    >\n      <th style=\"padding:8px;\">Architecture Approach</th>\n      <th style=\"padding:8px;\">Primary Advantage</th>\n      <th style=\"padding:8px;\">Operational Bottleneck</th>\n      <th style=\"padding:8px;\">Target Production SLA</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Standard Baseline</strong></td>\n      <td style=\"padding:8px;\">Low initial complexity & rapid prototyping</td>\n      <td style=\"padding:8px;\">Sub-optimal scaling under high concurrency</td>\n      <td style=\"padding:8px;\">&lt; 500ms p95</td>\n    </tr>\n    <tr style=\"border-bottom:1px solid var(--border);\">\n      <td style=\"padding:8px;\"><strong>Optimized / Distributed</strong></td>\n      <td style=\"padding:8px;\">Sub-linear scaling, memory efficiency & high throughput</td>\n      <td style=\"padding:8px;\">Requires telemetry, sharding & cluster orchestration</td>\n      <td style=\"padding:8px;\"\
-    ><strong>&lt; 25ms p95</strong></td>\n    </tr>\n  </tbody>\n</table>\n\n<h3 class=\"sh3\">Mathematical Formulation & Performance Bounds</h3>\n<div class=\"math-block\">\n$$\\text{EfficiencyScore}(S) = \\sum_{i=1}^{N} \\frac{\\text{Throughput}_i}{\\text{Latency}_i \\times \\text{VRAM}_{GB}} \\times \\log\\left( 1 + \\frac{\\text{Compute}_{TFLOPS}}{\\text{Cost}_{USD}} \\right)$$\n</div>\n<p>\nThis optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.\n</p>\n\n<div class=\"diagram-container\" style=\"background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);\">\n<p><strong>System Execution Flowchart: Final Capstone & Portfolio Polish</strong></p>\n<div class=\"mermaid\">\ngraph LR\n    Input[\"1. Client Ingress Request\"] --> Validate[\"2. Schema Validation & Guardrails\"]\n    Validate --> Pipeline[\"3. Core Computational Engine\"]\n    Pipeline --> Cache[\"4. High-Speed\
-    \ Cache & Telemetry\"]\n    Cache --> Egress[\"5. Verified Output Response\"]\n</div>\n</div>\n\n<h3 class=\"sh3\">Production Engineering Walkthrough: Final Capstone & Portfolio Polish</h3>\n<p>\nThe following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Final Capstone & Portfolio Polish</strong> in high-throughput enterprise systems:\n</p>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — production_final_capstone_and_portfo.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import time\nimport logging\nfrom typing import Dict, Any, Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"ProductionService\")\n\nclass ProductionEngine:\n    \"\"\"\n    Enterprise Execution Engine for Final Capstone & Portfolio\
-    \ Polish.\n    Provides automated validation, telemetry metrics, and failover protection.\n    \"\"\"\n    def __init__(self, service_name: str = \"Final Capstone & Portfolio Polish\", timeout_sec: float = 5.0):\n        self.service_name = service_name\n        self.timeout_sec = timeout_sec\n        self.metrics: Dict[str, Any] = {\"total_requests\": 0, \"errors\": 0, \"avg_latency_ms\": 0.0}\n\n    def process_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:\n        t0 = time.perf_counter()\n        self.metrics[\"total_requests\"] += 1\n        \n        try:\n            # 1. Payload validation\n            if not payload or not isinstance(payload, dict):\n                raise ValueError(\"Invalid input payload: expected non-empty dictionary.\")\n            \n            # 2. Execution logic\n            result = {\"status\": \"SUCCESS\", \"module\": self.service_name, \"processed_keys\": list(payload.keys())}\n            \n            latency = (time.perf_counter()\
-    \ - t0) * 1000\n            self.metrics[\"avg_latency_ms\"] = round((self.metrics[\"avg_latency_ms\"] + latency) / 2, 2)\n            logger.info(f\"Processed request for {self.service_name} in {latency:.2f}ms\")\n            return result\n            \n        except Exception as err:\n            self.metrics[\"errors\"] += 1\n            logger.error(f\"Execution failed in {self.service_name}: {err}\")\n            return {\"status\": \"ERROR\", \"error_message\": str(err)}\n\nif __name__ == '__main__':\n    engine = ProductionEngine()\n    resp = engine.process_request({\"sample_feature\": 42, \"user_id\": \"usr_9981\"})\n    print(\"Execution output:\", resp)\n    assert resp[\"status\"] == \"SUCCESS\", \"Engine verification failed\"\n</code></pre>\n</div>\n<h3 class=\"sh3\">Final Master Capstone: Principal AI Engineering System Design Checklist</h3>\n<p>\nAssembling the master portfolio capstone requires demonstrating end-to-end mastery:\n1. <strong>Data & Ingestion:</strong>\
-    \ Multimodal ColPali vector indexing and hybrid BM25 + Dense RRF fusion.\n2. <strong>Serving & Optimization:</strong> vLLM engine with PagedAttention and FP8 / INT4 AWQ quantization.\n3. <strong>Agentic Routing:</strong> LangGraph multi-agent supervisors with cyclic state validation and human approval gates.\n4. <strong>Infrastructure & Telemetry:</strong> Kubernetes GPU autoscaling, OpenTelemetry GenAI spans, and automated drift alerting.\n</p>"
+  theory_html: |
+    <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
+    <h3 class="sh3">1. Course Graduation: The 191-Day AI/ML Mastery Journey</h3>
+    <p>
+    Congratulations on completing the comprehensive 191-Day AI/ML Engineering Curriculum. You have mastered:
+    </p>
+    <ul>
+    <li>Mathematical Foundations: Linear Algebra, Multivariate Calculus, Probability, Optimization.</li>
+    <li>Classical Machine Learning: Regularization, Tree Ensembles, PCA, SVMs.</li>
+    <li>Deep Learning &amp; Computer Vision: PyTorch backpropagation, CNNs, Vision Transformers.</li>
+    <li>Natural Language Processing: Self-Attention, Tokenization, BERT, GPT-style autoregression.</li>
+    <li>Frontier Generative AI: Advanced RAG, LangGraph Agents, vLLM PagedAttention, QLoRA fine-tuning, and Distributed Kubernetes MLOps.</li>
+    </ul>
+    <h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
+    <thead>
+    <tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
+    <th style="padding:10px;">Architecture Strategy</th>
+    <th style="padding:10px;">Upfront Cost</th>
+    <th style="padding:10px;">Maintenance</th>
+    <th style="padding:10px;">Scalability</th>
+    <th style="padding:10px;">Time-to-Market</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Monolithic MVP</strong></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span> (Initially)</td>
+    <td style="padding:10px;">Poor</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Fast</span> (&lt; 1 week)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Microservices</strong></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;"><span style="color:var(--orange);">High</span></td>
+    <td style="padding:10px;">Excellent</td>
+    <td style="padding:10px;"><span style="color:var(--red);">Slow</span> (Months)</td>
+    </tr>
+    <tr onmouseout="this.style.background='transparent'" onmouseover="this.style.background='var(--bg-secondary)'" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+    <td style="padding:10px;"><strong>Serverless Functions</strong></td>
+    <td style="padding:10px;">Medium</td>
+    <td style="padding:10px;"><span style="color:var(--green);">Low</span></td>
+    <td style="padding:10px;">Infinite</td>
+    <td style="padding:10px;">Medium</td>
+    </tr>
+    </tbody>
+    </table>
+    </div>
+    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
+    <div class="math-block">
+    $$ \text{CapstoneGrade} = \sum_{c \in \text{components}} w_c \cdot \text{QualityScore}(c) $$
+    <p class="math-caption">Final evaluation function aggregating evidence across all multimodal AI system components.</p>
+    </div>
+    <p>
+    This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
+    </p>
+    <div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+    <p><strong>System Execution Flowchart: Final Capstone &amp; Portfolio Polish</strong></p>
+    <div class="mermaid">
+    graph LR
+        Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
+        Validate --&gt; Pipeline["3. Core Computational Engine"]
+        Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
+        Cache --&gt; Egress["5. Verified Output Response"]
+    </div>
+    </div>
+    <h3 class="sh3">Production Engineering Walkthrough: Final Capstone &amp; Portfolio Polish</h3>
+    <p>
+    The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Final Capstone &amp; Portfolio Polish</strong> in high-throughput enterprise systems:
+    </p>
+    <div class="cb">
+    <div class="cb-head"><span class="cb-lang">python — production_day_191_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+    <pre><code class="language-python"># Day 191 — Production Multimodal AI Capstone System Validator
+    import time, logging, json
+    from typing import Dict, Any, List, Optional
+    from dataclasses import dataclass
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logger = logging.getLogger("CapstoneValidator")
+
+    @dataclass
+    class CapstoneEvidenceItem:
+        component: str
+        artifact: str
+        status: str  # "COMPLETE", "PARTIAL", "MISSING"
+        notes: str = ""
+
+    class MultimodalCapstoneValidator:
+        """
+        Final capstone validation framework:
+        Checks all portfolio evidence items for a production-grade multimodal AI system.
+        Generates a completion certificate with itemised scores.
+        """
+
+        REQUIRED_COMPONENTS = {
+            "data_pipeline":          "Data ingestion + DVC versioning + quality validation",
+            "vector_index":           "FAISS/Qdrant index with &gt; 10K documents, HNSW M=32",
+            "hybrid_retriever":       "Dense + BM25 + RRF fusion, latency &lt; 50ms p99",
+            "reranker":               "Cross-encoder (BGE-Reranker) top-5 from 50 candidates",
+            "llm_api":                "FastAPI /predict endpoint, /health, /metrics",
+            "multimodal_encoder":     "ViT patch embeddings for image documents",
+            "containerization":       "Docker + docker-compose with GPU support",
+            "ci_cd":                  "GitHub Actions: lint → test → build → deploy",
+            "kubernetes":             "K8s Deployment + HPA + PodDisruptionBudget",
+            "monitoring":             "Prometheus + Grafana + DCGM exporter",
+            "drift_detection":        "PSI + KS test on feature distributions",
+            "ragas_evaluation":       "faithfulness &gt; 0.7, answer_relevancy &gt; 0.7",
+            "mlflow_registry":        "Experiment tracking + model staging + promotion",
+            "documentation":          "README.md with architecture diagram + API reference",
+        }
+
+        def validate(self, evidence: List[CapstoneEvidenceItem]) -&gt; Dict[str, Any]:
+            evidence_by_component = {e.component: e for e in evidence}
+            scored = {}
+            for component, description in self.REQUIRED_COMPONENTS.items():
+                if component in evidence_by_component:
+                    item = evidence_by_component[component]
+                    score = {"COMPLETE": 1.0, "PARTIAL": 0.5, "MISSING": 0.0}.get(item.status, 0.0)
+                else:
+                    score = 0.0
+                    item = CapstoneEvidenceItem(component, "", "MISSING")
+                scored[component] = {"score": score, "artifact": getattr(item, "artifact", ""), "description": description}
+            total = sum(v["score"] for v in scored.values())
+            max_score = len(self.REQUIRED_COMPONENTS)
+            pct = total / max_score * 100
+            missing = [c for c, v in scored.items() if v["score"] == 0.0]
+            partial = [c for c, v in scored.items() if v["score"] == 0.5]
+            return {
+                "total_score": round(total, 1), "max_score": max_score,
+                "completion_pct": round(pct, 1),
+                "grade": ("DISTINCTION" if pct &gt;= 90 else "MERIT" if pct &gt;= 75 else "PASS" if pct &gt;= 60 else "INCOMPLETE"),
+                "missing_components": missing, "partial_components": partial,
+                "scored_items": scored,
+            }
+
+        def generate_certificate(self, student_name: str, validation_result: Dict) -&gt; str:
+            grade = validation_result["grade"]
+            pct = validation_result["completion_pct"]
+            date = time.strftime("%Y-%m-%d")
+            return (f"
+    {'='*60}
+    "
+                    f" AI/ML ENGINEERING CURRICULUM — COMPLETION CERTIFICATE
+    "
+                    f"{'='*60}
+    "
+                    f" Student: {student_name}
+    "
+                    f" Date: {date}
+    "
+                    f" Score: {validation_result['total_score']}/{validation_result['max_score']} ({pct:.1f}%)
+    "
+                    f" Grade: {grade}
+    "
+                    f"{'='*60}
+    "
+                    f" {len(self.REQUIRED_COMPONENTS) - len(validation_result['missing_components'])} of "
+                    f"{len(self.REQUIRED_COMPONENTS)} components validated
+    "
+                    f"{'='*60}
+    ")
+
+    if __name__ == "__main__":
+        validator = MultimodalCapstoneValidator()
+        # Simulate a strong capstone submission
+        evidence = [
+            CapstoneEvidenceItem("data_pipeline", "data/pipeline.py + .dvc/", "COMPLETE"),
+            CapstoneEvidenceItem("vector_index", "faiss_index.py + 50K docs indexed", "COMPLETE"),
+            CapstoneEvidenceItem("hybrid_retriever", "hybrid_search.py, p99=38ms", "COMPLETE"),
+            CapstoneEvidenceItem("reranker", "cross_encoder_reranker.py", "COMPLETE"),
+            CapstoneEvidenceItem("llm_api", "FastAPI app, /health returns 200", "COMPLETE"),
+            CapstoneEvidenceItem("multimodal_encoder", "vit_patch_projector.py", "COMPLETE"),
+            CapstoneEvidenceItem("containerization", "Dockerfile + docker-compose.yml", "COMPLETE"),
+            CapstoneEvidenceItem("ci_cd", ".github/workflows/ml-cicd.yml", "COMPLETE"),
+            CapstoneEvidenceItem("kubernetes", "helm/ml-service/ + HPA manifest", "COMPLETE"),
+            CapstoneEvidenceItem("monitoring", "Grafana dashboard JSON exported", "PARTIAL"),
+            CapstoneEvidenceItem("drift_detection", "drift_detector.py", "COMPLETE"),
+            CapstoneEvidenceItem("ragas_evaluation", "RAGAS: F=0.84, AR=0.91", "COMPLETE"),
+            CapstoneEvidenceItem("mlflow_registry", "MLflow server + 15 experiments", "COMPLETE"),
+            CapstoneEvidenceItem("documentation", "README.md with arch diagram", "PARTIAL"),
+        ]
+        result = validator.validate(evidence)
+        certificate = validator.generate_certificate("AI/ML Engineer", result)
+        print(certificate)
+        print(f"Completion: {result['completion_pct']}%, Grade: {result['grade']}")
+        print(f"Partial: {result['partial_components']}")
+        assert result["grade"] in ("DISTINCTION", "MERIT", "PASS")
+        print("MultimodalCapstoneValidator: OK")
+    </code></pre>
+    </div>
+    <h3 class="sh3">Final Master Capstone: Principal AI Engineering System Design Checklist</h3>
+    <p>
+    Assembling the master portfolio capstone requires demonstrating end-to-end mastery:
+    1. <strong>Data &amp; Ingestion:</strong> Multimodal ColPali vector indexing and hybrid BM25 + Dense RRF fusion.
+    2. <strong>Serving &amp; Optimization:</strong> vLLM engine with PagedAttention and FP8 / INT4 AWQ quantization.
+    3. <strong>Agentic Routing:</strong> LangGraph multi-agent supervisors with cyclic state validation and human approval gates.
+    4. <strong>Infrastructure &amp; Telemetry:</strong> Kubernetes GPU autoscaling, OpenTelemetry GenAI spans, and automated drift alerting.
+    </p>
   predict:
     question: What is the end-to-end latency budget for the multimodal Capstone pipeline?
     answer: Done

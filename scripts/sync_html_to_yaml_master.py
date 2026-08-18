@@ -72,7 +72,7 @@ for yf in yaml_files:
         day_soup = BeautifulSoup(day_html_slice, 'html.parser')
             
         # 1. Sync theory_html
-        theory_section = day_soup.find('div', class_='theory-section')
+        theory_section = day_soup.find('div', class_='theory-section') or day_soup.find('div', class_='theory') or day_soup.find('div', id=lambda x: x and x.endswith('-theory'))
         if theory_section:
             inner_html = theory_section.decode_contents()
             day['theory_html'] = inner_html.strip() + "\n"
