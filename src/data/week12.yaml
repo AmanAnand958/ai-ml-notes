@@ -5,10 +5,7 @@ days:
 - id: 80
   day_num: 80
   title: The Attention Mechanism
-  subtitle: |-
-    In Sequence-to-Sequence (Seq2Seq) architectures, the Encoder compresses the entire input sequence into a single, fixed-size context vector. For long sentences, this creates a severeinformational bottleneck, causing the model to forget early elements.
-     Today, we master theAttention Mechanism, which solves this by allowing the Decoder to dynamically inspect all historical hidden states of the Encoder at each decoding step.
-     We will dissect the mathematics ofAdditive (Bahdanau) vs. Dot-Product (Luong) Attention, calculate attention weights, derive context vectors, and understand theBLEUevaluation metric.
+  subtitle: "In Sequence-to-Sequence (Seq2Seq) architectures, the Encoder compresses the entire input sequence into a single, fixed-size context vector. For long sentences, this creates a severeinformational bottleneck, causing the model to forget early elements.\n Today, we master theAttention Mechanism, which solves this by allowing the Decoder to dynamically inspect all historical hidden states of the Encoder at each decoding step.\n We will dissect the mathematics ofAdditive (Bahdanau) vs. Dot-Product (Luong) Attention, calculate attention weights, derive context vectors, and understand theBLEUevaluation metric."
   time_estimate: 6 hours
   difficulty: Medium
   badges:
@@ -60,132 +57,37 @@ days:
     question: What is the output shape of the Multi-Head Attention projection tensor (Batch, Seq_Len, Hidden_Dim)?
     answer: (2, 16, 128)
     explanation: 'Self-attention preserves sequence length and hidden dimension: batch_size 2, sequence length 16, hidden dim 128.'
-    code: |-
-      batch_size = 2
+    code: 'batch_size = 2
+
       seq_len = 16
+
       hidden_dim = 128
-      print(f'({batch_size}, {seq_len}, {hidden_dim})')
+
+      print(f''({batch_size}, {seq_len}, {hidden_dim})'')'
   tasks:
   - title: Implement Bahdanau Additive Attention
     badge: Hard · 3 hrs
     badge_class: tb-hard
     time: 90 min
-    prompt_html: |-
-      <p><strong>
-                Build a custom PyTorch module for Bahdanau Additive Attention:
-                <br/>
-                1. Accept query of shape (Batch, 1, Hidden) and keys/values of shape (Batch, SeqLen, Hidden).
-                <br/>
-                2. Project query and keys using two linear layers: W_a and U_a.
-                <br/>
-                3. Compute raw scores: v_a^T * tanh(W_a(query) + U_a(keys)). Keep dimensions aligned!
-                <br/>
-                4. Apply Softmax to get attention weights.
-                <br/>
-                5. Compute context vector as batch matrix multiplication between weights and values.
-               </strong></p>
+    prompt_html: "<p><strong>\n          Build a custom PyTorch module for Bahdanau Additive Attention:\n          <br/>\n          1. Accept query of shape (Batch, 1, Hidden) and keys/values of shape (Batch, SeqLen, Hidden).\n          <br/>\n          2. Project query and keys using two linear layers: W_a and U_a.\n          <br/>\n          3. Compute raw scores: v_a^T * tanh(W_a(query) + U_a(keys)). Keep dimensions aligned!\n          <br/>\n          4. Apply Softmax to get attention weights.\n          <br/>\n          5. Compute context vector as batch matrix multiplication between weights and values.\n         </strong></p>"
     done_when: Your module inherits from nn.Module, instantiates without errors, runs a forward pass on query of shape (8, 1, 64) and keys of shape (8, 15, 64), and outputs a context vector of shape (8, 1, 64) along with attention weights of shape (8, 1, 15).
     git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day80: complete day 80 tasks and coding exercises"'
     sol_id: sol-w12d80t1
     solution_title: ✅ COMPLETE SOLUTION — implement_bahdanau_additive_attention.py
-    solution_code: |-
-      # Day 80 Task 1: Implement Bahdanau Additive Attention Mechanism
-      import numpy as np
-
-      class BahdanauAdditiveAttention:
-          def __init__(self, hidden_dim: int):
-              np.random.seed(42)
-              self.W_enc = np.random.randn(hidden_dim, hidden_dim) * 0.05
-              self.W_dec = np.random.randn(hidden_dim, hidden_dim) * 0.05
-              self.v = np.random.randn(hidden_dim, 1) * 0.05
-
-          def score(self, encoder_states: np.ndarray, decoder_state: np.ndarray) -> np.ndarray:
-              """score = v^T tanh(W_enc * h_i + W_dec * s_t)"""
-              # encoder_states: (seq_len, hidden_dim), decoder_state: (hidden_dim,)
-              transformed_enc = encoder_states @ self.W_enc
-              transformed_dec = decoder_state @ self.W_dec
-              energy = np.tanh(transformed_enc + transformed_dec)
-              scores = (energy @ self.v).squeeze(-1)
-              # Softmax
-              exp_scores = np.exp(scores - np.max(scores))
-              weights = exp_scores / np.sum(exp_scores)
-              context = weights @ encoder_states
-              return context, weights
-
-      hidden_dim = 16
-      attn = BahdanauAdditiveAttention(hidden_dim=hidden_dim)
-      enc_out = np.random.randn(8, hidden_dim)
-      dec_s = np.random.randn(hidden_dim)
-      ctx, weights = attn.score(enc_out, dec_s)
-
-      print("Attention Context Vector Shape:", ctx.shape)
-      print("Attention Weights Sum:", round(float(np.sum(weights)), 5))
-      assert ctx.shape == (hidden_dim,)
-      assert abs(np.sum(weights) - 1.0) < 1e-4
-      print("✓ Bahdanau additive attention verified.")
+    solution_code: "# Day 80 Task 1: Implement Bahdanau Additive Attention Mechanism\nimport numpy as np\n\nclass BahdanauAdditiveAttention:\n    def __init__(self, hidden_dim: int):\n        np.random.seed(42)\n        self.W_enc = np.random.randn(hidden_dim, hidden_dim) * 0.05\n        self.W_dec = np.random.randn(hidden_dim, hidden_dim) * 0.05\n        self.v = np.random.randn(hidden_dim, 1) * 0.05\n\n    def score(self, encoder_states: np.ndarray, decoder_state: np.ndarray) -> np.ndarray:\n        \"\"\"score = v^T tanh(W_enc * h_i + W_dec * s_t)\"\"\"\n        # encoder_states: (seq_len, hidden_dim), decoder_state: (hidden_dim,)\n        transformed_enc = encoder_states @ self.W_enc\n        transformed_dec = decoder_state @ self.W_dec\n        energy = np.tanh(transformed_enc + transformed_dec)\n        scores = (energy @ self.v).squeeze(-1)\n        # Softmax\n        exp_scores = np.exp(scores - np.max(scores))\n        weights = exp_scores / np.sum(exp_scores)\n        context =\
+      \ weights @ encoder_states\n        return context, weights\n\nhidden_dim = 16\nattn = BahdanauAdditiveAttention(hidden_dim=hidden_dim)\nenc_out = np.random.randn(8, hidden_dim)\ndec_s = np.random.randn(hidden_dim)\nctx, weights = attn.score(enc_out, dec_s)\n\nprint(\"Attention Context Vector Shape:\", ctx.shape)\nprint(\"Attention Weights Sum:\", round(float(np.sum(weights)), 5))\nassert ctx.shape == (hidden_dim,)\nassert abs(np.sum(weights) - 1.0) < 1e-4\nprint(\"✓ Bahdanau additive attention verified.\")"
     solution_lang: python
   - title: Compute BLEU-1 and BLEU-2 Manually
     badge: Medium · 1.5 hrs
     badge_class: tb-med
     time: 45 min
-    prompt_html: |-
-      <p>
-                 Given the following sequences:
-                 <br/>
-                 -
-                 <strong>
-                  Reference:
-                 </strong>
-                 "the quick brown fox jumps over the lazy dog"
-                 <br/>
-                 -
-                 <strong>
-                  Candidate:
-                 </strong>
-                 "the quick brown fox jumps over lazy dog"
-                 <br/>
-      <br/>
-                 Calculate:
-                 <br/>
-                 1. BLEU-1 (unigram precision) incorporating brevity penalty (BP) calculation.
-                 <br/>
-                 2. BLEU-2 (bigram precision) calculation.
-                 <br/>
-                 3. Validate your manual calculations using nltk.translate.bleu_score in a Python script.
-                </p>
+    prompt_html: "<p>\n           Given the following sequences:\n           <br/>\n           -\n           <strong>\n            Reference:\n           </strong>\n           \"the quick brown fox jumps over the lazy dog\"\n           <br/>\n           -\n           <strong>\n            Candidate:\n           </strong>\n           \"the quick brown fox jumps over lazy dog\"\n           <br/>\n<br/>\n           Calculate:\n           <br/>\n           1. BLEU-1 (unigram precision) incorporating brevity penalty (BP) calculation.\n           <br/>\n           2. BLEU-2 (bigram precision) calculation.\n           <br/>\n           3. Validate your manual calculations using nltk.translate.bleu_score in a Python script.\n          </p>"
     done_when: Your manual calculation details matches Python NLTK output values precisely, highlighting how candidate length vs reference length scales the brevity penalty exponent.
     git_cmd: 'git add compute_bleu_1_and_bleu_2_manually.py &amp;&amp; git commit -m "feat(day): day80: compute-bleu-1-and-bleu-2-manually"'
     sol_id: sol-w12d80t2
     solution_title: Production Implementation — Compute BLEU-1 and BLEU-2 Manually
-    solution_code: |-
-      # Day 80 Task 2: Compute BLEU-1 and BLEU-2 Scores
-      from collections import Counter
-      import numpy as np
-
-      def compute_bleu_n(reference: list, candidate: list, n: int = 2) -> float:
-          def get_ngrams(seq, n_gram):
-              return [tuple(seq[i:i + n_gram]) for i in range(len(seq) - n_gram + 1)]
-
-          precisions = []
-          for k in range(1, n + 1):
-              ref_ngrams = Counter(get_ngrams(reference, k))
-              cand_ngrams = Counter(get_ngrams(candidate, k))
-              if not cand_ngrams: return 0.0
-              clipped = sum(min(count, ref_ngrams[ng]) for ng, count in cand_ngrams.items())
-              precisions.append(clipped / sum(cand_ngrams.values()))
-
-          # Brevity penalty
-          c, r = len(candidate), len(reference)
-          bp = 1.0 if c > r else np.exp(1.0 - r / max(c, 1e-9))
-          score = bp * np.exp(np.mean(np.log([max(p, 1e-9) for p in precisions])))
-          return float(score)
-
-      ref = "the fast cat jumped over the lazy dog".split()
-      cand = "the fast cat jumped over lazy dog".split()
-      bleu2 = compute_bleu_n(ref, cand, n=2)
-      print(f"BLEU-2 Score: {bleu2:.4f}")
-      assert 0.0 <= bleu2 <= 1.0
-      print("✓ BLEU calculation verified.")
+    solution_code: "# Day 80 Task 2: Compute BLEU-1 and BLEU-2 Scores\nfrom collections import Counter\nimport numpy as np\n\ndef compute_bleu_n(reference: list, candidate: list, n: int = 2) -> float:\n    def get_ngrams(seq, n_gram):\n        return [tuple(seq[i:i + n_gram]) for i in range(len(seq) - n_gram + 1)]\n\n    precisions = []\n    for k in range(1, n + 1):\n        ref_ngrams = Counter(get_ngrams(reference, k))\n        cand_ngrams = Counter(get_ngrams(candidate, k))\n        if not cand_ngrams: return 0.0\n        clipped = sum(min(count, ref_ngrams[ng]) for ng, count in cand_ngrams.items())\n        precisions.append(clipped / sum(cand_ngrams.values()))\n\n    # Brevity penalty\n    c, r = len(candidate), len(reference)\n    bp = 1.0 if c > r else np.exp(1.0 - r / max(c, 1e-9))\n    score = bp * np.exp(np.mean(np.log([max(p, 1e-9) for p in precisions])))\n    return float(score)\n\nref = \"the fast cat jumped over the lazy dog\".split()\ncand = \"the fast cat jumped over lazy\
+      \ dog\".split()\nbleu2 = compute_bleu_n(ref, cand, n=2)\nprint(f\"BLEU-2 Score: {bleu2:.4f}\")\nassert 0.0 <= bleu2 <= 1.0\nprint(\"✓ BLEU calculation verified.\")"
     solution_lang: python
   quizzes:
   - num_str: QUESTION 1 OF 4
@@ -290,11 +192,7 @@ days:
     title: '⚠️ Gotcha: Positional Embeddings in Transformer Ingestion'
     description: Self-attention has zero concept of word order without adding positional encodings (Sinusoidal or RoPE).
   takeaways:
-    hinglish_line: |-
-      <strong>
-               Ek line mein:
-              </strong>
-              Attention mechanism decoder queries ko encoder keys se dot-product karva ke most relevant features weights values fetch karta hai.
+    hinglish_line: "<strong>\n         Ek line mein:\n        </strong>\n        Attention mechanism decoder queries ko encoder keys se dot-product karva ke most relevant features weights values fetch karta hai."
     bullets:
     - Seq2Seq bottlenecks are caused by compressing input histories into a single fixed vector.
     - Luong Attention is dot-product based, whereas Bahdanau Attention is additive.
@@ -310,10 +208,7 @@ days:
 - id: 81
   day_num: 81
   title: 'Multi-Modal Architectures: CNN + RNN'
-  subtitle: |-
-    Generative deep learning shines when we stitch different modalities together.
-     Today, we masterMulti-Modal Architectures, focusing on linking Computer Vision (CNNs) with Sequential Text Modeling (RNNs/LSTMs).
-     We will study how to extract spatial features from deep pre-trained CNN backbones, project these high-dimensional grids into sequence spaces, initialize LSTM hidden states, and employ theTeacher Forcingtraining strategy.
+  subtitle: "Generative deep learning shines when we stitch different modalities together.\n Today, we masterMulti-Modal Architectures, focusing on linking Computer Vision (CNNs) with Sequential Text Modeling (RNNs/LSTMs).\n We will study how to extract spatial features from deep pre-trained CNN backbones, project these high-dimensional grids into sequence spaces, initialize LSTM hidden states, and employ theTeacher Forcingtraining strategy."
   time_estimate: 5 hours
   difficulty: Medium
   badges:
@@ -359,45 +254,22 @@ days:
     question: What is the spatial output dimension (height) of a 32x32 image after 3x3 valid convolution?
     answer: '30'
     explanation: Output size = (W - K + 2P)/S + 1 = (32 - 3 + 0)/1 + 1 = 30.
-    code: |-
-      W, K, P, S = 32, 3, 0, 1
+    code: 'W, K, P, S = 32, 3, 0, 1
+
       out_dim = (W - K + 2*P) // S + 1
-      print(out_dim)
+
+      print(out_dim)'
   tasks:
   - title: Extract intermediate features from torchvision.models.resnet50
     badge: Hard · 3 hrs
     badge_class: tb-hard
     time: 90 min
-    prompt_html: |-
-      <p><strong>
-                Write a feature extractor subclassing nn.Module:
-                <br/>
-                1. Instantiate a pre-trained ResNet-50 model from torchvision.models.
-                <br/>
-                2. Strip off the final fully connected class linear head and the global pooling layers.
-                <br/>
-                3. Extract features directly from 'layer4' output (convolutional grid space).
-                <br/>
-                4. Permute raw output shape (Batch, Channels, H, W) to (Batch, H*W, Channels) for compatibility.
-               </strong></p>
+    prompt_html: "<p><strong>\n          Write a feature extractor subclassing nn.Module:\n          <br/>\n          1. Instantiate a pre-trained ResNet-50 model from torchvision.models.\n          <br/>\n          2. Strip off the final fully connected class linear head and the global pooling layers.\n          <br/>\n          3. Extract features directly from 'layer4' output (convolutional grid space).\n          <br/>\n          4. Permute raw output shape (Batch, Channels, H, W) to (Batch, H*W, Channels) for compatibility.\n         </strong></p>"
     done_when: Your module processes a batch of mock images of shape (4, 3, 224, 224) and outputs extracted features of shape (4, 49, 2048) without causing computational memory leakage.
     git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day81: complete day 81 tasks and coding exercises"'
     sol_id: sol-w12d81t1
     solution_title: Production Implementation — Extract intermediate features from torchvision.models.resnet50
-    solution_code: |-
-      # Day 81 Task 1: Extract Intermediate Features from ResNet
-      import numpy as np
-
-      def extract_resnet_backbone_features(image_batch: np.ndarray, feature_dim: int = 512) -> np.ndarray:
-          np.random.seed(42)
-          proj = np.random.randn(image_batch.shape[-1], feature_dim) * 0.05
-          return image_batch @ proj
-
-      images = np.random.randn(4, 256)
-      features = extract_resnet_backbone_features(images, feature_dim=512)
-      print("Extracted Feature Map Shape:", features.shape)
-      assert features.shape == (4, 512)
-      print("✓ ResNet feature extraction verified.")
+    solution_code: "# Day 81 Task 1: Extract Intermediate Features from ResNet\nimport numpy as np\n\ndef extract_resnet_backbone_features(image_batch: np.ndarray, feature_dim: int = 512) -> np.ndarray:\n    np.random.seed(42)\n    proj = np.random.randn(image_batch.shape[-1], feature_dim) * 0.05\n    return image_batch @ proj\n\nimages = np.random.randn(4, 256)\nfeatures = extract_resnet_backbone_features(images, feature_dim=512)\nprint(\"Extracted Feature Map Shape:\", features.shape)\nassert features.shape == (4, 512)\nprint(\"✓ ResNet feature extraction verified.\")"
     solution_lang: python
   - title: Implement Teacher Forcing Masking Function
     badge: Medium · 1.5 hrs
@@ -408,20 +280,7 @@ days:
     git_cmd: 'git add implement_teacher_forcing_masking_function.py &amp;&amp; git commit -m "feat(day): day81: implement-teacher-forcing-masking-function"'
     sol_id: sol-w12d81t2
     solution_title: Production Implementation — Implement Teacher Forcing Masking Function
-    solution_code: |-
-      # Day 81 Task 2: Implement Teacher Forcing Masking Function
-      import numpy as np
-
-      def apply_teacher_forcing_mask(target_tokens: np.ndarray, tf_ratio: float = 0.5) -> np.ndarray:
-          mask = (np.random.rand(*target_tokens.shape) < tf_ratio).astype(int)
-          return mask
-
-      np.random.seed(42)
-      targets = np.ones((4, 10))
-      mask = apply_teacher_forcing_mask(targets, tf_ratio=0.7)
-      print("Teacher Forcing Mask Active Fraction:", np.mean(mask))
-      assert 0.0 <= np.mean(mask) <= 1.0
-      print("✓ Teacher forcing masking verified.")
+    solution_code: "# Day 81 Task 2: Implement Teacher Forcing Masking Function\nimport numpy as np\n\ndef apply_teacher_forcing_mask(target_tokens: np.ndarray, tf_ratio: float = 0.5) -> np.ndarray:\n    mask = (np.random.rand(*target_tokens.shape) < tf_ratio).astype(int)\n    return mask\n\nnp.random.seed(42)\ntargets = np.ones((4, 10))\nmask = apply_teacher_forcing_mask(targets, tf_ratio=0.7)\nprint(\"Teacher Forcing Mask Active Fraction:\", np.mean(mask))\nassert 0.0 <= np.mean(mask) <= 1.0\nprint(\"✓ Teacher forcing masking verified.\")"
     solution_lang: python
   quizzes:
   - num_str: QUESTION 1 OF 4
@@ -526,11 +385,7 @@ days:
     title: '⚠️ Gotcha: Positional Embeddings in Transformer Ingestion'
     description: Self-attention has zero concept of word order without adding positional encodings (Sinusoidal or RoPE).
   takeaways:
-    hinglish_line: |-
-      <strong>
-               Ek line mein:
-              </strong>
-              Bahdanau additive models query key features concat/add karte hain jabki Luong multiplicative models query key multiplication use karte hain.
+    hinglish_line: "<strong>\n         Ek line mein:\n        </strong>\n        Bahdanau additive models query key features concat/add karte hain jabki Luong multiplicative models query key multiplication use karte hain."
     bullets:
     - Stitched architectures combine pre-trained vision encoders with recurrent language decoders.
     - Spatial grid details must be preserved to allow localized attention.
@@ -591,10 +446,11 @@ days:
     </div>\n<h2 class=\"sh2\">\n       \U0001F6E0 Tasks\n      </h2>\n<div style=\"font-family:var(--font-mono);font-size: 12.5px;color:var(--muted);margin-top:0.5rem;margin-bottom:1rem;\">\n       \U0001F50D\n       <strong>\n        Search terms:\n       </strong>\n\n        kv caching decoder generation inference time, greedy search vs top p sampling temperature\n       \n</div>\n"
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
-    code: |-
-      import numpy as np
+    code: 'import numpy as np
+
       tensor = np.zeros((32, 128))
-      print(tensor.ndim)
+
+      print(tensor.ndim)'
     answer: '2'
     explanation: A 2D matrix with batch dimension and feature dimension has a tensor rank/ndim of 2.
   tasks:
@@ -607,80 +463,12 @@ days:
     git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day82: complete day 82 tasks and coding exercises"'
     sol_id: sol-w12d82t1
     solution_title: ✅ COMPLETE SOLUTION — build_a_custom_pytorch_dataset_collate_f.py
-    solution_code: |-
-      # Day 82 Task 1: PyTorch Seq2Seq Collate Function with Dynamic Padding
-      import torch
-      from torch.nn.utils.rnn import pad_sequence
-
-      def seq2seq_collate_fn(batch, pad_token_id: int = 0):
-          """Pads source and target sequences dynamically to max length in batch."""
-          src_list, tgt_list = [], []
-          for src, tgt in batch:
-              src_list.append(torch.tensor(src, dtype=torch.long))
-              tgt_list.append(torch.tensor(tgt, dtype=torch.long))
-
-          src_padded = pad_sequence(src_list, batch_first=True, padding_value=pad_token_id)
-          tgt_padded = pad_sequence(tgt_list, batch_first=True, padding_value=pad_token_id)
-          return src_padded, tgt_padded
-
-      sample_batch = [
-          ([10, 20, 30], [1, 2]),
-          ([10, 40], [1, 2, 3, 4]),
-          ([10, 50, 60, 70], [1])
-      ]
-
-      src_pad, tgt_pad = seq2seq_collate_fn(sample_batch, pad_token_id=0)
-      print("Src Padded Shape:", src_pad.shape)
-      print("Tgt Padded Shape:", tgt_pad.shape)
-      assert src_pad.shape == (3, 4)
-      assert tgt_pad.shape == (3, 4)
-      print("✓ Seq2Seq dynamic collate function verified.")
+    solution_code: "# Day 82 Task 1: PyTorch Seq2Seq Collate Function with Dynamic Padding\nimport torch\nfrom torch.nn.utils.rnn import pad_sequence\n\ndef seq2seq_collate_fn(batch, pad_token_id: int = 0):\n    \"\"\"Pads source and target sequences dynamically to max length in batch.\"\"\"\n    src_list, tgt_list = [], []\n    for src, tgt in batch:\n        src_list.append(torch.tensor(src, dtype=torch.long))\n        tgt_list.append(torch.tensor(tgt, dtype=torch.long))\n\n    src_padded = pad_sequence(src_list, batch_first=True, padding_value=pad_token_id)\n    tgt_padded = pad_sequence(tgt_list, batch_first=True, padding_value=pad_token_id)\n    return src_padded, tgt_padded\n\nsample_batch = [\n    ([10, 20, 30], [1, 2]),\n    ([10, 40], [1, 2, 3, 4]),\n    ([10, 50, 60, 70], [1])\n]\n\nsrc_pad, tgt_pad = seq2seq_collate_fn(sample_batch, pad_token_id=0)\nprint(\"Src Padded Shape:\", src_pad.shape)\nprint(\"Tgt Padded Shape:\", tgt_pad.shape)\nassert src_pad.shape == (3, 4)\nassert\
+      \ tgt_pad.shape == (3, 4)\nprint(\"✓ Seq2Seq dynamic collate function verified.\")"
     solution_lang: python
   - title: 'Production Benchmark — Capstone Part 1: Dataset & Visual Grid Feature Extraction'
-    solution_code: |-
-      # Day 82: Image Captioning Capstone Part 1 — Dataset & Visual Grid
-      import numpy as np
-      from collections import Counter
-      import re
-
-      # Simulated COCO-style caption dataset
-      np.random.seed(42)
-      CAPTIONS = [
-          "a dog playing in the park", "two cats sitting on a sofa",
-          "a red car parked on the street", "children running in the playground",
-          "a woman reading a book near the window", "birds flying over the ocean",
-          "a sunset over the mountains with clouds", "a man cycling on a path",
-          "fresh fruits on a wooden table", "a crowded city street at night",
-      ] * 50  # 500 image-caption pairs
-
-      def build_vocab(captions, min_freq=2):
-          """Build vocabulary from captions."""
-          tokens = []
-          for cap in captions:
-              tokens.extend(re.findall(r'\w+', cap.lower()))
-          freq = Counter(tokens)
-          vocab = ['<PAD>', '<SOS>', '<EOS>', '<UNK>'] + [w for w, f in freq.items() if f >= min_freq]
-          return {w: i for i, w in enumerate(vocab)}, vocab
-
-      def tokenize(caption, word2idx, max_len=20):
-          """Convert caption to padded token indices."""
-          tokens = ['<SOS>'] + re.findall(r'\w+', caption.lower()) + ['<EOS>']
-          indices = [word2idx.get(t, word2idx['<UNK>']) for t in tokens]
-          if len(indices) < max_len:
-              indices += [word2idx['<PAD>']] * (max_len - len(indices))
-          return indices[:max_len]
-
-      word2idx, vocab = build_vocab(CAPTIONS)
-      print(f"Vocab size: {len(vocab)}")
-
-      tokenized = np.array([tokenize(cap, word2idx) for cap in CAPTIONS])
-      print(f"Tokenized shape: {tokenized.shape}")
-
-      # Assertions
-      assert len(vocab) > 30, f"Vocab too small: {len(vocab)}"
-      assert tokenized.shape == (500, 20), f"Shape wrong: {tokenized.shape}"
-      assert tokenized[:, 0].mean() == word2idx['<SOS>'], "First token should be <SOS>"
-      print("✅ Dataset & vocabulary assertions passed")
+    solution_code: "# Day 82: Image Captioning Capstone Part 1 — Dataset & Visual Grid\nimport numpy as np\nfrom collections import Counter\nimport re\n\n# Simulated COCO-style caption dataset\nnp.random.seed(42)\nCAPTIONS = [\n    \"a dog playing in the park\", \"two cats sitting on a sofa\",\n    \"a red car parked on the street\", \"children running in the playground\",\n    \"a woman reading a book near the window\", \"birds flying over the ocean\",\n    \"a sunset over the mountains with clouds\", \"a man cycling on a path\",\n    \"fresh fruits on a wooden table\", \"a crowded city street at night\",\n] * 50  # 500 image-caption pairs\n\ndef build_vocab(captions, min_freq=2):\n    \"\"\"Build vocabulary from captions.\"\"\"\n    tokens = []\n    for cap in captions:\n        tokens.extend(re.findall(r'\\w+', cap.lower()))\n    freq = Counter(tokens)\n    vocab = ['<PAD>', '<SOS>', '<EOS>', '<UNK>'] + [w for w, f in freq.items() if f >= min_freq]\n    return {w: i for i, w in enumerate(vocab)},\
+      \ vocab\n\ndef tokenize(caption, word2idx, max_len=20):\n    \"\"\"Convert caption to padded token indices.\"\"\"\n    tokens = ['<SOS>'] + re.findall(r'\\w+', caption.lower()) + ['<EOS>']\n    indices = [word2idx.get(t, word2idx['<UNK>']) for t in tokens]\n    if len(indices) < max_len:\n        indices += [word2idx['<PAD>']] * (max_len - len(indices))\n    return indices[:max_len]\n\nword2idx, vocab = build_vocab(CAPTIONS)\nprint(f\"Vocab size: {len(vocab)}\")\n\ntokenized = np.array([tokenize(cap, word2idx) for cap in CAPTIONS])\nprint(f\"Tokenized shape: {tokenized.shape}\")\n\n# Assertions\nassert len(vocab) > 30, f\"Vocab too small: {len(vocab)}\"\nassert tokenized.shape == (500, 20), f\"Shape wrong: {tokenized.shape}\"\nassert tokenized[:, 0].mean() == word2idx['<SOS>'], \"First token should be <SOS>\"\nprint(\"✅ Dataset & vocabulary assertions passed\")"
     badge: HARD
     badge_class: tb-hard
     time: 45 mins
@@ -793,11 +581,7 @@ days:
     title: '⚠️ Gotcha: Positional Embeddings in Transformer Ingestion'
     description: Self-attention has zero concept of word order without adding positional encodings (Sinusoidal or RoPE).
   takeaways:
-    hinglish_line: |-
-      <strong>
-               Ek line mein:
-              </strong>
-              KV caching historical tokens calculation vectors parameters ko repeat calculations se bachata hai.
+    hinglish_line: "<strong>\n         Ek line mein:\n        </strong>\n        KV caching historical tokens calculation vectors parameters ko repeat calculations se bachata hai."
     bullets:
     - Vocabularies must map text to index representations and handle out-of-vocabulary terms.
     - Custom collate functions are essential for handling variable-length batch sequences.
@@ -813,10 +597,7 @@ days:
 - id: 83
   day_num: 83
   title: 'Capstone Part 2: Attention-Augmented Decoder Module'
-  subtitle: |-
-    In Phase 2 of our Major Capstone, we implement the core engine of the multi-modal caption generator: theAttention-Augmented Decoder.
-     Today, we construct the decoder network in PyTorch from scratch, integrating an additive attention module directly inside a sequentialLSTMCelldecoding loop.
-     We will project visual features, map word tokens, calculate soft attention maps over spatial coordinates, concatenate context vectors with token embeddings, and program theTeacher Forcingdecision logic.
+  subtitle: "In Phase 2 of our Major Capstone, we implement the core engine of the multi-modal caption generator: theAttention-Augmented Decoder.\n Today, we construct the decoder network in PyTorch from scratch, integrating an additive attention module directly inside a sequentialLSTMCelldecoding loop.\n We will project visual features, map word tokens, calculate soft attention maps over spatial coordinates, concatenate context vectors with token embeddings, and program theTeacher Forcingdecision logic."
   time_estimate: 6 hours
   difficulty: Medium
   badges:
@@ -867,11 +648,13 @@ days:
     question: What is the output shape of the Multi-Head Attention projection tensor (Batch, Seq_Len, Hidden_Dim)?
     answer: (2, 16, 128)
     explanation: 'Self-attention preserves sequence length and hidden dimension: batch_size 2, sequence length 16, hidden dim 128.'
-    code: |-
-      batch_size = 2
+    code: 'batch_size = 2
+
       seq_len = 16
+
       hidden_dim = 128
-      print(f'({batch_size}, {seq_len}, {hidden_dim})')
+
+      print(f''({batch_size}, {seq_len}, {hidden_dim})'')'
   tasks:
   - title: Build a dynamic multi-step inference generation method
     badge: Hard · 3.5 hrs
@@ -882,89 +665,13 @@ days:
     git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day83: complete day 83 tasks and coding exercises"'
     sol_id: sol-w12d83t1
     solution_title: Production Implementation — Build a dynamic multi-step inference generation method
-    solution_code: |-
-      # Day 83 Task 1: Autoregressive Nucleus (Top-p) & Temperature Sampling
-      import torch
-      import torch.nn.functional as F
-
-      def sample_next_token(logits: torch.Tensor, temperature: float = 0.7, top_p: float = 0.9) -> int:
-          """Applies temperature scaling and top-p (nucleus) filtering to token logits."""
-          scaled_logits = logits / max(temperature, 1e-5)
-          probs = F.softmax(scaled_logits, dim=-1)
-
-          # Sort probabilities
-          sorted_probs, sorted_indices = torch.sort(probs, descending=True)
-          cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
-
-          # Filter tokens exceeding top_p threshold
-          sorted_indices_to_remove = cumulative_probs > top_p
-          sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-          sorted_indices_to_remove[..., 0] = 0
-
-          indices_to_remove = sorted_indices[sorted_indices_to_remove]
-          probs[indices_to_remove] = 0.0
-          probs = probs / probs.sum()
-
-          token = torch.multinomial(probs, num_samples=1).item()
-          return token
-
-      raw_logits = torch.tensor([1.2, 5.4, 3.1, 0.2, -1.0])
-      sampled = sample_next_token(raw_logits, temperature=0.5, top_p=0.8)
-      print("Sampled Token ID:", sampled)
-      assert sampled in [1, 2] # Highest logit indices
-      print("✓ Nucleus sampling decoder verified.")
+    solution_code: "# Day 83 Task 1: Autoregressive Nucleus (Top-p) & Temperature Sampling\nimport torch\nimport torch.nn.functional as F\n\ndef sample_next_token(logits: torch.Tensor, temperature: float = 0.7, top_p: float = 0.9) -> int:\n    \"\"\"Applies temperature scaling and top-p (nucleus) filtering to token logits.\"\"\"\n    scaled_logits = logits / max(temperature, 1e-5)\n    probs = F.softmax(scaled_logits, dim=-1)\n\n    # Sort probabilities\n    sorted_probs, sorted_indices = torch.sort(probs, descending=True)\n    cumulative_probs = torch.cumsum(sorted_probs, dim=-1)\n\n    # Filter tokens exceeding top_p threshold\n    sorted_indices_to_remove = cumulative_probs > top_p\n    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()\n    sorted_indices_to_remove[..., 0] = 0\n\n    indices_to_remove = sorted_indices[sorted_indices_to_remove]\n    probs[indices_to_remove] = 0.0\n    probs = probs / probs.sum()\n\n    token = torch.multinomial(probs, num_samples=1).item()\n\
+      \    return token\n\nraw_logits = torch.tensor([1.2, 5.4, 3.1, 0.2, -1.0])\nsampled = sample_next_token(raw_logits, temperature=0.5, top_p=0.8)\nprint(\"Sampled Token ID:\", sampled)\nassert sampled in [1, 2] # Highest logit indices\nprint(\"✓ Nucleus sampling decoder verified.\")"
     solution_lang: python
   - title: 'Production Benchmark — Capstone Part 2: Attention-Augmented Decoder Module'
-    solution_code: |-
-      # Day 83: Image Captioning Capstone Part 2 — Attention-Augmented Decoder
-      import numpy as np
-
-      def scaled_dot_product_attention(Q, K, V):
-          """Core attention mechanism: softmax(QK^T/sqrt(d_k)) * V"""
-          d_k = Q.shape[-1]
-          scores = Q @ K.T / np.sqrt(d_k)
-          # Softmax
-          scores -= scores.max(axis=-1, keepdims=True)
-          attn_weights = np.exp(scores) / np.exp(scores).sum(axis=-1, keepdims=True)
-          return attn_weights @ V, attn_weights
-
-      class BahdanauAttention:
-          """Additive (Bahdanau) attention: score = v^T tanh(W1*h + W2*s)"""
-          def __init__(self, d_hidden):
-              np.random.seed(42)
-              self.W1 = np.random.randn(d_hidden, d_hidden) * 0.01
-              self.W2 = np.random.randn(d_hidden, d_hidden) * 0.01
-              self.v  = np.random.randn(d_hidden) * 0.01
-
-          def compute(self, encoder_states, decoder_state):
-              """encoder_states: (T_enc, d), decoder_state: (d,)"""
-              energy = np.tanh(encoder_states @ self.W1.T + decoder_state @ self.W2.T)  # (T, d)
-              scores = energy @ self.v  # (T,)
-              weights = np.exp(scores - scores.max()) / np.exp(scores - scores.max()).sum()
-              context = weights @ encoder_states  # (d,)
-              return context, weights
-
-      # Test attention mechanisms
-      T_enc, d = 10, 64
-      encoder_outputs = np.random.randn(T_enc, d)
-      decoder_state   = np.random.randn(d)
-
-      # Bahdanau
-      attn = BahdanauAttention(d)
-      context, weights = attn.compute(encoder_outputs, decoder_state)
-      print(f"Context vector shape: {context.shape}")
-      print(f"Attention weights sum: {weights.sum():.6f}")
-
-      # Scaled dot-product
-      Q = decoder_state.reshape(1, -1)
-      K = encoder_outputs
-      V = encoder_outputs
-      sdpa_out, sdpa_weights = scaled_dot_product_attention(Q, K, V)
-
-      assert context.shape == (d,), f"Context shape wrong: {context.shape}"
-      assert np.allclose(weights.sum(), 1.0, atol=1e-6), "Attention weights must sum to 1"
-      assert sdpa_weights.shape == (1, T_enc)
-      print("✅ Attention mechanism assertions passed")
+    solution_code: "# Day 83: Image Captioning Capstone Part 2 — Attention-Augmented Decoder\nimport numpy as np\n\ndef scaled_dot_product_attention(Q, K, V):\n    \"\"\"Core attention mechanism: softmax(QK^T/sqrt(d_k)) * V\"\"\"\n    d_k = Q.shape[-1]\n    scores = Q @ K.T / np.sqrt(d_k)\n    # Softmax\n    scores -= scores.max(axis=-1, keepdims=True)\n    attn_weights = np.exp(scores) / np.exp(scores).sum(axis=-1, keepdims=True)\n    return attn_weights @ V, attn_weights\n\nclass BahdanauAttention:\n    \"\"\"Additive (Bahdanau) attention: score = v^T tanh(W1*h + W2*s)\"\"\"\n    def __init__(self, d_hidden):\n        np.random.seed(42)\n        self.W1 = np.random.randn(d_hidden, d_hidden) * 0.01\n        self.W2 = np.random.randn(d_hidden, d_hidden) * 0.01\n        self.v  = np.random.randn(d_hidden) * 0.01\n\n    def compute(self, encoder_states, decoder_state):\n        \"\"\"encoder_states: (T_enc, d), decoder_state: (d,)\"\"\"\n        energy = np.tanh(encoder_states @ self.W1.T\
+      \ + decoder_state @ self.W2.T)  # (T, d)\n        scores = energy @ self.v  # (T,)\n        weights = np.exp(scores - scores.max()) / np.exp(scores - scores.max()).sum()\n        context = weights @ encoder_states  # (d,)\n        return context, weights\n\n# Test attention mechanisms\nT_enc, d = 10, 64\nencoder_outputs = np.random.randn(T_enc, d)\ndecoder_state   = np.random.randn(d)\n\n# Bahdanau\nattn = BahdanauAttention(d)\ncontext, weights = attn.compute(encoder_outputs, decoder_state)\nprint(f\"Context vector shape: {context.shape}\")\nprint(f\"Attention weights sum: {weights.sum():.6f}\")\n\n# Scaled dot-product\nQ = decoder_state.reshape(1, -1)\nK = encoder_outputs\nV = encoder_outputs\nsdpa_out, sdpa_weights = scaled_dot_product_attention(Q, K, V)\n\nassert context.shape == (d,), f\"Context shape wrong: {context.shape}\"\nassert np.allclose(weights.sum(), 1.0, atol=1e-6), \"Attention weights must sum to 1\"\nassert sdpa_weights.shape == (1, T_enc)\nprint(\"✅ Attention mechanism\
+      \ assertions passed\")"
     badge: HARD
     badge_class: tb-hard
     time: 45 mins
@@ -1077,11 +784,7 @@ days:
     title: '⚠️ Gotcha: Positional Embeddings in Transformer Ingestion'
     description: Self-attention has zero concept of word order without adding positional encodings (Sinusoidal or RoPE).
   takeaways:
-    hinglish_line: |-
-      <strong>
-               Ek line mein:
-              </strong>
-              FlashAttention kernel execution memory blocks tiling se sequence attention steps O(N^2) memory footprint minimize karta hai.
+    hinglish_line: "<strong>\n         Ek line mein:\n        </strong>\n        FlashAttention kernel execution memory blocks tiling se sequence attention steps O(N^2) memory footprint minimize karta hai."
     bullets:
     - LSTMCell allows custom, step-by-step sequential sequence generation.
     - Attention weights dynamically focus on visual coordinates at each step.
@@ -1097,9 +800,7 @@ days:
 - id: 84
   day_num: 84
   title: 'Capstone Part 3: Training & BLEU Evaluation Loop'
-  subtitle: |-
-    In Phase 3 of our Major Capstone, we orchestrate the completeTraining & Validation Loopfor our multi-modal attention captioner.
-     Today, we master the engineering of stable sequence backpropagation, implement a padding-aware cross-entropy loss function to ignore non-semantic tokens, protect our LSTM gradients from exploding via gradient clipping, and build a validation metrics pipeline to compute real-timeBLEU-1 to BLEU-4scores.
+  subtitle: "In Phase 3 of our Major Capstone, we orchestrate the completeTraining & Validation Loopfor our multi-modal attention captioner.\n Today, we master the engineering of stable sequence backpropagation, implement a padding-aware cross-entropy loss function to ignore non-semantic tokens, protect our LSTM gradients from exploding via gradient clipping, and build a validation metrics pipeline to compute real-timeBLEU-1 to BLEU-4scores."
   time_estimate: 6 hours
   difficulty: Medium
   badges:
@@ -1143,10 +844,11 @@ days:
     fn\">print</span>(<span class=\"str\">\"Evaluated BLEU-1 (Unigram):\"</span>, b1)\n<span class=\"fn\">print</span>(<span class=\"str\">\"Evaluated BLEU-4 (Cumulative 4-gram):\"</span>, b4)</code></pre>\n</div>\n<h2 class=\"sh2\">\n       \U0001F6E0 Tasks\n      </h2>\n<div style=\"font-family:var(--font-mono);font-size: 12.5px;color:var(--muted);margin-top:0.5rem;margin-bottom:1rem;\">\n       \U0001F50D\n       <strong>\n        Search terms:\n       </strong>\n\n        image captioning attention maps visual alignments, seq2seq model with attention PyTorch\n       \n</div>\n"
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
-    code: |-
-      import numpy as np
+    code: 'import numpy as np
+
       tensor = np.zeros((32, 128))
-      print(tensor.ndim)
+
+      print(tensor.ndim)'
     answer: '2'
     explanation: A 2D matrix with batch dimension and feature dimension has a tensor rank/ndim of 2.
   tasks:
@@ -1160,93 +862,13 @@ days:
     git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day84: complete day 84 tasks and coding exercises"'
     sol_id: sol-w12d84t1
     solution_title: ✅ COMPLETE SOLUTION — build_a_comprehensive_validation_evaluat.py
-    solution_code: |-
-      # Day 84 Task 1: Comprehensive Seq2Seq Validation Loop with BLEU
-      from typing import List
-      import math
-      from collections import Counter
-
-      def compute_sentence_bleu(reference: List[str], hypothesis: List[str], max_n: int = 4) -> float:
-          """Computes sentence BLEU score with brevity penalty."""
-          ref_len, hyp_len = len(reference), len(hypothesis)
-          if hyp_len == 0: return 0.0
-
-          bp = math.exp(min(0, 1 - ref_len / hyp_len))
-          precisions = []
-          for n in range(1, max_n + 1):
-              ref_ngrams = Counter(tuple(reference[i:i+n]) for i in range(len(reference)-n+1))
-              hyp_ngrams = Counter(tuple(hypothesis[i:i+n]) for i in range(len(hypothesis)-n+1))
-              overlap = sum((hyp_ngrams & ref_ngrams).values())
-              total = max(1, len(hypothesis) - n + 1)
-              precisions.append((overlap + 1e-9) / total)
-
-          geom_mean = math.exp(sum(math.log(p) for p in precisions) / max_n)
-          return round(bp * geom_mean, 4)
-
-      ref = ["the", "cat", "sat", "on", "the", "mat"]
-      hyp = ["the", "cat", "is", "on", "the", "mat"]
-      bleu = compute_sentence_bleu(ref, hyp)
-      print(f"BLEU-4 Score: {bleu:.4f}")
-      assert bleu > 0.40
-      print("✓ Seq2Seq validation BLEU metric verified.")
+    solution_code: "# Day 84 Task 1: Comprehensive Seq2Seq Validation Loop with BLEU\nfrom typing import List\nimport math\nfrom collections import Counter\n\ndef compute_sentence_bleu(reference: List[str], hypothesis: List[str], max_n: int = 4) -> float:\n    \"\"\"Computes sentence BLEU score with brevity penalty.\"\"\"\n    ref_len, hyp_len = len(reference), len(hypothesis)\n    if hyp_len == 0: return 0.0\n\n    bp = math.exp(min(0, 1 - ref_len / hyp_len))\n    precisions = []\n    for n in range(1, max_n + 1):\n        ref_ngrams = Counter(tuple(reference[i:i+n]) for i in range(len(reference)-n+1))\n        hyp_ngrams = Counter(tuple(hypothesis[i:i+n]) for i in range(len(hypothesis)-n+1))\n        overlap = sum((hyp_ngrams & ref_ngrams).values())\n        total = max(1, len(hypothesis) - n + 1)\n        precisions.append((overlap + 1e-9) / total)\n\n    geom_mean = math.exp(sum(math.log(p) for p in precisions) / max_n)\n    return round(bp * geom_mean, 4)\n\nref = [\"the\", \"cat\"\
+      , \"sat\", \"on\", \"the\", \"mat\"]\nhyp = [\"the\", \"cat\", \"is\", \"on\", \"the\", \"mat\"]\nbleu = compute_sentence_bleu(ref, hyp)\nprint(f\"BLEU-4 Score: {bleu:.4f}\")\nassert bleu > 0.40\nprint(\"✓ Seq2Seq validation BLEU metric verified.\")"
     solution_lang: python
   - title: 'Production Benchmark — Capstone Part 3: Training & BLEU Evaluation Loop'
-    solution_code: |-
-      # Day 84: Image Captioning Capstone Part 3 — Training & BLEU Evaluation
-      import numpy as np
-      from collections import Counter
-
-      def compute_bleu(reference: list, hypothesis: list, n: int = 4) -> float:
-          """Compute corpus BLEU score (simplified, no brevity penalty for demo)."""
-          precisions = []
-          for gram_n in range(1, n + 1):
-              ref_ngrams  = Counter(zip(*[reference[i:] for i in range(gram_n)]))
-              hyp_ngrams  = Counter(zip(*[hypothesis[i:] for i in range(gram_n)]))
-              matches = sum((hyp_ngrams & ref_ngrams).values())
-              total   = max(sum(hyp_ngrams.values()), 1)
-              precisions.append(matches / total)
-
-          # Geometric mean of precisions
-          if min(precisions) == 0:
-              return 0.0
-          log_avg = np.mean([np.log(p) for p in precisions])
-          return float(np.exp(log_avg))
-
-      # Simulate epoch training with decreasing loss
-      class SimpleSeq2Seq:
-          def __init__(self, vocab_size=50, d_model=64):
-              np.random.seed(42)
-              self.vocab_size = vocab_size
-              self.d_model = d_model
-              self.loss = 3.5  # initial cross-entropy
-
-          def train_epoch(self, lr=0.01):
-              """Simulate one training epoch."""
-              self.loss *= (1 - lr * 0.3 + np.random.randn() * 0.01)
-              self.loss = max(self.loss, 0.5)
-              return self.loss
-
-          def generate(self, length=8):
-              """Simulate greedy decoding."""
-              return list(np.random.randint(4, self.vocab_size, length))
-
-      model = SimpleSeq2Seq()
-      losses = []
-      for epoch in range(10):
-          loss = model.train_epoch()
-          losses.append(loss)
-          if (epoch+1) % 5 == 0:
-              print(f"Epoch {epoch+1}: loss={loss:.4f}")
-
-      # BLEU evaluation
-      reference  = [5, 12, 3, 7, 9, 14, 2, 6]
-      hypothesis = [5, 12, 3, 8, 9, 14, 2, 6]  # slight error
-      bleu = compute_bleu(reference, hypothesis, n=4)
-      print(f"BLEU-4 score: {bleu:.4f}")
-
-      assert losses[-1] < losses[0], "Loss should decrease over training"
-      assert 0.0 <= bleu <= 1.0, f"BLEU out of range: {bleu}"
-      print("✅ Training + BLEU evaluation assertions passed")
+    solution_code: "# Day 84: Image Captioning Capstone Part 3 — Training & BLEU Evaluation\nimport numpy as np\nfrom collections import Counter\n\ndef compute_bleu(reference: list, hypothesis: list, n: int = 4) -> float:\n    \"\"\"Compute corpus BLEU score (simplified, no brevity penalty for demo).\"\"\"\n    precisions = []\n    for gram_n in range(1, n + 1):\n        ref_ngrams  = Counter(zip(*[reference[i:] for i in range(gram_n)]))\n        hyp_ngrams  = Counter(zip(*[hypothesis[i:] for i in range(gram_n)]))\n        matches = sum((hyp_ngrams & ref_ngrams).values())\n        total   = max(sum(hyp_ngrams.values()), 1)\n        precisions.append(matches / total)\n\n    # Geometric mean of precisions\n    if min(precisions) == 0:\n        return 0.0\n    log_avg = np.mean([np.log(p) for p in precisions])\n    return float(np.exp(log_avg))\n\n# Simulate epoch training with decreasing loss\nclass SimpleSeq2Seq:\n    def __init__(self, vocab_size=50, d_model=64):\n        np.random.seed(42)\n\
+      \        self.vocab_size = vocab_size\n        self.d_model = d_model\n        self.loss = 3.5  # initial cross-entropy\n\n    def train_epoch(self, lr=0.01):\n        \"\"\"Simulate one training epoch.\"\"\"\n        self.loss *= (1 - lr * 0.3 + np.random.randn() * 0.01)\n        self.loss = max(self.loss, 0.5)\n        return self.loss\n\n    def generate(self, length=8):\n        \"\"\"Simulate greedy decoding.\"\"\"\n        return list(np.random.randint(4, self.vocab_size, length))\n\nmodel = SimpleSeq2Seq()\nlosses = []\nfor epoch in range(10):\n    loss = model.train_epoch()\n    losses.append(loss)\n    if (epoch+1) % 5 == 0:\n        print(f\"Epoch {epoch+1}: loss={loss:.4f}\")\n\n# BLEU evaluation\nreference  = [5, 12, 3, 7, 9, 14, 2, 6]\nhypothesis = [5, 12, 3, 8, 9, 14, 2, 6]  # slight error\nbleu = compute_bleu(reference, hypothesis, n=4)\nprint(f\"BLEU-4 score: {bleu:.4f}\")\n\nassert losses[-1] < losses[0], \"Loss should decrease over training\"\nassert 0.0 <= bleu <=\
+      \ 1.0, f\"BLEU out of range: {bleu}\"\nprint(\"✅ Training + BLEU evaluation assertions passed\")"
     badge: HARD
     badge_class: tb-hard
     time: 45 mins
@@ -1359,11 +981,7 @@ days:
     title: '⚠️ Gotcha: Positional Embeddings in Transformer Ingestion'
     description: Self-attention has zero concept of word order without adding positional encodings (Sinusoidal or RoPE).
   takeaways:
-    hinglish_line: |-
-      <strong>
-               Ek line mein:
-              </strong>
-              Image captioning models CNN encoder features maps ko attention-driven LSTM sequence decoders ke inputs banate hain.
+    hinglish_line: "<strong>\n         Ek line mein:\n        </strong>\n        Image captioning models CNN encoder features maps ko attention-driven LSTM sequence decoders ke inputs banate hain."
     bullets:
     - Cross-Entropy ignore_index masks padding targets from gradients.
     - Gradient norm clipping prevents LSTMs from experiencing exploding parameters.
@@ -1379,9 +997,7 @@ days:
 - id: 85
   day_num: 85
   title: 'Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
-  subtitle: |-
-    During sequence generation inference, a model outputs probability distributions over the vocabulary step-by-step. How we select tokens from these distributions dictates the quality of generated captions.
-     Today, we master advancedInference Decoding Algorithms. We will compare standardGreedy Searchagainst the high-performanceBeam Searchalgorithm, analyzing path probabilities, vocabulary search spaces, and tracking cumulative log-probabilities to decode optimal captions.
+  subtitle: "During sequence generation inference, a model outputs probability distributions over the vocabulary step-by-step. How we select tokens from these distributions dictates the quality of generated captions.\n Today, we master advancedInference Decoding Algorithms. We will compare standardGreedy Searchagainst the high-performanceBeam Searchalgorithm, analyzing path probabilities, vocabulary search spaces, and tracking cumulative log-probabilities to decode optimal captions."
   time_estimate: 5.5 hours
   difficulty: Medium
   badges:
@@ -1429,28 +1045,19 @@ days:
     question: What is the cosine similarity between identical normalized unit vectors?
     answer: '1.0'
     explanation: dot(u, u) for any normalized unit vector is 1.0 (exact match).
-    code: |-
-      import numpy as np
+    code: 'import numpy as np
+
       v = np.array([0.6, 0.8])
+
       sim = np.dot(v, v) / (np.linalg.norm(v) * np.linalg.norm(v))
-      print(f'{sim:.1f}')
+
+      print(f''{sim:.1f}'')'
   tasks:
   - title: Build a decoding speed and BLEU benchmark comparison
     badge: Hard · 3.5 hrs
     badge_class: tb-hard
     time: 90 min
-    prompt_html: |-
-      <p><strong>
-                Write a script benchmarking Greedy Search vs Beam Search (K=3, K=5):
-                <br/>
-                1. Process 100 test images from the validation set.
-                <br/>
-                2. Measure the exact execution times for caption generation.
-                <br/>
-                3. Calculate the validation BLEU-4 scores for greedy, beam-3, and beam-5 captions.
-                <br/>
-                4. Print a structured comparison table outlining generation speeds and BLEU metrics.
-               </strong></p>
+    prompt_html: "<p><strong>\n          Write a script benchmarking Greedy Search vs Beam Search (K=3, K=5):\n          <br/>\n          1. Process 100 test images from the validation set.\n          <br/>\n          2. Measure the exact execution times for caption generation.\n          <br/>\n          3. Calculate the validation BLEU-4 scores for greedy, beam-3, and beam-5 captions.\n          <br/>\n          4. Print a structured comparison table outlining generation speeds and BLEU metrics.\n         </strong></p>"
     done_when: Your benchmark script completes execution, outputs a clean comparison table, demonstrating how increasing beam width affects decoding time vs generation quality.
     git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day85: complete day 85 tasks and coding exercises"'
     sol_id: sol-w12d85t1
@@ -1459,66 +1066,9 @@ days:
       \ loss = criterion(outputs, labels)\n        loss.backward()\n        optimizer.step()\n        \n        running_loss += loss.item() * inputs.size(0)\n        _, preds = torch.max(outputs, 1)\n        correct += (preds == labels).sum().item()\n        total += labels.size(0)\n        \n    epoch_loss = running_loss / total\n    epoch_acc = correct / total\n    if epoch % 5 == 0 or epoch == 1:\n        print(f\"Epoch {epoch:02d}/{epochs:02d} | Loss: {epoch_loss:.4f} | Acc: {epoch_acc*100:.2f}%\")\n\nif __name__ == '__main__':\n    solve()"
     solution_lang: python
   - title: 'Production Benchmark — Capstone Part 4: Greedy vs. Beam Search Inference Decoding'
-    solution_code: |-
-      # Day 85: Image Captioning Capstone Part 4 — Greedy vs Beam Search
-      import numpy as np
-
-      def greedy_decode(logits_sequence):
-          """Greedy decoding: take argmax at each step."""
-          return [np.argmax(step) for step in logits_sequence]
-
-      def beam_search(logits_sequence, beam_width=3, eos_token=2):
-          """
-          Beam search decoding.
-          logits_sequence: list of (vocab_size,) arrays, one per step
-          Returns: list of token ids (best beam)
-          """
-          # Each beam: (score, token_sequence)
-          beams = [(0.0, [])]
-          completed = []
-
-          for step_logits in logits_sequence:
-              probs = np.exp(step_logits - step_logits.max())
-              probs /= probs.sum()  # softmax
-              log_probs = np.log(probs + 1e-9)
-
-              new_beams = []
-              for score, seq in beams:
-                  top_k = np.argsort(log_probs)[-beam_width:]
-                  for token in top_k:
-                      new_score = score + log_probs[token]
-                      new_seq = seq + [int(token)]
-                      if int(token) == eos_token:
-                          completed.append((new_score / len(new_seq), new_seq))
-                      else:
-                          new_beams.append((new_score, new_seq))
-
-              # Keep top beam_width beams
-              new_beams.sort(key=lambda x: -x[0])
-              beams = new_beams[:beam_width]
-
-          if not completed:
-              # Return best beam
-              return max(beams, key=lambda x: x[0] / max(len(x[1]),1))[1]
-          return max(completed, key=lambda x: x[0])[1]
-
-      # Test both decoders
-      np.random.seed(42)
-      vocab_size = 30
-      T = 8  # sequence length
-      logits = [np.random.randn(vocab_size) for _ in range(T)]
-
-      greedy_out = greedy_decode(logits)
-      beam_out   = beam_search(logits, beam_width=3)
-
-      print(f"Greedy output: {greedy_out}")
-      print(f"Beam search output: {beam_out}")
-      print(f"Greedy length: {len(greedy_out)}, Beam length: {len(beam_out)}")
-
-      assert len(greedy_out) == T, "Greedy should have T outputs"
-      assert len(beam_out) >= 1, "Beam search must produce output"
-      assert all(0 <= t < vocab_size for t in greedy_out), "All tokens must be in vocab range"
-      print("✅ Greedy vs Beam Search assertions passed")
+    solution_code: "# Day 85: Image Captioning Capstone Part 4 — Greedy vs Beam Search\nimport numpy as np\n\ndef greedy_decode(logits_sequence):\n    \"\"\"Greedy decoding: take argmax at each step.\"\"\"\n    return [np.argmax(step) for step in logits_sequence]\n\ndef beam_search(logits_sequence, beam_width=3, eos_token=2):\n    \"\"\"\n    Beam search decoding.\n    logits_sequence: list of (vocab_size,) arrays, one per step\n    Returns: list of token ids (best beam)\n    \"\"\"\n    # Each beam: (score, token_sequence)\n    beams = [(0.0, [])]\n    completed = []\n\n    for step_logits in logits_sequence:\n        probs = np.exp(step_logits - step_logits.max())\n        probs /= probs.sum()  # softmax\n        log_probs = np.log(probs + 1e-9)\n\n        new_beams = []\n        for score, seq in beams:\n            top_k = np.argsort(log_probs)[-beam_width:]\n            for token in top_k:\n                new_score = score + log_probs[token]\n                new_seq = seq + [int(token)]\n\
+      \                if int(token) == eos_token:\n                    completed.append((new_score / len(new_seq), new_seq))\n                else:\n                    new_beams.append((new_score, new_seq))\n\n        # Keep top beam_width beams\n        new_beams.sort(key=lambda x: -x[0])\n        beams = new_beams[:beam_width]\n\n    if not completed:\n        # Return best beam\n        return max(beams, key=lambda x: x[0] / max(len(x[1]),1))[1]\n    return max(completed, key=lambda x: x[0])[1]\n\n# Test both decoders\nnp.random.seed(42)\nvocab_size = 30\nT = 8  # sequence length\nlogits = [np.random.randn(vocab_size) for _ in range(T)]\n\ngreedy_out = greedy_decode(logits)\nbeam_out   = beam_search(logits, beam_width=3)\n\nprint(f\"Greedy output: {greedy_out}\")\nprint(f\"Beam search output: {beam_out}\")\nprint(f\"Greedy length: {len(greedy_out)}, Beam length: {len(beam_out)}\")\n\nassert len(greedy_out) == T, \"Greedy should have T outputs\"\nassert len(beam_out) >= 1, \"Beam search\
+      \ must produce output\"\nassert all(0 <= t < vocab_size for t in greedy_out), \"All tokens must be in vocab range\"\nprint(\"✅ Greedy vs Beam Search assertions passed\")"
     badge: HARD
     badge_class: tb-hard
     time: 45 mins
@@ -1659,11 +1209,7 @@ days:
     title: '⚠️ Gotcha: Positional Embeddings in Transformer Ingestion'
     description: Self-attention has zero concept of word order without adding positional encodings (Sinusoidal or RoPE).
   takeaways:
-    hinglish_line: |-
-      <strong>
-               Ek line mein:
-              </strong>
-              Attention weight distributions visual checks aur scores plots se represent karte hain ki model kis sequence coordinate par check kar raha hai.
+    hinglish_line: "<strong>\n         Ek line mein:\n        </strong>\n        Attention weight distributions visual checks aur scores plots se represent karte hain ki model kis sequence coordinate par check kar raha hai."
     bullets:
     - Greedy search is computationally immediate but mathematically sub-optimal.
     - Beam Search tracks top-K paths to explore sequence spaces efficiently.
@@ -1679,10 +1225,7 @@ days:
 - id: 86
   day_num: 86
   title: 'Capstone Part 5: Gradio Web Deployment'
-  subtitle: |-
-    In the final phase of our Month 3 Capstone, we deploy our fully trained, attention-augmented image captioning model.
-     Today, we master the construction of a beautiful, interactiveGradio Web Interfacewith a dark, premium UI theme.
-     We will write production-ready code that loads our weights, processes uploaded images, generates real-time captions using Greedy or Beam Search, and overlaysAttention Heatmap Vismapsdirectly onto the images to show users exactly where the model looked for each predicted word.
+  subtitle: "In the final phase of our Month 3 Capstone, we deploy our fully trained, attention-augmented image captioning model.\n Today, we master the construction of a beautiful, interactiveGradio Web Interfacewith a dark, premium UI theme.\n We will write production-ready code that loads our weights, processes uploaded images, generates real-time captions using Greedy or Beam Search, and overlaysAttention Heatmap Vismapsdirectly onto the images to show users exactly where the model looked for each predicted word."
   time_estimate: 6 hours
   difficulty: Medium
   badges:
@@ -1736,99 +1279,29 @@ days:
     question: What is the computed throughput (requests per second) for 100 requests served in 2.0 seconds?
     answer: '50'
     explanation: Throughput = total_requests / total_seconds = 100 / 2.0 = 50 req/sec.
-    code: |-
-      reqs = 100
+    code: 'reqs = 100
+
       sec = 2.0
+
       rps = int(reqs / sec)
-      print(rps)
+
+      print(rps)'
   tasks:
   - title: Deploy Gradio UI with real attention heatmap overlays
     badge: Hard · 4 hrs
     badge_class: tb-hard
     time: 90 min
-    prompt_html: |-
-      <p><strong>
-                Configure a complete Gradio application:
-                <br/>
-                1. Create a dynamic dashboard where the output includes the text caption and a carousel showing generated attention heatmaps for *every word* in the caption.
-                <br/>
-                2. Set up input validation checking for proper image aspect ratios.
-                <br/>
-                3. Include model inference configurations allowing users to choose between Greedy Search and Beam Search (K=3, K=5) options using dropdown inputs.
-               </strong></p>
+    prompt_html: "<p><strong>\n          Configure a complete Gradio application:\n          <br/>\n          1. Create a dynamic dashboard where the output includes the text caption and a carousel showing generated attention heatmaps for *every word* in the caption.\n          <br/>\n          2. Set up input validation checking for proper image aspect ratios.\n          <br/>\n          3. Include model inference configurations allowing users to choose between Greedy Search and Beam Search (K=3, K=5) options using dropdown inputs.\n         </strong></p>"
     done_when: Your deployed Gradio app allows greedy/beam choices, processes target inputs, and renders visual word-by-word heatmaps correctly, demonstrating professional production-grade AI deployment.
     git_cmd: 'git add . &amp;&amp; git commit -m "feat(day): day86: seq2seq attention image captioning gradio capstone"'
     sol_id: sol-w12d86t1
     solution_title: Production Implementation — Deploy Gradio UI with real attention heatmap overlays
-    solution_code: |-
-      # Day 86: Image Captioning Capstone Part 5 — Gradio-style Web Deployment
-      # Simulates a Gradio UI for image captioning (no actual Gradio install required)
-      import numpy as np
-      import json
-
-      class CaptioningModel:
-          """Mock image captioning model for deployment demo."""
-          TEMPLATES = [
-              "a {adj} {obj} {action} in the {location}",
-              "{count} {obj}s {action} on a {location}",
-              "a person {action} near a {obj} in the {location}",
-          ]
-          VOCAB = {
-              'adj': ['small', 'large', 'colorful', 'wooden', 'bright'],
-              'obj': ['dog', 'cat', 'car', 'tree', 'bird'],
-              'action': ['playing', 'resting', 'running', 'sitting', 'flying'],
-              'location': ['park', 'street', 'beach', 'garden', 'room'],
-              'count': ['two', 'three', 'several', 'many'],
-          }
-
-          def predict(self, image_array: np.ndarray) -> dict:
-              """Generate caption for an image array."""
-              np.random.seed(int(image_array.sum()) % 2**31)
-              template = np.random.choice(self.TEMPLATES)
-              caption = template.format(**{k: np.random.choice(v) for k, v in self.VOCAB.items()})
-              confidence = float(np.random.uniform(0.65, 0.95))
-              return {'caption': caption, 'confidence': round(confidence, 4)}
-
-      def gradio_predict_fn(image_array: np.ndarray) -> str:
-          """Gradio-compatible prediction function."""
-          model = CaptioningModel()
-          result = model.predict(image_array)
-          return json.dumps(result, indent=2)
-
-      # Simulate Gradio deployment test
-      test_images = [np.random.randint(0, 255, (224, 224, 3)) for _ in range(5)]
-      outputs = [gradio_predict_fn(img) for img in test_images]
-
-      for i, out in enumerate(outputs):
-          result = json.loads(out)
-          print(f"Image {i+1}: {result['caption']} (confidence={result['confidence']})")
-
-      # Assertions
-      for out in outputs:
-          result = json.loads(out)
-          assert 'caption' in result
-          assert 'confidence' in result
-          assert 0.5 < result['confidence'] <= 1.0
-          assert len(result['caption'].split()) >= 5, "Caption should be ≥5 words"
-
-      print("✅ Gradio deployment assertions passed")
+    solution_code: "# Day 86: Image Captioning Capstone Part 5 — Gradio-style Web Deployment\n# Simulates a Gradio UI for image captioning (no actual Gradio install required)\nimport numpy as np\nimport json\n\nclass CaptioningModel:\n    \"\"\"Mock image captioning model for deployment demo.\"\"\"\n    TEMPLATES = [\n        \"a {adj} {obj} {action} in the {location}\",\n        \"{count} {obj}s {action} on a {location}\",\n        \"a person {action} near a {obj} in the {location}\",\n    ]\n    VOCAB = {\n        'adj': ['small', 'large', 'colorful', 'wooden', 'bright'],\n        'obj': ['dog', 'cat', 'car', 'tree', 'bird'],\n        'action': ['playing', 'resting', 'running', 'sitting', 'flying'],\n        'location': ['park', 'street', 'beach', 'garden', 'room'],\n        'count': ['two', 'three', 'several', 'many'],\n    }\n\n    def predict(self, image_array: np.ndarray) -> dict:\n        \"\"\"Generate caption for an image array.\"\"\"\n        np.random.seed(int(image_array.sum())\
+      \ % 2**31)\n        template = np.random.choice(self.TEMPLATES)\n        caption = template.format(**{k: np.random.choice(v) for k, v in self.VOCAB.items()})\n        confidence = float(np.random.uniform(0.65, 0.95))\n        return {'caption': caption, 'confidence': round(confidence, 4)}\n\ndef gradio_predict_fn(image_array: np.ndarray) -> str:\n    \"\"\"Gradio-compatible prediction function.\"\"\"\n    model = CaptioningModel()\n    result = model.predict(image_array)\n    return json.dumps(result, indent=2)\n\n# Simulate Gradio deployment test\ntest_images = [np.random.randint(0, 255, (224, 224, 3)) for _ in range(5)]\noutputs = [gradio_predict_fn(img) for img in test_images]\n\nfor i, out in enumerate(outputs):\n    result = json.loads(out)\n    print(f\"Image {i+1}: {result['caption']} (confidence={result['confidence']})\")\n\n# Assertions\nfor out in outputs:\n    result = json.loads(out)\n    assert 'caption' in result\n    assert 'confidence' in result\n    assert 0.5 < result['confidence']\
+      \ <= 1.0\n    assert len(result['caption'].split()) >= 5, \"Caption should be ≥5 words\"\n\nprint(\"✅ Gradio deployment assertions passed\")"
     solution_lang: python
   - title: 'Production Benchmark — Capstone Part 5: Gradio Web Deployment'
-    solution_code: |-
-      # Day 86 Task 2: Image Captioning Production Benchmark
-      import time, numpy as np
-
-      def benchmark_captioning_latency(batch_size: int = 8, seq_len: int = 16) -> dict:
-          start = time.perf_counter()
-          # Simulated autoregressive greedy decoding
-          time.sleep(0.01)
-          latency_ms = (time.perf_counter() - start) * 1000
-          return {"batch_size": batch_size, "latency_ms": round(latency_ms, 2), "p95_under_100ms": latency_ms < 100}
-
-      res = benchmark_captioning_latency()
-      print("Captioning Benchmark:", res)
-      assert res["p95_under_100ms"] is True
-      print("✓ Captioning benchmark verified.")
+    solution_code: "# Day 86 Task 2: Image Captioning Production Benchmark\nimport time, numpy as np\n\ndef benchmark_captioning_latency(batch_size: int = 8, seq_len: int = 16) -> dict:\n    start = time.perf_counter()\n    # Simulated autoregressive greedy decoding\n    time.sleep(0.01)\n    latency_ms = (time.perf_counter() - start) * 1000\n    return {\"batch_size\": batch_size, \"latency_ms\": round(latency_ms, 2), \"p95_under_100ms\": latency_ms < 100}\n\nres = benchmark_captioning_latency()\nprint(\"Captioning Benchmark:\", res)\nassert res[\"p95_under_100ms\"] is True\nprint(\"✓ Captioning benchmark verified.\")"
     badge: HARD
     badge_class: tb-hard
     time: 45 mins
@@ -1941,11 +1414,7 @@ days:
     title: '⚠️ Gotcha: Positional Embeddings in Transformer Ingestion'
     description: Self-attention has zero concept of word order without adding positional encodings (Sinusoidal or RoPE).
   takeaways:
-    hinglish_line: |-
-      <strong>
-               Ek line mein:
-              </strong>
-              Rotary Position Embeddings sequence indices rotations coordinates calculations vectors parameters apply karke distance scaling adjust karte hain.
+    hinglish_line: "<strong>\n         Ek line mein:\n        </strong>\n        Rotary Position Embeddings sequence indices rotations coordinates calculations vectors parameters apply karke distance scaling adjust karte hain."
     bullets:
     - Gradio gr.Blocks is the premium API for custom web apps.
     - Spatial attention maps must be interpolated smoothly using Bilinear methods.
@@ -1964,28 +1433,5 @@ toolkit:
   title: 'Master Toolkit: Sequence Modeling & Image Captioning Architecture'
   subtitle: Encoder-Decoder attention mechanisms, BLEU score evaluators, and PyTorch multimodal training loops.
   xp: 500
-  content_html: |-
-    <h2 class="sh2">🛠️ Master Toolkit: Sequence Modeling & Image Captioning</h2>
-    <p>
-    Essential reference implementations for attention-based encoder-decoder vision-language systems.
-    </p>
-    <h3 class="sh3">1. Additive Bahdanau Attention Formulation in PyTorch</h3>
-    <div class="cb">
-      <div class="cb-head"><span class="cb-lang">python — bahdanau_attention.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-      <pre><code>import torch
-    import torch.nn as nn
-
-    class BahdanauAttention(nn.Module):
-        def __init__(self, hidden_dim: int):
-            super().__init__()
-            self.W1 = nn.Linear(hidden_dim, hidden_dim)
-            self.W2 = nn.Linear(hidden_dim, hidden_dim)
-            self.V = nn.Linear(hidden_dim, 1)
-
-        def forward(self, query: torch.Tensor, values: torch.Tensor) -> torch.Tensor:
-            # query: (Batch, 1, Hidden), values: (Batch, SeqLen, Hidden)
-            scores = self.V(torch.tanh(self.W1(query) + self.W2(values)))
-            weights = torch.softmax(scores, dim=1)
-            context = torch.sum(weights * values, dim=1)
-            return context</code></pre>
-    </div>
+  content_html: "<h2 class=\"sh2\">\U0001F6E0️ Master Toolkit: Sequence Modeling & Image Captioning</h2>\n<p>\nEssential reference implementations for attention-based encoder-decoder vision-language systems.\n</p>\n<h3 class=\"sh3\">1. Additive Bahdanau Attention Formulation in PyTorch</h3>\n<div class=\"cb\">\n  <div class=\"cb-head\"><span class=\"cb-lang\">python — bahdanau_attention.py</span><div class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n  <pre><code>import torch\nimport torch.nn as nn\n\nclass BahdanauAttention(nn.Module):\n    def __init__(self, hidden_dim: int):\n        super().__init__()\n        self.W1 = nn.Linear(hidden_dim, hidden_dim)\n        self.W2 = nn.Linear(hidden_dim, hidden_dim)\n        self.V = nn.Linear(hidden_dim, 1)\n\n    def forward(self, query: torch.Tensor, values: torch.Tensor) -> torch.Tensor:\n        # query: (Batch, 1, Hidden), values: (Batch, SeqLen, Hidden)\n        scores = self.V(torch.tanh(self.W1(query)\
+    \ + self.W2(values)))\n        weights = torch.softmax(scores, dim=1)\n        context = torch.sum(weights * values, dim=1)\n        return context</code></pre>\n</div>"
