@@ -422,6 +422,9 @@ function goDay(dayId) {
   if (typeof renderMermaid === 'function') {
     renderMermaid('day-' + did);
   }
+  if (typeof window.highlightPythonCode === 'function' && targetSec) {
+    window.highlightPythonCode(targetSec);
+  }
   
   try {
     history.replaceState(null, '', '#day-' + did);
@@ -445,6 +448,9 @@ function toggleTask(headerEl) {
   const isHidden = body.style.display === 'none' || !body.style.display;
   body.style.display = isHidden ? 'block' : 'none';
   headerEl.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+  if (isHidden && typeof window.highlightPythonCode === 'function') {
+    window.highlightPythonCode(body);
+  }
 }
 
 function toggleSolution(arg1, arg2) {
@@ -459,16 +465,18 @@ function toggleSolution(arg1, arg2) {
     sol = btn.nextElementSibling || (btn.parentElement ? btn.parentElement.querySelector('.solution-block, .solution, pre, .cb') : null);
   }
   
-  if (!sol && btn && btn.nextElementSibling) {
-    sol = btn.nextElementSibling;
+  if (!sol) return;
+  const isHidden = sol.style.display === 'none' || !sol.style.display || sol.classList.contains('hidden');
+  sol.style.display = isHidden ? 'block' : 'none';
+  sol.classList.toggle('hidden', !isHidden);
+  
+  if (btn) {
+    btn.textContent = isHidden ? '🙈 Hide Solution' : '💡 Show Complete Solution';
+    btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
   }
   
-  if (!sol) return;
-  const isHidden = (window.getComputedStyle(sol).display === 'none' || sol.style.display === 'none');
-  sol.style.display = isHidden ? 'block' : 'none';
-  if (btn) {
-    btn.textContent = isHidden ? '🙈 Hide Solution' : '👁️ Show Solution';
-    btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+  if (isHidden && typeof window.highlightPythonCode === 'function') {
+    window.highlightPythonCode(sol);
   }
 }
 
@@ -753,6 +761,81 @@ if (document.readyState === 'loading') {
   window.initKaTeX();
 }
 
+// ── 8. CLIENT-SIDE PYTHON SYNTAX HIGHLIGHTER ──────────────────────
+window.highlightPythonCode = function(container) {
+  const root = container || document;
+  const blocks = root.querySelectorAll('pre code, .cb pre, .solution-box pre');
+  
+  const keywords = ['def', 'import', 'from', 'return', 'if', 'else', 'elif', 'for', 'in', 'while', 'try', 'except', 'finally', 'with', 'as', 'async', 'await', 'assert', 'yield', 'raise', 'pass', 'break', 'continue', 'lambda', 'global', 'nonlocal', 'is', 'not', 'and', 'or', 'None', 'True', 'False'];
+  const builtins = ['print', 'len', 'range', 'dict', 'list', 'set', 'tuple', 'int', 'float', 'str', 'bool', 'sum', 'max', 'min', 'round', 'enumerate', 'zip', 'map', 'filter', 'any', 'all', 'isinstance', 'type', 'open', 'super', 'self'];
+  const kwRegex = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
+  const biRegex = new RegExp(`\\b(${builtins.join('|')})\\b`, 'g');
+
+  blocks.forEach(el => {
+    // Avoid double-highlighting if spans are already present
+    if (el.querySelector('.kw, .fn, .str, .cm, .cls')) return;
+    
+    let text = el.textContent || '';
+    if (!text.trim()) return;
+
+    let escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+      
+    const placeholders = [];
+    function save(tokenHtml) {
+      placeholders.push(tokenHtml);
+      return `___PH_${placeholders.length - 1}___`;
+    }
+    
+    // 1. Comments
+    escaped = escaped.replace(/(#.*$)/gm, (m) => save(`<span class="cm">${m}</span>`));
+    
+    // 2. Multi-line docstrings / triple quotes
+    escaped = escaped.replace(/("""[\s\S]*?"""|'''[\s\S]*?''')/g, (m) => save(`<span class="str">${m}</span>`));
+    
+    // 3. Single and double strings (including f, r, b prefixes)
+    escaped = escaped.replace(/(\b[frbFRB]?"(?:[^"\\\n]|\\.)*"|\b[frbFRB]?'(?:[^'\\\n]|\\.)*')/g, (m) => save(`<span class="str">${m}</span>`));
+    
+    // 4. Decorators
+    escaped = escaped.replace(/(@[a-zA-Z_]\w*)/g, (m) => save(`<span class="dec">${m}</span>`));
+    
+    // 5. Class definitions: class ClassName
+    escaped = escaped.replace(/\bclass\s+([a-zA-Z_]\w*)/g, (m, clsName) => {
+      return `<span class="kw">class</span> <span class="cls">${clsName}</span>`;
+    });
+    
+    // 6. Keywords
+    escaped = escaped.replace(kwRegex, '<span class="kw">$1</span>');
+    
+    // 7. Builtins
+    escaped = escaped.replace(biRegex, '<span class="bi">$1</span>');
+    
+    // 8. Functions: word followed by (
+    escaped = escaped.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, (m, fnName) => {
+      if (keywords.includes(fnName) || builtins.includes(fnName) || fnName === 'class') return m;
+      return `<span class="fn">${fnName}</span>`;
+    });
+    
+    // 9. Numbers (integers, floats, hex)
+    escaped = escaped.replace(/\b(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|0x[0-9a-fA-F]+)\b/g, '<span class="num">$1</span>');
+    
+    // Restore placeholders
+    for (let i = placeholders.length - 1; i >= 0; i--) {
+      escaped = escaped.replace(`___PH_${i}___`, placeholders[i]);
+    }
+    
+    el.innerHTML = escaped;
+  });
+};
+
+// Auto-run syntax highlighter
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => window.highlightPythonCode());
+} else {
+  window.highlightPythonCode();
+}
 
 // Active cleanup of any rogue mermaid error nodes
 setInterval(() => {
