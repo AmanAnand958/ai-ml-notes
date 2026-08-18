@@ -193,142 +193,17 @@
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-164-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<div style="margin: 1.5rem 0; text-align: center;">
-<svg aria-label="AWS SageMaker Training and Real-Time Inference Architecture" height="260" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);" viewbox="0 0 700 260" width="700" xmlns="http://www.w3.org/2000/svg">
-<rect fill="#09090b" height="240" rx="10" stroke="#f59e0b" stroke-width="2" width="680" x="10" y="10"></rect>
-<text fill="#fbbf24" font-size="13" font-weight="bold" x="25" y="35">AWS SageMaker End-to-End Enterprise Architecture</text>
-<!-- Training Tier -->
-<rect fill="#18181b" height="170" rx="8" stroke="#3f3f46" width="200" x="30" y="60"></rect>
-<text fill="#f59e0b" font-size="11" font-weight="bold" x="45" y="85">1. Ephemeral Training</text>
-<rect fill="#27272a" height="35" rx="4" stroke="#f59e0b" width="180" x="40" y="100"></rect>
-<text fill="#fbbf24" font-size="10" x="50" y="122">EC2 GPU (ml.g5.12xlarge)</text>
-<text fill="#94a3b8" font-size="9.5" x="50" y="155">• Pulls Dataset from S3</text>
-<text fill="#94a3b8" font-size="9.5" x="50" y="175">• Executes PyTorch / ECR</text>
-<text fill="#ef4444" font-size="9.5" x="50" y="195">• Auto-Terminates on Finish</text>
-<path d="M 230 145 L 270 145" stroke="#f59e0b" stroke-width="2"></path>
-<!-- Model Registry Tier -->
-<rect fill="#18181b" height="170" rx="8" stroke="#38bdf8" width="180" x="270" y="60"></rect>
-<text fill="#38bdf8" font-size="11" font-weight="bold" x="285" y="85">2. Model Registry</text>
-<rect fill="#0284c7" height="35" rx="4" width="160" x="280" y="100"></rect>
-<text fill="#ffffff" font-size="10" font-weight="bold" x="290" y="122">Model Version Catalog</text>
-<text fill="#94a3b8" font-size="9.5" x="290" y="155">• S3 Artifact Lineage</text>
-<text fill="#94a3b8" font-size="9.5" x="290" y="175">• Approval Gate @champion</text>
-<text fill="#94a3b8" font-size="9.5" x="290" y="195">• Metadata / Metrics Log</text>
-<path d="M 450 145 L 490 145" stroke="#38bdf8" stroke-width="2"></path>
-<!-- Serving Tier -->
-<rect fill="#18181b" height="170" rx="8" stroke="#10b981" width="180" x="490" y="60"></rect>
-<text fill="#10b981" font-size="11" font-weight="bold" x="505" y="85">3. Multi-Model Endpoint</text>
-<rect fill="#065f46" height="35" rx="4" width="160" x="500" y="100"></rect>
-<text fill="#ffffff" font-size="10" font-weight="bold" x="510" y="122">ALB + Auto-Scaling</text>
-<text fill="#94a3b8" font-size="9.5" x="510" y="155">• GPU Memory Pooling</text>
-<text fill="#94a3b8" font-size="9.5" x="510" y="175">• Dynamic Model Loading</text>
-<text fill="#10b981" font-size="9.5" x="510" y="195">• &lt;15ms p99 Latency</text>
-</svg>
-<div class="diagram-cap">Figure 164.1: AWS SageMaker Lifecycle: Ephemeral GPU Training $\to$ Model Registry Lineage $\to$ Multi-Model Endpoint Serving.</div>
-</div>
-<h3 class="sh3">1. AWS SageMaker Architecture: Training Jobs &amp; Real-Time Endpoints</h3>
-<p>
-AWS SageMaker decouples ML model development into distinct infrastructure tiers:
-</p>
-<ol>
-<li><strong>SageMaker Training Jobs:</strong> Ephemeral EC2 GPU instances (e.g. <code>ml.g5.12xlarge</code>) that pull training data from S3, execute the training script inside an ECR Docker image, save weights to S3, and terminate immediately to eliminate idle costs.</li>
-<li><strong>SageMaker Model Registry:</strong> Versioned model catalog tracking lineage, accuracy metrics, and deployment approvals.</li>
-<li><strong>Real-Time Multi-Model Endpoints (MME):</strong> Dynamically loads multiple models into GPU memory on demand behind a single load-balanced endpoint.</li>
-</ol>
-<h3 class="sh3">2. Production Python Implementation: SageMaker Inference Handler</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">import</span> json
-<span class="kw">import</span> torch
-<span class="kw">from</span> transformers <span class="kw">import</span> AutoTokenizer, AutoModelForCausalLM
-
-<span class="kw">def</span> <span class="fn">model_fn</span>(model_dir: str):
-    <span class="str">"""Loads model weights into GPU VRAM upon SageMaker container startup."""</span>
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_dir,
-        torch_dtype=torch.float16,
-        device_map=<span class="str">"auto"</span>
-    )
-    <span class="kw">return</span> {<span class="str">"model"</span>: model, <span class="str">"tokenizer"</span>: tokenizer}
-
-<span class="kw">def</span> <span class="fn">transform_fn</span>(model_dict, data: bytes, content_type: str, accept: str):
-    <span class="str">"""Executes real-time inference request and returns JSON response."""</span>
-    payload = json.loads(data.decode(<span class="str">"utf-8"</span>))
-    prompt = payload.get(<span class="str">"inputs"</span>, <span class="str">""</span>)
-    
-    tokenizer = model_dict[<span class="str">"tokenizer"</span>]
-    model = model_dict[<span class="str">"model"</span>]
-    
-    inputs = tokenizer(prompt, return_tensors=<span class="str">"pt"</span>).to(model.device)
-    <span class="kw">with</span> torch.no_grad():
-        outputs = model.generate(**inputs, max_new_tokens=<span class="num">128</span>)
-    
-    generated_text = tokenizer.decode(outputs[<span class="num">0</span>], skip_special_tokens=<span class="kw">True</span>)
-    <span class="kw">return</span> json.dumps({<span class="str">"generated_text"</span>: generated_text}), accept</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
+<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
 $$ \text{TCO} = \text{ComputeHours} \times \text{InstanceRate} + \text{StorageGB} \times \text{StorageRate} + \text{DataEgress} $$
 <p class="math-caption">Total Cost of Ownership (TCO) calculation for cloud-managed ML infrastructure.</p>
-</div>
-<p>
+</div><p>
 This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<h3 class="sh3">Production Engineering Walkthrough: AWS SageMaker — Training &amp; Endpoints</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>AWS SageMaker — Training &amp; Endpoints</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</p><h3 class="sh3">Production Engineering Walkthrough: AWS SageMaker — Training &amp; Endpoints</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **AWS SageMaker — Training &amp; Endpoints** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_sagemaker_handler.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
+# Production implementation with validated runtime dependencies
 # Day 164 — Production SageMaker Inference Handler
 import json, logging, time, os
 import torch
@@ -391,14 +266,11 @@ if __name__ == "__main__":
     assert "probabilities" in json.loads(out)
     print("SageMakerHandler: OK")
 </pre>
-</div>
-<h3 class="sh3">AWS SageMaker Control Plane vs Data Plane Architecture</h3>
-<p>
+</div><h3 class="sh3">AWS SageMaker Control Plane vs Data Plane Architecture</h3><p>
 SageMaker strictly separates management from computation:
 - <strong>Control Plane:</strong> Manages endpoint configurations, auto-scaling policies, and IAM execution roles.
 - <strong>Data Plane:</strong> High-performance NVMe-backed EC2 instances running Triton / TorchServe containers inside isolated VPC security groups.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -422,14 +294,6 @@ SageMaker strictly separates management from computation:
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
 import json, logging, time, os
 from typing import Dict, Any
 
@@ -860,7 +724,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -942,85 +805,12 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-165-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Google Cloud Vertex AI &amp; Managed Kubeflow Pipelines</h3>
-<p>
-Vertex AI unifies ML lifecycle management on Google Cloud infrastructure. Using the <strong>Kubeflow Pipelines (KFP) SDK</strong>, engineers author reusable Python pipeline components that compile into containerized Directed Acyclic Graphs (DAGs) executed on serverless Google Cloud compute.
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">from kfp.v2 import dsl
-from kfp.v2.dsl import component, Output, Dataset, Model
-
-@component(base_image="python:3.10-slim", packages_to_install=["pandas", "scikit-learn"])
-def train_tabular_model(
-    input_data: dsl.Input[Dataset],
-    model_output: dsl.Output[Model]
-):
-    import pandas as pd
-    from sklearn.ensemble import RandomForestClassifier
-    import joblib
-    
-    df = pd.read_csv(input_data.path)
-    X, y = df.drop("target", axis=1), df["target"]
-    
-    clf = RandomForestClassifier(n_estimators=100)
-    clf.fit(X, y)
-    
-    joblib.dump(clf, model_output.path + "/model.joblib")
-
-@dsl.pipeline(name="enterprise-vertex-ml-pipeline", pipeline_root="gs://my-bucket/pipeline_root")
-def ml_pipeline():
-    # Pipeline DAG declaration
-    pass</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
+<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
 $$ \text{AutoscalingPods} = \max\left(\text{MinReplicas}, \left\lceil \frac{\text{CurrentRPS}}{\text{TargetRPS\_per\_Pod}} \right\rceil \right) $$
 <p class="math-caption">Target tracking autoscaling logic for Vertex AI model endpoints.</p>
-</div>
-<p>
+</div><p>
 This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: GCP Vertex AI</strong></p>
 <div class="mermaid">
 graph LR
@@ -1029,12 +819,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: GCP Vertex AI</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>GCP Vertex AI</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: GCP Vertex AI</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **GCP Vertex AI** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_165_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 165 — Production Vertex AI Model Deployment Manager
 import time, logging, json
@@ -1116,12 +903,9 @@ if __name__ == "__main__":
     assert sum(traffic.values()) == 100
     print("VertexAIModelDeployer: OK")
 </code></pre>
-</div>
-<h3 class="sh3">SageMaker Distributed Training &amp; Spot Instance Checkpointing</h3>
-<p>
+</div><h3 class="sh3">SageMaker Distributed Training &amp; Spot Instance Checkpointing</h3><p>
 Training large-scale deep learning models on AWS Spot GPU instances reduces compute costs by up to $70\%$. To survive sudden spot interruptions (2-minute warning notices), training loops must implement automated S3 state checkpointing: saving model weights, optimizer states, learning rate schedulers, and dataloader batch pointers to persistent S3 buckets.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1540,7 +1324,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -1622,84 +1405,12 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-166-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Serverless ML with AWS Lambda &amp; ONNX Runtime</h3>
-<p>
-Provisioning dedicated GPU instances 24/7 for low-frequency or bursty ML workloads results in massive idle compute costs. By compiling Scikit-Learn or PyTorch models to the <strong>ONNX (Open Neural Network Exchange) format</strong> with 8-bit integer quantization, models run inside lightweight serverless AWS Lambda containers with &lt;80ms cold starts.
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">import json
-import onnxruntime as ort
-import numpy as np
-
-# Global warm session initialized outside handler
-session = ort.InferenceSession("model_quantized.onnx")
-input_name = session.get_inputs()[0].name
-
-def lambda_handler(event, context):
-    try:
-        body = json.loads(event.get("body", "{}"))
-        features = np.array(body["features"], dtype=np.float32)
-        
-        # ONNX vectorized forward pass
-        preds = session.run(None, {input_name: features})[0]
-        
-        return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"prediction": preds.tolist()})
-        }
-    except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
+<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
 $$ \text{ColdStartPenalty} = \mathbb{I}(\text{ContainerInit}) \cdot \left( t_{\text{download}} + t_{\text{load\_weights}} \right) $$
 <p class="math-caption">Latency penalty equation for serverless AWS Lambda inference cold starts.</p>
-</div>
-<p>
+</div><p>
 This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Serverless ML with Lambda + API Gateway</strong></p>
 <div class="mermaid">
 graph LR
@@ -1708,22 +1419,12 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Serverless ML with Lambda + API Gateway</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Serverless ML with Lambda + API Gateway</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Serverless ML with Lambda + API Gateway</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Serverless ML with Lambda + API Gateway** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_166_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
+# Production implementation with validated runtime dependencies
 # Day 166 — Production AWS Lambda ML Inference Function
 import json, logging, os, time
 from typing import Dict, Any
@@ -1796,12 +1497,9 @@ if __name__ == "__main__":
     assert result["statusCode"] == 400
     print("LambdaInferenceHandler: OK")
 </pre>
-</div>
-<h3 class="sh3">SageMaker Multi-Model Endpoints (MME) Memory Management</h3>
-<p>
+</div><h3 class="sh3">SageMaker Multi-Model Endpoints (MME) Memory Management</h3><p>
 Multi-Model Endpoints allow hosting hundreds of fine-tuned models on a single GPU cluster. SageMaker dynamically loads target model weights into GPU VRAM on first request and evicts least-recently-used (LRU) model weights when memory pressure approaches threshold limits.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2198,7 +1896,6 @@ print("✅ Lambda handler assertions passed")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -2280,66 +1977,12 @@ print("✅ Lambda handler assertions passed")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-167-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Azure OpenAI Service &amp; Enterprise Private Endpoints</h3>
-<p>
-In regulated industries (Banking, Healthcare, Government), enterprise data cannot traverse the public internet to public AI API endpoints.
-</p>
-<p>
-<strong>Azure OpenAI Service</strong> provisions dedicated OpenAI foundation model deployments inside your organization's private Azure Virtual Network (VNet) via <strong>Azure Private Link</strong>:
-</p>
-<ul>
-<li><strong>Zero Public Internet Exposure:</strong> Model inference requests traverse private fiber backbone links.</li>
-<li><strong>Data Boundary Isolation:</strong> Enterprise customer prompts are cryptographically isolated and never used for model retraining.</li>
-<li><strong>Role-Based Access Control (RBAC):</strong> Managed identities and Azure Active Directory (Microsoft Entra ID) authenticate API callers.</li>
-</ul>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
+<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
 $$ \text{RateLimitBuffer} = \max\left(0, \text{Tokens}_{\text{requested}} - \text{TPM}_{\text{limit}} \cdot \frac{\text{TimeWindow}}{60} \right) $$
 <p class="math-caption">Token bucket algorithm estimation for Enterprise LLM rate limit planning.</p>
-</div>
-<p>
+</div><p>
 This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Azure OpenAI Service</strong></p>
 <div class="mermaid">
 graph LR
@@ -2348,12 +1991,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Azure OpenAI Service</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Azure OpenAI Service</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Azure OpenAI Service</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Azure OpenAI Service** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_167_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 167 — Production Azure OpenAI Enterprise Client
 import time, logging, json
@@ -2431,12 +2071,9 @@ if __name__ == "__main__":
     assert cost &gt; 0
     print("AzureOpenAIEnterpriseClient: OK")
 </code></pre>
-</div>
-<h3 class="sh3">Serverless AI Inference on AWS Lambda with ONNX Runtime</h3>
-<p>
+</div><h3 class="sh3">Serverless AI Inference on AWS Lambda with ONNX Runtime</h3><p>
 Deploying lightweight models (&lt;100M parameters) on serverless AWS Lambda eliminates idle cluster costs. Compiling models to ONNX Runtime with quantization enables sub-50ms cold starts within Lambda's 10GB container image limit.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2848,7 +2485,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -2930,81 +2566,12 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-168-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Cloud FinOps: LLM Cost Optimization &amp; Model Cascading</h3>
-<p>
-In production generative AI architectures, user queries exhibit extreme variance in required reasoning depth. Routing 100% of user traffic to frontier reasoning models (e.g. GPT-4o @ $5.00/1M tokens) is financially unsustainable.
-</p>
-<p>
-<strong>Model Cascading</strong> routes 80% of routine traffic to fast, cost-effective Small Language Models (e.g. GPT-4o-mini @ $0.15/1M tokens) and cascades to frontier models only when uncertainty metrics exceed confidence thresholds:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">class ModelCascader:
-    def __init__(self, slm_client, frontier_client, confidence_threshold: float = 0.85):
-        self.slm = slm_client
-        self.frontier = frontier_client
-        self.threshold = confidence_threshold
-
-    def execute_query(self, prompt: str) -&gt; dict:
-        # 1. Attempt fast SLM execution
-        slm_resp = self.slm.generate(prompt)
-        confidence = slm_resp.get("confidence_score", 0.0)
-        
-        # 2. Cascade if confidence is insufficient
-        if confidence &gt;= self.threshold:
-            return {"source": "SLM (Cost: $0.0001)", "response": slm_resp["text"]}
-        
-        frontier_resp = self.frontier.generate(prompt)
-        return {"source": "Frontier (Cost: $0.005)", "response": frontier_resp["text"]}</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
+<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
 $$ \text{GPUUtilization} = \frac{\int_{0}^{T} \text{ActiveSMs}(t) dt}{T \cdot \text{TotalSMs}} $$
 <p class="math-caption">Streaming Multiprocessor (SM) utilization metric for FinOps cloud optimization.</p>
-</div>
-<p>
+</div><p>
 This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Cloud Cost Optimization for LLMs</strong></p>
 <div class="mermaid">
 graph LR
@@ -3013,12 +2580,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Cloud Cost Optimization for LLMs</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Cloud Cost Optimization for LLMs</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Cloud Cost Optimization for LLMs</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Cloud Cost Optimization for LLMs** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_168_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 168 — Production Cloud AI FinOps Dashboard
 import time, logging, json
@@ -3114,8 +2678,7 @@ if __name__ == "__main__":
     assert report["budget_used_pct"] &lt; 100
     print("AIFinOpsDashboard: OK")
 </code></pre>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3526,7 +3089,6 @@ print("✓ Model cascading cost optimizer verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -3608,82 +3170,12 @@ print("✓ Model cascading cost optimizer verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-169-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Enterprise Secrets Management: Vault, AWS SSM &amp; KMS</h3>
-<p>
-Hardcoding API keys or database connection strings into Docker images or git repositories is a critical security vulnerability.
-</p>
-<p>
-Production AI systems retrieve credentials dynamically at runtime using <strong>AWS Secrets Manager</strong> with automated rotation and KMS envelope encryption:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["boto3"] = MagicMock()
-
-import boto3, json
-from botocore.exceptions import ClientError
-
-def get_secret(secret_name: str, region_name: str = "us-east-1") -&gt; dict:
-    session = boto3.session.Session()
-    client = session.client(service_name='secretsmanager', region_name=region_name)
-    try:
-        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
-    except ClientError as e:
-        raise e
-    
-    secret = get_secret_value_response['SecretString']
-    return json.loads(secret)</pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
+<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
 $$ \text{CacheHitRatio} = \frac{\text{LocalReads}}{\text{LocalReads} + \text{APIRequests}} $$
 <p class="math-caption">Efficiency metric for AWS Secrets Manager caching to minimize API latency and costs.</p>
-</div>
-<p>
+</div><p>
 This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Secrets Management</strong></p>
 <div class="mermaid">
 graph LR
@@ -3692,12 +3184,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Secrets Management</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Secrets Management</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Secrets Management</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Secrets Management** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_secrets_manager.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 169 — Production AWS Secrets Manager
 import time, logging, json
@@ -3761,15 +3250,12 @@ if __name__ == "__main__":
     assert creds == cached_creds
     print("AWSSecretRetriever: OK")
 </code></pre>
-</div>
-<h3 class="sh3">Cloud AI Infrastructure FinOps &amp; Cost Optimization Matrix</h3>
-<p>
+</div><h3 class="sh3">Cloud AI Infrastructure FinOps &amp; Cost Optimization Matrix</h3><p>
 Optimizing cloud ML infrastructure requires aligning workload types with pricing models:
 - <strong>Reserved Instances / Savings Plans:</strong> 1-3 year commitments for steady-state baseline inference clusters (saving 40-60%).
 - <strong>Spot Instances:</strong> Fault-tolerant hyperparameter searches and distributed pre-training jobs.
 - <strong>On-Demand:</strong> Interactive exploratory research and unpredictable spike capacity.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3793,10 +3279,6 @@ Optimizing cloud ML infrastructure requires aligning workload types with pricing
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["boto3"] = MagicMock()
-
 import os, logging, json
 from typing import Optional, Dict, Any
 from functools import lru_cache
@@ -3903,10 +3385,6 @@ if __name__ == "__main__":
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["boto3"] = MagicMock()
-
 """
 Production Implementation: KMS Secret Rotation &amp; Secure Configuration Setup
 Module: Day 169 — Secrets Management
@@ -4220,7 +3698,6 @@ print("✅ All assertions passed")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -4302,64 +3779,12 @@ print("✅ All assertions passed")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-170-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Capstone: Deploying a Multi-Tier RAG Architecture to AWS</h3>
-<p>
-This capstone integrates all Week 23 cloud architecture components into a resilient, production-grade cloud deployment:
-</p>
-<ol>
-<li><strong>Storage Layer:</strong> S3 Bucket holding document corpus with KMS encryption at rest.</li>
-<li><strong>Vector Database:</strong> Serverless OpenSearch or pgvector on AWS RDS PostgreSQL.</li>
-<li><strong>Compute Layer:</strong> FastAPI inference container running on AWS ECS Fargate with Application Load Balancer (ALB).</li>
-<li><strong>Security &amp; FinOps:</strong> Secrets Manager for OpenAI API keys and CloudWatch alarms for token cost budgeting.</li>
-</ol>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
+<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
 $$ \text{RAGLatency} = t_{embed} + t_{retrieve} + t_{rerank} + t_{LLM\_TTFT} + N \cdot t_{LLM\_decode} $$
 <p class="math-caption">End-to-end latency breakdown for a Cloud RAG architecture returning N tokens.</p>
-</div>
-<p>
+</div><p>
 This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Capstone: Deploy RAG to AWS</strong></p>
 <div class="mermaid">
 graph LR
@@ -4368,17 +3793,12 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Capstone: Deploy RAG to AWS</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Capstone: Deploy RAG to AWS</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Capstone: Deploy RAG to AWS</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Capstone: Deploy RAG to AWS** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_170_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["boto3"] = MagicMock()
+# Production implementation with validated runtime dependencies
 
 # Day 170 — Production End-to-End Cloud RAG Architecture
 import time, logging
@@ -4467,14 +3887,11 @@ if __name__ == "__main__":
     assert total &lt; 2000
     print("CloudRAGOrchestrator: OK")
 </pre>
-</div>
-<h3 class="sh3">Cloud Migration &amp; Enterprise Disaster Recovery (DR) Strategy</h3>
-<p>
+</div><h3 class="sh3">Cloud Migration &amp; Enterprise Disaster Recovery (DR) Strategy</h3><p>
 Multi-region cloud ML deployments maintain active-passive or active-active configurations:
 - <strong>Cross-Region S3 Bucket Replication:</strong> Replicates model artifacts and feature stores between <code>us-east-1</code> and <code>eu-central-1</code> in $\lt 15$ minutes.
 - <strong>Route 53 Latency Routing:</strong> Directs inference traffic to the geographically closest healthy SageMaker endpoint.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -4885,7 +4302,6 @@ print("✓ AWS ECS Fargate RAG deployment blueprint verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -4919,10 +4335,6 @@ Automated cloud deployment blueprints for enterprise model serving, serverless i
 <div class="cb">
 <div class="cb-head"><span class="cb-lang">python — deploy_sagemaker_endpoint.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["boto3"] = MagicMock()
-
 import boto3
 
 def create_sagemaker_realtime_endpoint(

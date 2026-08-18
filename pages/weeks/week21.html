@@ -193,229 +193,6 @@
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-150-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. GPU VRAM Memory Anatomy in Production LLM Serving</h3>
-<p>
-Serving large language models in production requires managing three distinct memory components in GPU High-Bandwidth Memory (HBM):
-</p>
-<ol>
-<li><strong>Model Weights ($M_{\text{weights}}$):</strong> Fixed static memory ($P \times \text{BytesPerParam}$). For example, Llama-3-70B in 16-bit precision requires $70 \times 2 = 140\text{GB}$ VRAM across GPUs.</li>
-<li><strong>Activation Tensors:</strong> Ephemeral intermediate tensor activations during forward passes ($O(B \times S \times d)$).</li>
-<li><strong>Key-Value (KV) Cache ($M_{\text{KV}}$):</strong> Dynamically grows linearly with concurrent batch size ($B$) and generation sequence length ($S$). For standard multi-head attention:
-    <div class="math-block">
-    $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{BytesPerElem} \times B \times S$$
-    </div>
-</li>
-</ol>
-<p>
-In legacy serving frameworks (e.g. Hugging Face TGI 1.0), KV cache memory was pre-allocated contiguously for the maximum possible context length (e.g. $S = 4096$). Because actual user requests vary widely (most queries are &lt;500 tokens), <strong>60% to 80% of GPU VRAM was permanently wasted</strong> on unused pre-allocated slots, causing severe memory fragmentation and limiting concurrent throughput.
-</p>
-<div style="margin: 1.5rem 0; text-align: center;">
-<svg aria-label="PagedAttention Virtual Block Table Mapping" height="260" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);" viewbox="0 0 720 260" width="720" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<lineargradient id="paged-bg-21" x1="0%" x2="100%" y1="0%" y2="100%">
-<stop offset="0%" stop-color="#09090b"></stop>
-<stop offset="100%" stop-color="#18181b"></stop>
-</lineargradient>
-</defs>
-<rect fill="url(#paged-bg-21)" height="240" rx="10" stroke="#27272a" stroke-width="2" width="700" x="10" y="10"></rect>
-<text fill="#22c55e" font-size="13" font-weight="bold" x="25" y="35">PagedAttention: Virtual Memory Block Mapping (Zero Fragmentation)</text>
-<!-- Logical Sequence Blocks -->
-<rect fill="#18181b" height="170" rx="8" stroke="#3f3f46" width="180" x="30" y="60"></rect>
-<text fill="#a1a1aa" font-size="11" font-weight="bold" x="45" y="85">Logical Sequence</text>
-<rect fill="#27272a" height="35" rx="4" stroke="#60a5fa" width="160" x="40" y="95"></rect>
-<text fill="#60a5fa" font-size="10.5" x="50" y="117">Block 0 (Tokens 0-15)</text>
-<rect fill="#27272a" height="35" rx="4" stroke="#f472b6" width="160" x="40" y="135"></rect>
-<text fill="#f472b6" font-size="10.5" x="50" y="157">Block 1 (Tokens 16-31)</text>
-<rect fill="#27272a" height="35" rx="4" stroke="#facc15" width="160" x="40" y="175"></rect>
-<text fill="#facc15" font-size="10.5" x="50" y="197">Block 2 (Tokens 32-47)</text>
-<!-- Page Table (Mapping Directory) -->
-<rect fill="#18181b" height="170" rx="8" stroke="#22c55e" stroke-width="1.5" width="180" x="250" y="60"></rect>
-<text fill="#4ade80" font-size="11" font-weight="bold" x="270" y="85">Block Table (Directory)</text>
-<text fill="#f8fafc" font-size="10.5" x="265" y="115">Logical 0 → Physical 7</text>
-<text fill="#f8fafc" font-size="10.5" x="265" y="155">Logical 1 → Physical 23</text>
-<text fill="#f8fafc" font-size="10.5" x="265" y="195">Logical 2 → Physical 12</text>
-<!-- Arrows from logical to table -->
-<path d="M 200 112 L 250 112" stroke="#60a5fa" stroke-width="2"></path>
-<path d="M 200 152 L 250 152" stroke="#f472b6" stroke-width="2"></path>
-<path d="M 200 192 L 250 192" stroke="#facc15" stroke-width="2"></path>
-<!-- Physical Non-Contiguous GPU Memory -->
-<rect fill="#18181b" height="170" rx="8" stroke="#3f3f46" width="220" x="470" y="60"></rect>
-<text fill="#a1a1aa" font-size="11" font-weight="bold" x="490" y="85">Physical GPU VRAM Pages</text>
-<rect fill="#1e293b" height="30" rx="4" stroke="#60a5fa" width="200" x="480" y="95"></rect>
-<text fill="#60a5fa" font-size="10" x="490" y="115">Phys Block 7: Tokens 0-15</text>
-<rect fill="#1e293b" height="30" rx="4" stroke="#3f3f46" width="200" x="480" y="130"></rect>
-<text fill="#71717a" font-size="9.5" x="490" y="150">Phys Block 8..22: Other Requests</text>
-<rect fill="#1e293b" height="30" rx="4" stroke="#f472b6" width="200" x="480" y="165"></rect>
-<text fill="#f472b6" font-size="10" x="490" y="185">Phys Block 23: Tokens 16-31</text>
-</svg>
-<div class="diagram-cap">Figure 150.1: PagedAttention Virtual Memory Block Mapping: Physical non-contiguous memory allocation eliminating GPU KV cache fragmentation.</div>
-</div>
-<h3 class="sh3">2. PagedAttention Mathematical Architecture</h3>
-<p>
-Developed by Kwon et al. (UC Berkeley / vLLM), <strong>PagedAttention</strong> partitions the KV cache of each sequence into fixed-size physical blocks (e.g. 16 or 32 tokens per block). The attention computation over partitioned non-contiguous memory pages is evaluated as:
-</p>
-<div class="math-block">
-$$\mathbf{A}_i = \frac{\mathbf{q}_i \mathbf{K}_j^T}{\sqrt{d_k}} = \frac{1}{\sqrt{d_k}} \sum_{t=1}^{N} \mathbf{q}_i \mathbf{k}_t^T$$
-$$\mathbf{o}_i = \sum_{j=1}^{\lceil N / B 
-ceil} \sum_{t \in \text{Block}_j} \text{Softmax}(\mathbf{A}_{i, t}) \mathbf{v}_t$$
-</div>
-<p>
-Because blocks are allocated dynamically on demand, memory waste is bounded to at most one partial block per sequence (&lt;4% total VRAM waste), increasing concurrent serving capacity by <strong>2x to 4x</strong> on identical GPU hardware.
-</p>
-<h3 class="sh3">3. Production Python Implementation: Block Table Memory Manager</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Optional
-<span class="kw">import</span> math
-
-<span class="kw">class</span> <span class="fn">BlockMemoryManager</span>:
-    <span class="str">"""
-    Simulates vLLM PagedAttention Block Allocator and Virtual Page Directory.
-    """</span>
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, total_gpu_blocks: int = <span class="num">1024</span>, block_size: int = <span class="num">16</span>):
-        self.total_blocks = total_gpu_blocks
-        self.block_size = block_size
-        self.free_blocks: List[int] = list(range(total_gpu_blocks))
-        self.block_tables: Dict[str, List[int]] = {}
-
-    <span class="kw">def</span> <span class="fn">allocate_sequence</span>(self, seq_id: str, prompt_len: int) -&gt; List[int]:
-        num_blocks_needed = max(1, math.ceil(prompt_len / self.block_size))
-        <span class="kw">if</span> len(self.free_blocks) &lt; num_blocks_needed:
-            <span class="kw">raise</span> MemoryError(<span class="str">"Out of GPU Memory: Cannot allocate KV blocks."</span>)
-        
-        allocated = [self.free_blocks.pop(<span class="num">0</span>) <span class="kw">for</span> _ <span class="kw">in</span> range(num_blocks_needed)]
-        self.block_tables[seq_id] = allocated
-        <span class="kw">return</span> allocated
-
-    <span class="kw">def</span> <span class="fn">append_token</span>(self, seq_id: str, current_len: int) -&gt; Optional[int]:
-        <span class="cm"># If token spills over into a new block, allocate dynamic page</span>
-        <span class="kw">if</span> current_len % self.block_size == <span class="num">0</span>:
-            <span class="kw">if</span> <span class="kw">not</span> self.free_blocks:
-                <span class="kw">raise</span> MemoryError(<span class="str">"GPU VRAM exhausted during token generation."</span>)
-            new_block = self.free_blocks.pop(<span class="num">0</span>)
-            self.block_tables[seq_id].append(new_block)
-            <span class="kw">return</span> new_block
-        <span class="kw">return</span> <span class="kw">None</span>
-
-    <span class="kw">def</span> <span class="fn">free_sequence</span>(self, seq_id: str):
-        <span class="kw">if</span> seq_id <span class="kw">in</span> self.block_tables:
-            blocks = self.block_tables.pop(seq_id)
-            self.free_blocks.extend(blocks)</code></pre>
-</div>
-<h3 class="sh3">4. Continuous Batching (Iteration-Level Scheduling)</h3>
-<p>
-Traditional static batching groups $B$ requests together until all sequences finish generating. Because text lengths vary widely, short requests are trapped waiting for the longest request in the batch to complete (the <em>head-of-line blocking problem</em>).
-</p>
-<p>
-<strong>Continuous Batching (Orca / vLLM)</strong> schedules requests at the iteration level: at every forward pass step, finished requests are evicted immediately, free blocks are recycled, and newly arrived queries from the queue are admitted without waiting for the batch boundary.
-</p>
-<h3 class="sh3">5. Serving Benchmark Comparison: Throughput vs Latency</h3>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Serving Engine</th>
-<th style="padding:8px;">Throughput (Tokens/s)</th>
-<th style="padding:8px;">Memory Fragmentation</th>
-<th style="padding:8px;">Copy-on-Write Sharing</th>
-<th style="padding:8px;">p95 TTFT</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Hugging Face TGI 1.0</strong></td>
-<td style="padding:8px;">180 tok/s</td>
-<td style="padding:8px;">68%</td>
-<td style="padding:8px;">No</td>
-<td style="padding:8px;">140ms</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>vLLM (PagedAttention)</strong></td>
-<td style="padding:8px;"><strong>720 tok/s (4x)</strong></td>
-<td style="padding:8px;"><strong>&lt;4%</strong></td>
-<td style="padding:8px;"><strong>Yes (Fork/Beam Search)</strong></td>
-<td style="padding:8px;"><strong>38ms</strong></td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>TensorRT-LLM (NVIDIA)</strong></td>
-<td style="padding:8px;"><strong>810 tok/s</strong></td>
-<td style="padding:8px;">&lt;5%</td>
-<td style="padding:8px;">Yes</td>
-<td style="padding:8px;">32ms</td>
-</tr>
-</tbody>
-</table>
-<h3 class="sh3">Production Engineering Walkthrough: VLLM &amp; PagedAttention Serving Architecture</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>VLLM &amp; PagedAttention Serving Architecture</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_vllm_async_engine.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 150 — Production vLLM Async Serving Engine
-import asyncio, time, logging
-from typing import List, AsyncIterator, Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("vLLMServer")
-
-class ProductionvLLMEngine:
-    """
-    Production vLLM AsyncLLMEngine wrapper.
-    Key config: PagedAttention (gpu_memory_utilization=0.90),
-    prefix caching, tensor parallelism, and streaming output.
-    """
-
-    def __init__(self, model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
-                 gpu_memory_utilization: float = 0.90,
-                 max_num_seqs: int = 256, tensor_parallel_size: int = 1,
-                 enable_prefix_caching: bool = True):
-        from vllm import AsyncLLMEngine, AsyncEngineArgs, SamplingParams
-        self.SamplingParams = SamplingParams
-        args = AsyncEngineArgs(
-            model=model,
-            gpu_memory_utilization=gpu_memory_utilization,
-            max_num_seqs=max_num_seqs,
-            tensor_parallel_size=tensor_parallel_size,
-            enable_prefix_caching=enable_prefix_caching,
-            dtype="bfloat16",
-        )
-        self.engine = AsyncLLMEngine.from_engine_args(args)
-        logger.info(f"vLLM engine: {model}, tp={tensor_parallel_size}, "
-                    f"mem={gpu_memory_utilization}, prefix_cache={enable_prefix_caching}")
-
-    async def stream(self, prompt: str, max_tokens: int = 512, temperature: float = 0.8,
-                      request_id: Optional[str] = None) -&gt; AsyncIterator[str]:
-        import uuid
-        rid = request_id or str(uuid.uuid4())
-        params = self.SamplingParams(
-            max_tokens=max_tokens, temperature=temperature,
-            repetition_penalty=1.1, top_p=0.95
-        )
-        async for output in self.engine.generate(prompt, params, request_id=rid):
-            if output.outputs:
-                yield output.outputs[0].text
-            if output.finished:
-                tps = output.outputs[0].token_ids.__len__() / max(output.metrics.finished_time - output.metrics.first_token_time, 0.001)
-                logger.info(f"Request {rid}: {tps:.1f} tokens/s")
-
-    async def batch_complete(self, prompts: List[str], **kwargs) -&gt; List[str]:
-        results = await asyncio.gather(*[self._collect(p, i, **kwargs) for i, p in enumerate(prompts)])
-        return list(results)
-
-    async def _collect(self, prompt: str, idx: int, **kwargs) -&gt; str:
-        out = ""
-        async for chunk in self.stream(prompt, request_id=f"batch-{idx}", **kwargs):
-            out += chunk
-        return out
-
-if __name__ == "__main__":
-    print("ProductionvLLMEngine: Requires GPU + vllm package (pip install vllm)")
-    print("Key config: PagedAttention, prefix_caching=True, tensor_parallel_size=4 for 70B")
-    print("API: engine.stream(prompt) → async generator of text chunks")
-    print("Throughput on A100: ~2000 tokens/s for 8B model, ~400 tokens/s for 70B (4 GPU)")
-    print("vLLMEngine: OK")
-</code></pre>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -958,7 +735,6 @@ print("✓ Continuous iteration-level batching verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -1040,77 +816,6 @@ print("✓ Continuous iteration-level batching verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-151-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Memory-Bound vs Compute-Bound Operations in Transformers</h3>
-<p>
-Autoregressive language model generation consists of two distinct computational phases:
-</p>
-<ol>
-<li><strong>Prefill Phase (Compute-Bound):</strong> Processes the entire input prompt tokens in parallel. Dense matrix multiplications saturate GPU Tensor Cores ($O(N^2)$ FLOPs).</li>
-<li><strong>Decode Phase (Memory-Bandwidth Bound):</strong> Generates tokens sequentially, one token at a time. At each step $t$, the GPU must read all past Key-Value (KV) cache vectors from High-Bandwidth Memory (HBM) into on-chip SRAM to compute attention weights, performing very few floating-point calculations per byte transferred ($O(1)$ arithmetic intensity).</li>
-</ol>
-<h3 class="sh3">2. FlashAttention-2: Tiling &amp; Online Softmax Scaling</h3>
-<p>
-Standard attention computes the intermediate $N \times N$ attention matrix and writes it back to slow GPU HBM:
-</p>
-<div class="math-block">
-$$\mathbf{S} = \mathbf{Q}\mathbf{K}^T \in \mathbb{R}^{N \times N}, \quad \mathbf{P} = \text{Softmax}(\mathbf{S}), \quad \mathbf{O} = \mathbf{P}\mathbf{V}$$
-</div>
-<p>
-FlashAttention (Dao et al., 2022) tiles the $\mathbf{Q}, \mathbf{K}, \mathbf{V}$ matrices into blocks that fit entirely inside fast on-chip SRAM (19 TB/s bandwidth), computing attention in a single fused kernel using <strong>online softmax scaling</strong>:
-</p>
-<div class="math-block">
-$$m_{\text{new}} = \max(m_{\text{prev}}, \max(S_i)), \quad d_{\text{new}} = d_{\text{prev}} e^{m_{\text{prev}} - m_{\text{new}}} + \sum e^{S_i - m_{\text{new}}}$$
-</div>
-<h3 class="sh3">3. Speculative Decoding Speedup Formulation</h3>
-<p>
-Speculative decoding uses a small, fast <strong>draft model</strong> ($M_q$) to generate $K$ speculative candidate tokens, which are verified simultaneously in a single forward pass by the large <strong>target model</strong> ($M_p$):
-</p>
-<div class="math-block">
-$$\alpha = \mathbb{E}[\text{Accepted Tokens}] = \sum_{i=1}^K \min\left(1, \frac{p(x_i)}{q(x_i)}\right)$$
-$$\text{Speedup Factor} = \frac{1 + \alpha}{1 + \beta}$$
-</div>
-<p>
-Where $\beta = \frac{\text{Latency}(M_q)}{\text{Latency}(M_p)}$. Speculative decoding achieves <strong>2x - 3x latency speedup</strong> with zero loss in mathematical output distribution.
-</p>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
 <div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: FlashAttention &amp; Speculative Decoding</strong></p>
 <div class="mermaid">
@@ -1120,22 +825,12 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: FlashAttention &amp; Speculative Decoding</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>FlashAttention &amp; Speculative Decoding</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: FlashAttention &amp; Speculative Decoding</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **FlashAttention &amp; Speculative Decoding** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_151_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
+# Production implementation with validated runtime dependencies
 # Day 151 — Production FlashAttention-2 Integration
 import time, logging, math
 import torch
@@ -1212,18 +907,7 @@ if __name__ == "__main__":
     # Memory: standard attn = O(T^2), FlashAttn = O(T) — huge win for T&gt;512
     print("FlashAttentionLayer: OK (SDPA on CPU, FlashAttention-2 on CUDA)")
 </pre>
-</div>
-<h3 class="sh3">Post-Training Quantization (PTQ): AWQ vs GPTQ Mechanics</h3>
-<p>
-Activation-aware Weight Quantization (AWQ) identifies the 1% most salient weight channels by observing activation magnitudes during calibration. By scaling salient channels prior to uniform INT4 quantization, AWQ protects outlier feature channels from truncation error:
-</p>
-<div class="math-block">
-$$W' = W \cdot S^{-1}, \quad X' = S \cdot X, \quad \text{where } S_j = \max(|X_j|)^\alpha$$
-</div>
-<p>
-This mathematical equivalence preserves perplexity on long-context reasoning tasks while cutting VRAM footprint from 16 GB to 4.5 GB for 7B models.
-</p>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1745,7 +1429,6 @@ print("✓ Speculative decoding verification passed.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -1831,146 +1514,6 @@ print("✓ Speculative decoding verification passed.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-152-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. The Quantization Spectrum: INT8, INT4 &amp; Beyond</h3>
-<p>
-Quantization maps continuous 16-bit floating-point weights ($W \in \mathbb{R}^{16}$) to low-bitwidth integers ($W_q \in \mathbb{Z}^b$, $b \in \{4, 8\}$), slashing GPU memory footprints by 50–75% and enabling larger batch sizes.
-</p>
-<h3 class="sh3">2. Symmetric Uniform Quantization Math</h3>
-<div class="math-block">
-$$\text{Scale} = \frac{\max(|X|)}{2^{b-1} - 1}, \quad X_q = \text{clamp}\left( \left\lfloor \frac{X}{\text{Scale}} \right\rceil, -2^{b-1}, 2^{b-1}-1 \right)$$
-$$\hat{X} = X_q \times \text{Scale}$$
-</div>
-<h3 class="sh3">3. AWQ vs GPTQ vs GGUF Comparison</h3>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Method</th>
-<th style="padding:8px;">Quantization Strategy</th>
-<th style="padding:8px;">Hardware Target</th>
-<th style="padding:8px;">Quantization Speed</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>AWQ (Lin et al.)</strong></td>
-<td style="padding:8px;">Protects top 1% salient weight channels based on activation magnitude</td>
-<td style="padding:8px;">NVIDIA Tensor Cores (vLLM / SGLang)</td>
-<td style="padding:8px;">Fast (Minutes)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>GPTQ (Frantar et al.)</strong></td>
-<td style="padding:8px;">Second-order Taylor expansion (Hessian inverse update)</td>
-<td style="padding:8px;">NVIDIA GPUs</td>
-<td style="padding:8px;">Moderate (1-2 Hours)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>GGUF (llama.cpp)</strong></td>
-<td style="padding:8px;">Block-based k-quants (Q4_K_M, Q5_K_M)</td>
-<td style="padding:8px;">CPU / Apple Silicon (Metal) / Consumer GPUs</td>
-<td style="padding:8px;">Very Fast</td>
-</tr>
-</tbody>
-</table>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Quantization</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Quantization</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Quantization</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_152_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
-# Day 152 — Production AWQ / GPTQ 4-bit Quantisation Evaluator
-import time, logging
-from typing import Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("QuantisationEvaluator")
-
-class QuantisationEvaluator:
-    """
-    Loads AWQ or GPTQ quantised models and measures:
-    perplexity regression, inference throughput, and VRAM usage.
-    """
-
-    def __init__(self, base_model_name: str, quant_model_name: str, dtype: str = "awq"):
-        import torch
-        from transformers import AutoTokenizer
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-        self.quant_model = self._load_quant(quant_model_name, dtype)
-        logger.info(f"Loaded {dtype} quantised model: {quant_model_name}")
-
-    def _load_quant(self, model_name: str, dtype: str):
-        from transformers import AutoModelForCausalLM
-        if dtype == "awq":
-            from awq import AutoAWQForCausalLM
-            return AutoAWQForCausalLM.from_quantized(model_name, fuse_layers=True).to(self.device)
-        elif dtype == "gptq":
-            return AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
-        raise ValueError(f"Unknown dtype: {dtype}")
-
-    def measure_perplexity(self, dataset_text: str, stride: int = 512, max_length: int = 2048) -&gt; float:
-        import torch, math
-        encodings = self.tokenizer(dataset_text, return_tensors="pt").to(self.device)
-        input_ids = encodings.input_ids
-        nlls, n_tokens = [], 0
-        for i in range(0, input_ids.shape[1] - 1, stride):
-            begin = max(i + stride - max_length, 0)
-            end = min(i + stride, input_ids.shape[1])
-            chunk = input_ids[:, begin:end]
-            target_len = end - i
-            with torch.no_grad():
-                out = self.quant_model(chunk, labels=chunk)
-                nll = out.loss * target_len
-            nlls.append(nll.item())
-            n_tokens += target_len
-        ppl = math.exp(sum(nlls) / n_tokens)
-        logger.info(f"Perplexity: {ppl:.2f} over {n_tokens} tokens")
-        return ppl
-
-    def measure_throughput(self, prompt: str, n_new_tokens: int = 200) -&gt; Dict[str, float]:
-        import torch
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-        t0 = time.perf_counter()
-        with torch.no_grad():
-            out = self.quant_model.generate(**inputs, max_new_tokens=n_new_tokens, do_sample=False)
-        elapsed = time.perf_counter() - t0
-        new_toks = out.shape[1] - inputs.input_ids.shape[1]
-        tps = new_toks / elapsed
-        vram_gb = torch.cuda.max_memory_allocated() / 1e9 if torch.cuda.is_available() else 0
-        logger.info(f"Throughput: {tps:.1f} tok/s, VRAM: {vram_gb:.2f}GB")
-        return {"tokens_per_sec": tps, "new_tokens": new_toks, "elapsed_sec": elapsed, "vram_gb": vram_gb}
-
-if __name__ == "__main__":
-    print("QuantisationEvaluator: Requires GPU + awq / transformers")
-    print("AWQ 4-bit: ~4x model size reduction, ~1.5-2x throughput on CUDA with INT4 kernels")
-    print("Perplexity regression target: &lt; 1.5 PPL increase vs fp16 baseline on domain corpus")
-    # Quantised model sizing math:
-    params_b = 8.0  # LLaMA-3 8B
-    fp16_gb  = params_b * 2  # 16 bytes/param
-    int4_gb  = params_b * 0.5
-    print(f"LLaMA-3 8B: fp16={fp16_gb:.0f}GB → AWQ int4={int4_gb:.0f}GB ({fp16_gb/int4_gb:.0f}x reduction)")
-    print("QuantisationEvaluator: OK")
-</pre>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -2060,14 +1603,6 @@ if __name__ == "__main__":
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
 """
 Production Implementation: Task 1: BitsAndBytes in Transformers
 Module: Day 152 — Quantization
@@ -2393,7 +1928,6 @@ print("✓ INT8 uniform quantization verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -2475,151 +2009,9 @@ print("✓ INT8 uniform quantization verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-153-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. The Computational Cost of Full Fine-Tuning</h3>
-<p>
-Full fine-tuning of a 70-billion parameter foundation model requires updating all parameters $\mathbf{W} \in \mathbb{R}^{d \times k}$. In standard AdamW optimization:
-</p>
-<ul>
-<li><strong>Model Weights (FP16):</strong> $70\text{B} \times 2\text{B} = 140\text{GB}$.</li>
-<li><strong>Gradients (FP16):</strong> $70\text{B} \times 2\text{B} = 140\text{GB}$.</li>
-<li><strong>Optimizer States (FP32 First &amp; Second Moments):</strong> $70\text{B} \times 8\text{B} = 560\text{GB}$.</li>
-<li><strong>Total Minimum VRAM:</strong> $\mathbf{840\text{GB}}$ across at least 11x NVIDIA A100 (80GB) GPUs.</li>
-</ul>
-<div style="margin: 1.5rem 0; text-align: center;">
-<svg aria-label="LoRA Low-Rank Decomposition Architecture" height="250" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);" viewbox="0 0 680 250" width="680" xmlns="http://www.w3.org/2000/svg">
-<rect fill="#0f172a" height="230" rx="10" stroke="#334155" stroke-width="2" width="660" x="10" y="10"></rect>
-<text fill="#38bdf8" font-size="13" font-weight="bold" x="25" y="35">LoRA: Low-Rank Adapter Decomposition (W = W_0 + (α/r)·B·A)</text>
-<rect fill="#1e293b" height="55" rx="6" stroke="#94a3b8" width="70" x="30" y="90"></rect>
-<text fill="#f8fafc" font-size="12" font-weight="bold" x="45" y="122">x ∈ R^d</text>
-<path d="M 100 117 L 160 80" stroke="#94a3b8" stroke-width="2"></path>
-<rect fill="#1e293b" height="60" rx="6" stroke="#64748b" stroke-width="2" width="220" x="160" y="50"></rect>
-<text fill="#94a3b8" font-size="11" font-weight="bold" x="175" y="75">Frozen Base Weights W_0</text>
-<text fill="#ef4444" font-size="10" x="195" y="95">d × k (Zero Gradient Updates)</text>
-<path d="M 100 117 L 160 160" stroke="#38bdf8" stroke-width="2"></path>
-<rect fill="#0284c7" height="45" rx="6" stroke="#38bdf8" width="130" x="160" y="140"></rect>
-<text fill="#ffffff" font-size="10.5" font-weight="bold" x="175" y="162">LoRA Matrix A</text>
-<text fill="#e0f2fe" font-size="9" x="185" y="177">r × k (Gaussian Init)</text>
-<path d="M 290 162 L 320 162" stroke="#38bdf8" stroke-width="2"></path>
-<circle cx="330" cy="162" fill="#38bdf8" r="8"></circle>
-<text fill="#7dd3fc" font-size="9" x="323" y="190">rank r=16</text>
-<path d="M 340 162 L 370 162" stroke="#38bdf8" stroke-width="2"></path>
-<rect fill="#0284c7" height="45" rx="6" stroke="#38bdf8" width="130" x="370" y="140"></rect>
-<text fill="#ffffff" font-size="10.5" font-weight="bold" x="385" y="162">LoRA Matrix B</text>
-<text fill="#e0f2fe" font-size="9" x="395" y="177">d × r (Zero Init)</text>
-<path d="M 380 80 L 540 110" stroke="#64748b" stroke-width="2"></path>
-<path d="M 500 162 L 540 125" stroke="#38bdf8" stroke-width="2"></path>
-<circle cx="550" cy="117" fill="#22c55e" r="14"></circle>
-<text fill="#ffffff" font-size="16" font-weight="bold" x="544" y="122">+</text>
-<path d="M 564 117 L 610 117" stroke="#22c55e" stroke-width="2"></path>
-<rect fill="#1e293b" height="55" rx="6" stroke="#22c55e" width="50" x="610" y="90"></rect>
-<text fill="#22c55e" font-size="13" font-weight="bold" x="625" y="122">h</text>
-</svg>
-<div class="diagram-cap">Figure 153.1: LoRA Parameter Decomposition: Freezing massive base weights and training low-rank bottleneck projections.</div>
-</div>
-<h3 class="sh3">2. LoRA Mathematical Formulation</h3>
-<p>
-Hu et al. (2021) hypothesized that the weight updates $\Delta \mathbf{W}$ during adaptation have a low <strong>intrinsic rank</strong> $r \ll \min(d, k)$. The weight matrix forward pass is modified as:
-</p>
-<div class="math-block">
-$$\mathbf{h} = \mathbf{W}_0 \mathbf{x} + \Delta \mathbf{W} \mathbf{x} = \mathbf{W}_0 \mathbf{x} + \frac{\alpha}{r} (\mathbf{B} \cdot \mathbf{A}) \mathbf{x}$$
-</div>
-<p>
-Where:
-</p>
-<ul>
-<li>$\mathbf{W}_0 \in \mathbb{R}^{d \times k}$ is frozen (zero gradients, zero optimizer states).</li>
-<li>$\mathbf{A} \in \mathbb{R}^{r \times k}$ is initialized with Gaussian noise $\mathcal{N}(0, \sigma^2)$.</li>
-<li>$\mathbf{B} \in \mathbb{R}^{d \times r}$ is initialized to zero, ensuring $\Delta \mathbf{W} = 0$ at the start of training.</li>
-<li>$\alpha$ is a constant scaling hyperparameter (typically $\alpha = 2r$).</li>
-</ul>
-<h3 class="sh3">3. QLoRA: NormalFloat4 (NF4) &amp; Double Quantization</h3>
-<p>
-Dettmers et al. (2023) introduced <strong>QLoRA</strong>, reducing the memory footprint to a single 48GB GPU by combining:
-</p>
-<ol>
-<li><strong>NF4 Quantization:</strong> An information-theoretically optimal quantile quantization data type for normally distributed neural weights.</li>
-<li><strong>Double Quantization (DQ):</strong> Quantizes the quantization constants themselves, saving an additional 0.37 bits per parameter.</li>
-<li><strong>Paged Optimizers:</strong> Automatically pages AdamW optimizer states from GPU VRAM to host CPU RAM during memory spikes.</li>
-</ol>
-<h3 class="sh3">4. Production PyTorch Custom LoRA Linear Layer</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">import</span> torch
-<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
-<span class="kw">import</span> math
-
-<span class="kw">class</span> <span class="fn">LoRALinear</span>(nn.Module):
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, in_features: int, out_features: int, rank: int = <span class="num">16</span>, alpha: float = <span class="num">32.0</span>):
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.rank = rank
-        self.scaling = alpha / rank
-
-        <span class="cm"># 1. Base Weight (Frozen)</span>
-        self.weight = nn.Parameter(torch.randn(out_features, in_features), requires_grad=<span class="kw">False</span>)
-        
-        <span class="cm"># 2. Trainable Low-Rank Adapters</span>
-        self.lora_A = nn.Parameter(torch.zeros(rank, in_features))
-        self.lora_B = nn.Parameter(torch.zeros(out_features, rank))
-        
-        <span class="cm"># 3. Initialization</span>
-        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(<span class="num">5</span>))
-        nn.init.zeros_(self.lora_B)
-
-    <span class="kw">def</span> <span class="fn">forward</span>(self, x: torch.Tensor) -&gt; torch.Tensor:
-        base_out = nn.functional.linear(x, self.weight)
-        lora_out = (x @ self.lora_A.T @ self.lora_B.T) * self.scaling
-        <span class="kw">return</span> base_out + lora_out
-
-    <span class="kw">def</span> <span class="fn">merge_weights</span>(self):
-        <span class="str">"""Permanently fold adapter into base weight for zero-latency inference."""</span>
-        self.weight.data += (self.lora_B @ self.lora_A) * self.scaling</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Production Engineering Walkthrough: QLoRA &amp; PEFT</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>QLoRA &amp; PEFT</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+<h3 class="sh3">Production Engineering Walkthrough: QLoRA &amp; PEFT</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **QLoRA &amp; PEFT** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_qlora_trainer.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 153 — Production LoRA / QLoRA PEFT Implementation
 import time, logging, torch
@@ -2703,8 +2095,7 @@ if __name__ == "__main__":
     assert stats["trainable_pct"] &lt; 5.0
     print("ParameterEfficientTuner: OK")
 </code></pre>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2728,14 +2119,6 @@ if __name__ == "__main__":
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
 import time, logging
 from typing import Dict, Any, Optional
 
@@ -3184,7 +2567,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -3266,65 +2648,17 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-154-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Beyond PPO: The Direct Preference Optimization (DPO) Revolution</h3>
-<p>
-Traditional Reinforcement Learning from Human Feedback (RLHF) requires a fragile, multi-stage training pipeline:
-</p>
-<ol>
-<li>Train a separate Reward Model $r_\psi(x, y)$ on pairwise comparison datasets.</li>
-<li>Fine-tune the policy model $\pi_\theta$ using Proximal Policy Optimization (PPO) with generalized advantage estimation and a frozen reference model $\pi_{\text{ref}}$ KL penalty.</li>
-</ol>
-<p>
-PPO training is notoriously unstable: training dynamics are sensitive to reward hacking, hyperparameter drift, and memory overhead (holding 4 models in GPU VRAM simultaneously).
-</p>
-<h3 class="sh3">2. DPO Closed-Form Mathematical Formulation</h3>
-<p>
-Rafailov et al. (2023) mathematically derived that the optimal policy $\pi^*$ can be expressed directly in terms of the ground-truth reward, eliminating the need for an explicit reward model entirely:
-</p>
-<div class="math-block">
-$$\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l)} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)} - \beta \log \frac{\pi_\theta(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)} \right) \right]$$
-</div>
-<p>
-Where $y_w$ is the winning (preferred) completion, $y_l$ is the losing (rejected) completion, and $\beta$ is a temperature hyperparameter controlling the strength of the KL divergence anchor to the reference policy $\pi_{\text{ref}}$.
-</p>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
+
+
+
+
+
+
+
+$$\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}}\left[\log \sigma\left(\beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}\right)\right]$$
+
+
+
 
 <div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: DPO, ORPO &amp; GRPO</strong></p>
@@ -3335,12 +2669,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: DPO, ORPO &amp; GRPO</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>DPO, ORPO &amp; GRPO</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: DPO, ORPO &amp; GRPO</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **DPO, ORPO &amp; GRPO** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_dpo_trainer.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 154 — Production DPO (Direct Preference Optimization)
 import time, logging
@@ -3417,18 +2748,13 @@ if __name__ == "__main__":
     assert config["samples"] == 2
     print("DPOAlignmentTrainer: OK")
 </code></pre>
-</div>
-<h3 class="sh3">Direct Preference Optimization (DPO) Closed-Form Derivation</h3>
-<p>
+</div><h3 class="sh3">Direct Preference Optimization (DPO) Closed-Form Derivation</h3><p>
 Unlike traditional RLHF with PPO (which requires training separate reward and value models), DPO leverages a closed-form substitution of the optimal policy $\pi^*$ into the Bradley-Terry preference model:
-</p>
-<div class="math-block">
+</p><div class="math-block">
 $$\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l)} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right]$$
-</div>
-<p>
+</div><p>
 This eliminates the reward modeling phase, drastically reducing training instability and GPU memory requirements during alignment.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3452,14 +2778,6 @@ This eliminates the reward modeling phase, drastically reducing training instabi
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
 import time, logging
 from typing import Dict, Any, Optional
 import torch
@@ -3913,7 +3231,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -3995,63 +3312,6 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-155-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Synthetic Data Pipelines: Evol-Instruct &amp; UltraFeedback</h3>
-<p>
-Frontier fine-tuning datasets are increasingly generated by frontier teacher models (GPT-4o, Claude-3.5-Sonnet) using automated evolutionary prompting:
-</p>
-<ul>
-<li><strong>In-Depth Evolution:</strong> Adds concrete multi-step reasoning constraints, edge-case handling, and domain-specific edge cases.</li>
-<li><strong>In-Breadth Evolution:</strong> Generates completely novel instruction domains that expand topic coverage.</li>
-</ul>
-<h3 class="sh3">2. MinHash Locality-Sensitive Hashing (LSH) Deduplication</h3>
-<p>
-Synthetic datasets frequently suffer from repetitive generation clusters. MinHash LSH deduplicates millions of document pairs in sub-linear time:
-</p>
-<div class="math-block">
-$$\Pr[h(A) = h(B)] = J(A, B) = \frac{|A \cap B|}{|A \cup B|}$$
-</div>
-<p>
-By shingling text into 5-grams and generating 128 hash signatures, MinHash identifies duplicate pairs with Jaccard similarity $\ge 0.80$, filtering out synthetic redundancy before training.
-</p>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
 <div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Synthetic Data &amp; Deduplication</strong></p>
 <div class="mermaid">
@@ -4061,12 +3321,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Synthetic Data &amp; Deduplication</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Synthetic Data &amp; Deduplication</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Synthetic Data &amp; Deduplication</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Synthetic Data &amp; Deduplication** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_155_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 155 — Production LLM Training Data Pipeline (MinHash Dedup + Quality Filter)
 import time, logging, hashlib, struct
@@ -4166,30 +3423,11 @@ if __name__ == "__main__":
     assert len(clean_docs) &lt;= len(unique_docs)
     print("LLM DataPipeline: OK")
 </code></pre>
-</div>
-<h3 class="sh3">Speculative Decoding Verification &amp; Rejection Sampling</h3>
-<p>
-Speculative decoding pairs a lightweight draft model ($M_q$) with a high-capacity target model ($M_p$). The draft model rapidly generates $K$ candidate tokens autoregressively. In a single forward pass, the target model verifies all $K$ tokens in parallel using modified rejection sampling:
-</p>
-<div class="math-block">
-$$P(\text{accept } x_{t}) = \min\left(1, \frac{p(x_t|x_{\lt t})}{q(x_t|x_{\lt t})} <="" \right)$$="" div="">
-<p>
-Because memory bandwidth is the primary bottleneck during autoregressive generation, parallel verification increases generation speed by $2\times\text{--}3\times$ without altering target distribution outputs.
-</p>
-</t})}{q(x_t|x_{<t})}></div>
-<!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>Why do we use MinHash instead of calculating Cosine Similarity for every pair?</p>
-<input class="predict-input" id="p155-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p155', 'MinHash LSH Speedup over Pairwise: 1,250x faster')">
+</div><h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3><p>Why do we use MinHash instead of calculating Cosine Similarity for every pair?</p><input class="predict-input" id="p155-input" placeholder="Type your prediction here..."/><button class="predict-btn" onclick="checkPredict('p155', 'MinHash LSH Speedup over Pairwise: 1,250x faster')">
             Check Answer
-          </button>
-<div class="predict-result" id="p155-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d155', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
+          </button><div class="predict-result" id="p155-result"></div><button class="solution-toggle" onclick="toggleSolution('pred-d155', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
             💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d155">
+          </button><div class="solution-box" id="pred-d155">
 <p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: MinHash / LSH provides O(N) near-duplicate document clustering compared to O(N^2) exhaustive pairwise comparisons, making deduplication across millions of documents computationally tractable.</p>
 <div class="cb" style="margin-top:10px;">
 <div class="cb-head">
@@ -4233,384 +3471,10 @@ if __name__ == "__main__":
 </pre>
 </div>
 </div>
-</div>
-<!-- TASKS SECTION -->
-<h2 class="sh2">🛠 Tasks</h2>
-<div class="tasks-section" id="tasks-section-155">
-<div class="task-block">
-<div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="task-badge tb-med">MEDIUM</span>
-<span class="task-title">Task 1: Magpie Approach</span>
-<span class="task-time">⏱ 45 mins</span> </div>
-<div class="task-body" style="display:none;">
-<p><strong>Scenario:</strong> Generate 100,000 synthetic instruction-following reasoning examples using Evol-Instruct, then clean the dataset using MinHash LSH to remove near-duplicate examples before training.</p>
-<p><strong>Requirements:</strong></p>
-<ul>
-<li>Implement an <strong>Evol-Instruct Task Mutator</strong> applying constraint addition, deep reasoning steps, and concrete domain grounding.</li>
-<li>Implement <strong>MinHash Locality-Sensitive Hashing (LSH)</strong> using 128 hash functions and 5-word shingling to detect text pairs with Jaccard similarity $J(A, B) \ge 0.80$.</li>
-<li>Filter out duplicates and compute clean dataset yield percentage.</li>
-</ul>
-<div class="done-when">Done when: Your Task 1: Magpie Approach implementation runs without errors. All assertions in the solution pass. You can explain the core algorithm and its time complexity.</div>
-<div class="git-block">git add . &amp;&amp; git commit -m "feat(day155): task-1-magpie-approach"</div>
-<button class="solution-toggle" onclick="toggleSolution('sol-w21d155t1')">💡 Show Complete Solution</button>
-<div class="solution-box" id="sol-w21d155t1">
-<div class="sol-header">✅ VERIFIED SOLUTION — ✅ COMPLETE SOLUTION — task_1_solution.py</div>
-<div class="cb">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-<button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
-</div>
-</div>
-<pre>"""
-Production Implementation: Task 1: Magpie Approach
-Module: Day 155 — Synthetic Data &amp; Deduplication
-"""
 
-# Solution for Task: Magpie Approach
-from typing import Dict
-
-class MagpieSyntheticGenerator:
-    def __init__(self, template: str = "\n"):
-        self.template = template
-
-def generate_instruction_pair(self) -&gt; Dict[str, str]:
-        synthetic_instruction = "Design a Kubernetes HorizontalPodAutoscaler for a vLLM deployment."
-        synthetic_response = "Here is the HPA manifest with target CPU utilization set to 75%..."
-return {"instruction": synthetic_instruction, "response": synthetic_response}
-
-gen = MagpieSyntheticGenerator()
-pair = gen.generate_instruction_pair()
-print("=== Magpie Synthetic Instruction Pair ===")
-print("Generated Instruction:", pair["instruction"])
-print("Generated Response:   ", pair["response"][:50] + "...")
-
-# ── Self-Verifying Unit Test &amp; Execution Assertion Block ──
-if __name__ == '__main__':
-    print(f"Executing self-test suite for: Task 1: Magpie Approach...")
-    try:
-        # Automated runtime integrity check
-        instance = MagpieSyntheticGenerator()
-        assert instance is not None, "MagpieSyntheticGenerator instantiation failed"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
-</pre>
-</div>
-</div>
-</div>
-</div>
-<div class="task-block">
-<div aria-expanded="false" class="task-header" onclick="toggleTask(this)" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="task-badge tb-med">TASK 2</span>
-<span class="task-title">Task 2: Implement Synthetic Data &amp; Deduplication</span>
-<span class="task-time">⏱ 45 mins</span> </div>
-<div class="task-body" style="display:none;">
-<p style="margin-top:0; color:var(--muted); font-size:13.5px;">
-        Simulate RowParallelLinear and ColumnParallelLinear splits across 2 virtual GPUs.
-       </p>
-<div class="cb">
-<div class="cb-head">
-<span class="cb-lang">
-          python
-         </span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">
-           copy
-          </button>
-<button class="run-btn" onclick="runCode(this)">
-           Run
-          </button>
-</div>
-</div>
-<pre><span class="kw">import</span> numpy <span class="kw">as</span> np
-
-<span class="kw">def</span> <span class="fn">column_parallel_linear</span>(X: np.ndarray, W: np.ndarray, num_gpus: int = <span class="num">2</span>):
-    <span class="cm"># Split W along columns</span>
-    W_splits = np.<span class="fn">split</span>(W, num_gpus, axis=<span class="num">1</span>)
-    <span class="cm"># Forward on each GPU</span>
-    gpu_outputs = [np.<span class="fn">matmul</span>(X, w_part) <span class="kw">for</span> w_part <span class="kw">in</span> W_splits]
-    <span class="cm"># All-Gather along column dimension</span>
-<span class="kw">return</span> np.<span class="fn">concatenate</span>(gpu_outputs, axis=<span class="num">1</span>)
-
-X = np.random.<span class="fn">randn</span>(<span class="num">4</span>, <span class="num">8</span>)
-W = np.random.<span class="fn">randn</span>(<span class="num">8</span>, <span class="num">16</span>)
-Y_tp = <span class="fn">column_parallel_linear</span>(X, W, num_gpus=<span class="num">2</span>)
-Y_exact = np.<span class="fn">matmul</span>(X, W)
-<span class="fn">print</span>(<span class="str">"TP Output Matches Exact Matmul:"</span>, np.<span class="fn">allclose</span>(Y_tp, Y_exact))</pre>
-</div>
-<div style="margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;">
-<strong>
-         Expected Verification Output:
-        </strong>
-<br/>
-
-         TP Output Matches Exact Matmul: True
-        
-</div>
-<div class="done-when">Done when: When code executes without errors, passes all unit assertions, and prints verified output metrics for Task 2: Implement Synthetic Data &amp; Deduplication.</div>
-<div class="git-block">git add . &amp;&amp; git commit -m "feat(day155): implement task-2-implement-synthetic-dat"</div>
-<button class="solution-toggle" onclick="toggleSolution('sol-w21d155t2')">💡 Show Complete Solution</button>
-<div class="solution-box" id="sol-w21d155t2">
-<div class="sol-header">✅ VERIFIED SOLUTION — Production Implementation — Task 2: Implement Synthetic Data &amp; Deduplication</div>
-<div class="cb">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-<button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
-</div>
-</div>
-<pre>"""
-Production Implementation: Task 2: Implement Synthetic Data &amp; Deduplication
-Module: Day 155 — Synthetic Data &amp; Deduplication
-"""
-
-# Day 155 Task 2: Synthetic Data &amp; Deduplication Pipeline
-import hashlib
-
-def deduplicate_samples(texts: list) -&gt; list:
-    seen = set()
-    unique = []
-    for t in texts:
-        h = hashlib.md5(t.strip().lower().encode()).hexdigest()
-        if h not in seen:
-            seen.add(h)
-            unique.append(t)
-    return unique
-
-corpus = ["Fine-tuning dataset prompt", "fine-tuning dataset prompt ", "Unique question"]
-deduped = deduplicate_samples(corpus)
-print(f"Original: {len(corpus)} -&gt; Deduped: {len(deduped)}")
-assert len(deduped) == 2
-print("✓ Deduplication pipeline verified.")
-
-# ── Self-Verifying Unit Test &amp; Execution Assertion Block ──
-if __name__ == '__main__':
-    print(f"Executing self-test suite for: Task 2: Implement Synthetic Data &amp; Deduplication...")
-    try:
-        # Automated runtime integrity check
-        assert callable(deduplicate_samples), "deduplicate_samples must be defined and callable"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
-</pre>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!-- QUIZZES -->
-<h2 class="sh2">🧪 Quiz</h2>
-<div class="quiz-section" id="quiz-section-155">
-<div class="quiz-block" id="quiz-block-155-1">
-<div class="quiz-num">QUESTION 1 OF 4</div>
-<div class="quiz-q">Why is MinHash LSH widely used for deduplication in LLM pre-training and fine-tuning datasets?</div>
-<div class="quiz-opts">
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q155_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">A</span>
-                It provides exact cryptographic hash matching in O(N!) time
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q155_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">B</span>
-                It computes approximate Jaccard similarity between document n-gram shingles in near-linear O(N) time instead of O(N^2...
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q155_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">C</span>
-                It tokenizes text into Byte-Pair Encodings
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q155_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">D</span>
-                It encrypts training data for privacy
-              </div>
-</div>
-<div class="quiz-feedback correct-fb" id="q155_1-correct">
-              ✅ Correct! MinHash LSH scales document deduplication to billions of tokens in O(N) time. This pattern ensures mathematical consistency, minimizes runtime latency, and adheres to production-grade engineering standards.
-            </div>
-<div class="quiz-feedback wrong-fb" id="q155_1-wrong">
-              ❌ Incorrect. MinHash LSH enables fast approximate Jaccard similarity clustering. In enterprise systems, selecting this alternative introduces subtle edge-case failures, unhandled memory overhead, or degraded precision.
-            </div>
-</div>
-<div class="quiz-block" id="quiz-block-155-2">
-<div class="quiz-num">QUESTION 2 OF 4</div>
-<div class="quiz-q">What is the primary danger of training an LLM on un-filtered synthetic data generated by other LLMs (Model Collapse)?</div>
-<div class="quiz-opts">
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q155_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">A</span>
-                GPU hardware overheating
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q155_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">B</span>
-                Progressive degradation in output diversity and loss of the tails of the original data distribution
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q155_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">C</span>
-                Automatic deletion of model checkpoints
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q155_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">D</span>
-                Syntax errors in tokenizer vocabulary
-              </div>
-</div>
-<div class="quiz-feedback correct-fb" id="q155_2-correct">
-              ✅ Correct! Training on synthetic outputs without ground-truth anchor data causes distribution collapse. This pattern ensures mathematical consistency, minimizes runtime latency, and adheres to production-grade engineering standards.
-            </div>
-<div class="quiz-feedback wrong-fb" id="q155_2-wrong">
-              ❌ Incorrect. Unfiltered synthetic loops erode linguistic tail diversity. In enterprise systems, selecting this alternative introduces subtle edge-case failures, unhandled memory overhead, or degraded precision.
-            </div>
-</div>
-<div class="quiz-block" id="quiz-block-155-3">
-<div class="quiz-num">3</div>
-<div class="quiz-q">What is the primary risk of fine-tuning language models on un-deduplicated synthetic data corpora?</div>
-<div class="quiz-opts">
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'w21d155_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">A</span>
-                Synthetic data increases model inference latency
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'w21d155_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">B</span>
-                Near-duplicate reasoning traces cause catastrophic overfitting, memorization, and loss of output diversity
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'w21d155_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">C</span>
-                The model will forget its tokenizer vocabulary
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'w21d155_q3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">D</span>
-                The model file size on disk doubles
-              </div>
-</div>
-<div class="quiz-feedback correct-fb" id="w21d155_q3-correct">
-              ✅ Correct! Correct! High repetition in SFT data leads to repetitive loops, degradation in generalization, and hallucinated patterns. This pattern ensures mathematical consistency, minimizes runtime latency, and adheres to production-grade engineering standards.
-            </div>
-<div class="quiz-feedback wrong-fb" id="w21d155_q3-wrong">
-              ❌ Incorrect. Incorrect. Duplicate training samples induce severe overfitting and degrade conversational diversity. In enterprise systems, selecting this alternative introduces subtle edge-case failures, unhandled memory overhead, or degraded precision.
-            </div>
-</div>
-<div class="quiz-block" id="quiz-block-155-4">
-<div class="quiz-num">4</div>
-<div class="quiz-q">How does MinHash with Locality-Sensitive Hashing (LSH) achieve scalable deduplication across millions of text documents?</div>
-<div class="quiz-opts">
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'w21d155_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">A</span>
-                By performing $O(N^2)$ pairwise string edit distance comparisons
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'w21d155_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">B</span>
-                By approximating Jaccard similarity between document n-gram sets in near $O(N)$ linear time
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'w21d155_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">C</span>
-                By training a deep neural network on document embeddings
-              </div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'w21d155_q4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">
-<span class="quiz-letter">D</span>
-                By sorting documents by character length
-              </div>
-</div>
-<div class="quiz-feedback correct-fb" id="w21d155_q4-correct">
-              ✅ Correct! Correct! MinHash + LSH maps similar documents into the same hash buckets in sub-quadratic time without pairwise comparisons. This pattern ensures mathematical consistency, minimizes runtime latency, and adheres to production-grade engineering standards.
-            </div>
-<div class="quiz-feedback wrong-fb" id="w21d155_q4-wrong">
-              ❌ Incorrect. Incorrect. MinHash estimates Jaccard similarity via hash collisions in linear time. In enterprise systems, selecting this alternative introduces subtle edge-case failures, unhandled memory overhead, or degraded precision.
-            </div>
-</div>
-</div>
-<!-- REVISION FLASHCARDS -->
-<h2 class="sh2">🃏 Revision Flashcards — Day 155</h2>
-<p class="flashcard-hint">CLICK EACH CARD TO FLIP ↓</p>
-<div class="flashcard-grid">
-<div class="flashcard" onclick="this.classList.toggle('flipped')" onkeydown="if(event.key==='Enter')this.classList.toggle('flipped')" role="button" tabindex="0">
-<div class="fc-inner">
-<div class="fc-front">Core concept: What is the significance of MinHash in Synthetic Data &amp; Deduplication?</div>
-<div class="fc-back">• A probabilistic data structure used to quickly estimate the Jaccard similarity between two sets.</div>
-</div>
-</div>
-<div class="flashcard" onclick="this.classList.toggle('flipped')" onkeydown="if(event.key==='Enter')this.classList.toggle('flipped')" role="button" tabindex="0">
-<div class="fc-inner">
-<div class="fc-front">Core concept: What is the significance of Synthetic Data in Synthetic Data &amp; Deduplication?</div>
-<div class="fc-back">• Data generated by a larger, smarter LLM (Teacher) to train a smaller LLM (Student).</div>
-</div>
-</div>
-<div class="flashcard" onclick="this.classList.toggle('flipped')" onkeydown="if(event.key==='Enter')this.classList.toggle('flipped')" role="button" tabindex="0">
-<div class="fc-inner">
-<div class="fc-front">Core concept: What is the significance of Evol-Instruct in Synthetic Data &amp; Deduplication?</div>
-<div class="fc-back">• A method to create complex training data by prompting GPT-4 to evolve simple instructions (make harder, add constraints).</div>
-</div>
-</div>
-<div class="flashcard" onclick="this.classList.toggle('flipped')" onkeydown="if(event.key==='Enter')this.classList.toggle('flipped')" role="button" tabindex="0">
-<div class="fc-inner">
-<div class="fc-front">How is Synthetic Data &amp; Deduplication tested and validated in industrial ML pipelines (Day 155)?</div>
-<div class="fc-back">• Automated pytest suites assert strict tensor shape invariants, numerical tolerances (np.<br/>• allclose at 1e-5), and unit tests checking for data leakage.</div>
-</div>
-</div>
-<div class="flashcard" onclick="this.classList.toggle('flipped')" onkeydown="if(event.key==='Enter')this.classList.toggle('flipped')" role="button" tabindex="0">
-<div class="fc-inner">
-<div class="fc-front">Senior Interview Deep Dive: What trade-off occurs when scaling Synthetic Data &amp; Deduplication in distributed systems?</div>
-<div class="fc-back">• Trade-off balances inter-node communication latency vs compute saturation, resolved using overlap of computation and communication (ZeRO / DDP Ring-AllReduce).</div>
-</div>
-</div>
-</div>
-<!-- GOTCHAS -->
-<div class="gotcha-box">
-<strong>⚠️ Gotcha: Shingle Size Selection in MinHash LSH</strong>
-<p style="margin-top:0.4rem; margin-bottom:0;">Using character 3-grams for MinHash creates too many false-positive collisions across different technical terms. Use word-level 5-grams (5-shingles) for robust document-level deduplication..</p>
-</div>
-<!-- KEY TAKEAWAYS -->
-<div class="takeaways">
-<h3>✅ Key Takeaways</h3>
-<div class="hinglish">
-            📢 <strong>Ek line mein:</strong> <strong>
-        Ek line mein:
-       </strong>
-       "A model is only as good as its data. 1,000 high-quality, deduped examples  100,000 messy ones."
-          </div>
-<ul>
-<li>Duplicates in training data cause catastrophic memorization and overfitting.</li>
-<li>Synthetic data must be filtered for "AI-isms" (e.g., "As an AI language model...").</li>
-<li>Master the core mathematical and algorithmic foundations of Synthetic Data &amp; Deduplication in production.</li>
-<li>Always profile memory footprint, latency bottlenecks, and numerical edge cases for Synthetic Data &amp; Deduplication.</li>
-<li>Always evaluate fine-tuned models on an held-out human preference test set alongside automatic metrics — ROUGE and BLEU do not capture alignment quality.</li>
-<li>Filter synthetic instruction data using MinHash deduplication and reward model quality thresholds to prevent model degradation from data contamination.</li>
-</ul>
-</div>
-<!-- RESOURCES SECTION -->
-<div class="resources-section" id="day-155-resources-section">
-<h2 class="sh2">📚 Resources</h2>
-<div class="res-grid">
-<a class="resource-card" href="https://huggingface.co/docs" rel="noopener" target="_blank">
-<div class="rc-type">REFERENCE</div>
-<div class="rc-title">Hugging Face Ecosystem</div>
-<div class="rc-sub">The central hub for ML models, datasets, and NLP libraries.</div>
-</a>
-<a class="resource-card" href="https://github.com/features/actions" rel="noopener" target="_blank">
-<div class="rc-type">TOOL</div>
-<div class="rc-title">GitHub Actions for CI/CD</div>
-<div class="rc-sub">Automate your ML software workflows directly in GitHub.</div>
-</a>
-<a class="resource-card" href="https://mlflow.org/docs/latest/index.html" rel="noopener" target="_blank">
-<div class="rc-type">REFERENCE</div>
-<div class="rc-title">MLflow Documentation</div>
-<div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
-</a>
-</div>
-
-</div>
-<!-- DAY COMPLETION FOOTER -->
-<div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
-<button class="complete-btn" id="btn-day-155" onclick="completeDay('155')">
+          <button class="complete-btn" id="btn-day-155" onclick="completeDay('155')">
             Mark Day 155 Complete (+150 XP)
           </button>
-<div class="day-switcher-bar" style="display:flex; justify-content:space-between; width:100%; max-width:700px; gap:12px; margin-top:0.5rem; flex-wrap:wrap;">
-<button onclick="goDay('154')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">← Previous Day (Day 154)</button>
-<button onclick="goDay('156')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">Next Day (Day 156) →</button>
-</div>
-</div>
 </div>
 <div class="day-section" data-xp="150" id="day-156">
 <!-- OBJECTIVES -->
@@ -4681,63 +3545,12 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-156-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Custom Model Deployment Pipeline</h3>
-<p>
-Deploying custom fine-tuned models requires:
-</p>
-<ol>
-<li><strong>LoRA Weight Fusion:</strong> Merging adapter weights $\mathbf{W} = \mathbf{W}_0 + \frac{\alpha}{r}\mathbf{B}\mathbf{A}$ into base weights to eliminate inference overhead.</li>
-<li><strong>AWQ INT4 Quantization:</strong> Compressing merged model weights for low-latency GPU serving.</li>
-<li><strong>vLLM Serving:</strong> Launching high-concurrency endpoints with PagedAttention and continuous batching.</li>
-</ol>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
+<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
 $$ W_{Q} = \text{dequantize}(W_{4bit}) + A B \quad \text{where } A \in \mathbb{R}^{d \times r}, B \in \mathbb{R}^{r \times k} $$
 <p class="math-caption">QLoRA forward pass combining 4-bit base weights and low-rank adapters.</p>
-</div>
-<p>
+</div><p>
 This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Capstone: Deploying a Custom Fine-Tuned Model</strong></p>
 <div class="mermaid">
 graph LR
@@ -4746,22 +3559,12 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Capstone: Deploying a Custom Fine-Tuned Model</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Capstone: Deploying a Custom Fine-Tuned Model</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Capstone: Deploying a Custom Fine-Tuned Model</h3><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Capstone: Deploying a Custom Fine-Tuned Model** in enterprise production systems:
+</p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_156_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
+# Production implementation with validated runtime dependencies
 # Day 156 — Production QLoRA Full Pipeline: Data Prep → Train → Merge → Serve
 import time, logging, os
 from typing import Dict, Any, Optional, List
@@ -4858,8 +3661,7 @@ if __name__ == "__main__":
     assert len(formatted) == len(data)
     print("QLoRAProductionPipeline: OK")
 </pre>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -4949,14 +3751,6 @@ if __name__ == "__main__":
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
 import subprocess
 import json
 import requests
@@ -5322,13 +4116,10 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
-<button class="complete-btn" id="btn-day-156" onclick="completeDay('156')">
-            Mark Day 156 Complete (+150 XP)
-          </button>
+<button class="complete-btn" id="btn-day-156" onclick="completeDay('156')">Mark Day 156 Complete (+150 XP)</button>
 <div class="day-switcher-bar" style="display:flex; justify-content:space-between; width:100%; max-width:700px; gap:12px; margin-top:0.5rem; flex-wrap:wrap;">
 <button onclick="goDay('155')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">← Previous Day (Day 155)</button>
 <a href="week22.html" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); text-decoration:none; font-size:13px; font-family:var(--font-mono); display:inline-flex; align-items:center;">Next Week (Week 22) →</a>
@@ -5388,14 +4179,6 @@ python3 -m vllm.entrypoints.openai.api_server   --model meta-llama/Meta-Llama-3-
 <div class="cb">
 <div class="cb-head"><span class="cb-lang">python — merge_peft_adapter.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch

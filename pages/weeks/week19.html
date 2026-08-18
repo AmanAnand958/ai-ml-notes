@@ -194,243 +194,38 @@
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-136-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. The Dual Nature of Information Retrieval: Dense vs. Sparse</h3>
-<p>
-Modern enterprise information retrieval operates across two distinct search paradigms, each with fundamental mathematical and operational trade-offs:
-</p>
-<ul>
-<li><strong>Dense Semantic Retrieval (Bi-Encoders):</strong> Models like <code>text-embedding-3-large</code>, <code>bge-large-en-v1.5</code>, or <code>e5-mistral-7b-instruct</code> project arbitrary natural language passages into dense, continuous embedding spaces $\mathbb{R}^d$ ($d \in [768, 3072]$). Similarity is computed via vector dot product or cosine distance. Dense retrieval captures synonyms, conceptual abstractions, and cross-lingual semantics ("cardiac arrest" matches "heart attack"). However, dense retrieval routinely suffers from <strong>semantic drift on exact identifiers</strong>, model hallucination on out-of-vocabulary acronyms, part numbers (e.g. <code>SKU-8921-X</code>), and precise error codes (e.g. <code>0x80070005</code>).</li>
-<li><strong>Sparse Lexical Retrieval (BM25 &amp; Inverted Indexes):</strong> Okapi BM25 scores document relevance based on term frequency ($TF$), inverse document frequency ($IDF$), and document length normalization. BM25 guarantees deterministic precision on exact keyword tokens, rare technical terms, and proper nouns. However, BM25 fails completely on semantic paraphrases, vocabulary mismatch, and multi-word semantic intent.</li>
-</ul>
-<div class="mermaid">
-graph TD
-    Query["User Query: 'Troubleshoot error 0x80070005 in Azure VM'"] --&gt; Fork{"Query Dispatcher"}
-    Fork --&gt;|Dense Bi-Encoder| DenseSearch["Dense Vector Index - HNSW / Cosine Similarity"]
-    Fork --&gt;|Sparse Tokenizer / BM25| SparseSearch["Sparse Lexical Index - Inverted Index / BM25"]
-    DenseSearch --&gt;|Ranked List D - Top 50| RRF["Reciprocal Rank Fusion Engine<br/>score = sum( 1 / (60 + rank_i) )"]
-    SparseSearch --&gt;|Ranked List S - Top 50| RRF
-    RRF --&gt; TopK["Fused and Deduplicated Candidates - Top 20"]
-    TopK --&gt; Reranker["Cross-Encoder Reranker - BGE-Reranker-Large"]
-    Reranker --&gt; FinalContext["Final Top-5 Grounded Contexts to LLM Context Window"]
-</div>
-<div class="diagram-cap">Figure 136.1: Enterprise Hybrid Search Architecture combining parallel lexical and dense retrieval with RRF and cross-encoder reranking.</div>
-<h3 class="sh3">2. BM25 Mathematical Formulation &amp; Sizing</h3>
-<p>
-The Okapi BM25 score of a document $D$ for a tokenized query $Q = \{q_1, q_2, \dots, q_n\}$ is computed as:
-</p>
-<div class="math-block">
-$$\text{Score}_{\text{BM25}}(D, Q) = \sum_{i=1}^n \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgdl}} \right)}$$
-</div>
-<p>
-Where:
-</p>
-<ul>
-<li>$f(q_i, D)$ is the term frequency of token $q_i$ in document $D$.</li>
-<li>$|D|$ is the length of document $D$ in words, and $\text{avgdl}$ is the average document length across the entire corpus.</li>
-<li>$k_1$ is the term frequency saturation parameter (typically $k_1 \in [1.2, 2.0]$). It controls how quickly additional occurrences of a term provide diminishing score returns.</li>
-<li>$b$ is the document length penalty parameter (typically $b = 0.75$). It penalizes overly verbose documents.</li>
-<li>$\text{IDF}(q_i) = \ln \left( \frac{N - n(q_i) + 0.5}{n(q_i) + 0.5} + 1 \right)$, where $N$ is total documents and $n(q_i)$ is the number of documents containing term $q_i$.</li>
-</ul>
-<h3 class="sh3">3. The Score Distribution Incompatibility Problem</h3>
-<p>
-Why can we not simply add raw BM25 scores and dense cosine scores together?
-</p>
-<ul>
-<li><strong>BM25 scores are unbounded positive reals $[0, \infty)$:</strong> A document with 10 matching query tokens in a small corpus might receive a BM25 score of <code>42.8</code>, while in a large corpus it receives <code>12.4</code>.</li>
-<li><strong>Cosine similarity scores are strictly bounded $[-1, 1]$ or $[0, 1]$:</strong> Dense vectors reside on a unit hypersphere where distances represent geometric angles.</li>
-</ul>
-<p>
-Attempting linear combination ($S_{\text{hybrid}} = \alpha S_{\text{dense}} + (1-\alpha) S_{\text{BM25}}$) requires Min-Max or Z-score normalization calibrated on every query. However, because score variance fluctuates wildly based on query length and keyword rarity, linear weighting produces severe ranking instability in production.
-</p>
-<h3 class="sh3">4. Reciprocal Rank Fusion (RRF) Formulation</h3>
-<p>
-<strong>Reciprocal Rank Fusion (RRF)</strong> (Cormack et al., 2009) solves score incompatibility by discarding raw scalar values entirely and fusing candidates strictly based on their <strong>ordinal rank positions</strong> across retrieval lists:
-</p>
-<div class="math-block">
-$$\text{RRFScore}(d \in D) = \sum_{m \in M} \frac{1}{k + r_m(d)}$$
-</div>
-<p>
-Where:
-</p>
-<ul>
-<li>$M$ is the set of retrieval systems (e.g. $M = \{\text{Dense Vector}, \text{Sparse BM25}\}$).</li>
-<li>$r_m(d) \in \{1, 2, \dots, K\}$ is the 1-based rank position of document $d$ in the output of system $m$. If document $d$ was not retrieved by system $m$, its reciprocal rank is $0$.</li>
-<li>$k$ is a rank smoothing constant (standard industry default is $k = 60$). The constant $k$ prevents the top-ranked item in one list from dominating candidates that appear consistently in top-5 positions across both lists.</li>
-</ul>
-<h3 class="sh3">5. Production Python Implementation: Vector + BM25 Hybrid Engine</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Any
-<span class="kw">from</span> collections <span class="kw">import</span> defaultdict
-<span class="kw">import</span> math
 
-<span class="kw">class</span> <span class="fn">HybridSearchEngine</span>:
-    <span class="str">"""
-    Production-grade Hybrid Search with BM25 Lexical + Dense Cosine + RRF Fusion.
-    """</span>
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, k_rrf: int = <span class="num">60</span>):
-        self.k_rrf = k_rrf
 
-    <span class="kw">def</span> <span class="fn">reciprocal_rank_fusion</span>(
-        self,
-        dense_results: List[Dict[str, Any]],
-        sparse_results: List[Dict[str, Any]],
-        top_n: int = <span class="num">10</span>
-    ) -&gt; List[Dict[str, Any]]:
-        rrf_scores = defaultdict(float)
-        doc_store = {}
 
-        <span class="cm"># 1. Process Dense Candidate Rankings</span>
-        <span class="kw">for</span> rank, item <span class="kw">in</span> enumerate(dense_results, start=<span class="num">1</span>):
-            doc_id = item[<span class="str">'id'</span>]
-            rrf_scores[doc_id] += <span class="num">1.0</span> / (self.k_rrf + rank)
-            doc_store[doc_id] = item
 
-        <span class="cm"># 2. Process Sparse BM25 Candidate Rankings</span>
-        <span class="kw">for</span> rank, item <span class="kw">in</span> enumerate(sparse_results, start=<span class="num">1</span>):
-            doc_id = item[<span class="str">'id'</span>]
-            rrf_scores[doc_id] += <span class="num">1.0</span> / (self.k_rrf + rank)
-            doc_store[doc_id] = item
 
-        <span class="cm"># 3. Sort by aggregated RRF score descending</span>
-        sorted_ids = sorted(rrf_scores.keys(), key=<span class="kw">lambda</span> did: rrf_scores[did], reverse=<span class="kw">True</span>)
 
-        fused_output = []
-        <span class="kw">for</span> did <span class="kw">in</span> sorted_ids[:top_n]:
-            entry = dict(doc_store[did])
-            entry[<span class="str">'rrf_score'</span>] = round(rrf_scores[did], <span class="num">6</span>)
-            fused_output.append(entry)
 
-        <span class="kw">return</span> fused_output</code></pre>
-</div>
-<h3 class="sh3">6. Benchmark Performance Comparison</h3>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Retrieval Strategy</th>
-<th style="padding:8px;">Recall @ 10</th>
-<th style="padding:8px;">MRR @ 10</th>
-<th style="padding:8px;">p95 Latency</th>
-<th style="padding:8px;">Failure Modes</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Pure Dense (HNSW)</strong></td>
-<td style="padding:8px;">81.2%</td>
-<td style="padding:8px;">0.64</td>
-<td style="padding:8px;">12ms</td>
-<td style="padding:8px;">Fails on exact error codes, SKUs, and foreign acronyms.</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Pure Sparse (BM25)</strong></td>
-<td style="padding:8px;">73.5%</td>
-<td style="padding:8px;">0.58</td>
-<td style="padding:8px;">4ms</td>
-<td style="padding:8px;">Fails on synonyms, paraphrasing, and cross-lingual intent.</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Hybrid + RRF ($k=60$)</strong></td>
-<td style="padding:8px;"><strong>94.1%</strong></td>
-<td style="padding:8px;"><strong>0.79</strong></td>
-<td style="padding:8px;">18ms</td>
-<td style="padding:8px;">Requires maintaining both inverted index and vector storage.</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Hybrid + RRF + Cross-Encoder</strong></td>
-<td style="padding:8px;"><strong>97.8%</strong></td>
-<td style="padding:8px;"><strong>0.88</strong></td>
-<td style="padding:8px;">45ms</td>
-<td style="padding:8px;">GPU compute required for Stage-2 reranker model.</td>
-</tr>
-</tbody>
-</table>
-<h3 class="sh3">7. In-Memory Inverted Index Construction</h3>
-<p>
-An inverted index maps every unique token $t$ to a posting list $\mathcal{P}(t) = \{(d_1, f_1), (d_2, f_2), \dots\}$ containing document IDs and token frequencies. Fast lexical querying intersects posting lists across query terms in $O(\sum |\mathcal{P}(q_i)|)$ time.
-</p>
-<h3 class="sh3">8. Dense vs Hybrid Latency Budget Allocation</h3>
-<p>
-To satisfy a strict <strong>100ms end-to-end SLA</strong> for conversational search:
-</p>
-<ul>
-<li><strong>Query Tokenization &amp; Embedding:</strong> 12ms (via high-throughput ONNX runtime).</li>
-<li><strong>Parallel Dense + Sparse Search:</strong> 15ms.</li>
-<li><strong>RRF Ranking Fusion:</strong> &lt;1ms.</li>
-<li><strong>Cross-Encoder Stage-2 Rerank:</strong> 30ms (NVIDIA TensorRT-LLM on A10G).</li>
-<li><strong>LLM First Token Generation (TTFT):</strong> 40ms.</li>
-</ul>
-<h3 class="sh3">Production Engineering Walkthrough: Hybrid Search &amp; RRF</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Hybrid Search &amp; RRF</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_hybrid_search_rrf.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 136 — Production Hybrid Search Engine (Dense + BM25 + RRF)
-import math, time, logging
-from typing import List, Dict, Any, Tuple
-from collections import defaultdict
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("HybridSearch")
+$$\text{RRF\_Score}(d \in D) = \sum_{m \in M} \frac{1}{k + r_m(d)}$$
 
-class HybridSearchEngine:
-    """Hybrid retrieval: dense cosine + BM25 sparse, fused with Reciprocal Rank Fusion (k=60)."""
 
-    def __init__(self, k_rrf: int = 60, top_k_each: int = 50):
-        self.k_rrf = k_rrf
-        self.top_k_each = top_k_each
-        self._corpus: List[Dict] = []
-        self._bm25 = None
 
-    def index(self, documents: List[Dict[str, Any]]) -&gt; None:
-        from rank_bm25 import BM25Okapi
-        self._corpus = documents
-        tokenized = [doc["text"].lower().split() for doc in documents]
-        self._bm25 = BM25Okapi(tokenized, k1=1.5, b=0.75)
-        logger.info(f"Indexed {len(documents)} documents (BM25 k1=1.5, b=0.75)")
 
-    def _dense_rank(self, query_vec: List[float], doc_vecs: List[List[float]]) -&gt; List[Tuple[int, float]]:
-        import numpy as np
-        q = np.array(query_vec); q /= (np.linalg.norm(q) + 1e-9)
-        scores = [(i, float(np.dot(q, np.array(d) / (np.linalg.norm(d) + 1e-9)))) for i, d in enumerate(doc_vecs)]
-        return sorted(scores, key=lambda x: x[1], reverse=True)[:self.top_k_each]
 
-    def _sparse_rank(self, query: str) -&gt; List[Tuple[int, float]]:
-        scores = self._bm25.get_scores(query.lower().split())
-        return sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:self.top_k_each]
 
-    def rrf_fuse(self, *ranked_lists) -&gt; List[Tuple[int, float]]:
-        rrf: Dict[int, float] = defaultdict(float)
-        for rl in ranked_lists:
-            for rank, (doc_id, _) in enumerate(rl, start=1):
-                rrf[doc_id] += 1.0 / (self.k_rrf + rank)
-        return sorted(rrf.items(), key=lambda x: x[1], reverse=True)
 
-    def search(self, query: str, query_vec: List[float], doc_vecs: List[List[float]], top_n: int = 5) -&gt; List[Dict]:
-        t0 = time.perf_counter()
-        fused = self.rrf_fuse(self._dense_rank(query_vec, doc_vecs), self._sparse_rank(query))
-        results = [{"doc": self._corpus[i], "rrf_score": s} for i, s in fused[:top_n]]
-        logger.info(f"Hybrid search {(time.perf_counter()-t0)*1000:.1f}ms, top-{top_n} returned")
-        return results
 
-if __name__ == "__main__":
-    import numpy as np
-    docs = [
-        {"id": 1, "text": "Azure VM error 0x80070005 access denied administrators"},
-        {"id": 2, "text": "BM25 retrieval formula term frequency inverse document frequency"},
-        {"id": 3, "text": "dense vector cosine similarity embedding retrieval HNSW index"},
-    ]
-    engine = HybridSearchEngine()
-    engine.index(docs)
-    doc_vecs = [np.random.randn(128).tolist() for _ in docs]
-    results = engine.search("Azure VM access error", np.random.randn(128).tolist(), doc_vecs, top_n=2)
-    print(f"Top results: {[r['doc']['id'] for r in results]}")
-    assert len(results) == 2
-    print("HybridSearchEngine: OK")
-</code></pre>
-</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -866,7 +661,6 @@ print("✓ Hybrid search pipeline verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -948,178 +742,8 @@ print("✓ Hybrid search pipeline verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-137-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. The Two-Stage Information Retrieval Architecture</h3>
-<p>
-In production enterprise search over corpora containing millions of documents, evaluating full transformer cross-attention for every document at query time is computationally impossible ($O(N \cdot L^2)$ computational complexity).
-</p>
-<p>
-Industrial search systems resolve this through a <strong>two-stage retrieval funnel</strong>:
-</p>
-<ol>
-<li><strong>Stage 1 (Bi-Encoder Candidate Generation):</strong> Computes query embedding $\vec{q} = f_\theta(q)$ and document embedding $\vec{d} = f_\theta(d)$ independently. At query time, vector index lookups (HNSW / IVF) compute cosine similarity $\vec{q} \cdot \vec{d}$ over 1,000,000+ passages in &lt;10ms, retrieving the top 50–100 candidates.</li>
-<li><strong>Stage 2 (Cross-Encoder Re-Ranking):</strong> Feeds the query and passage jointly into a single transformer model as $[\text{CLS}] \circ q \circ [\text{SEP}] \circ p \circ [\text{SEP}]$. Every query token attends directly to every passage token across all layers, capturing fine-grained contextual relationships (negation, numerical constraints, entity matching).</li>
-</ol>
-<div style="margin: 1.5rem 0; text-align: center;">
-<svg aria-label="Bi-Encoder vs Cross-Encoder Architecture Comparison" height="280" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);" viewbox="0 0 740 280" width="740" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<lineargradient id="bi-grad-19" x1="0%" x2="100%" y1="0%" y2="100%">
-<stop offset="0%" stop-color="#1e1e2e"></stop>
-<stop offset="100%" stop-color="#11111b"></stop>
-</lineargradient>
-</defs>
-<!-- Left: Bi-Encoder -->
-<rect fill="url(#bi-grad-19)" height="260" rx="10" stroke="#45475a" stroke-width="1.5" width="345" x="10" y="10"></rect>
-<text fill="#89b4fa" font-size="13" font-weight="bold" x="25" y="35">Stage 1: Bi-Encoder (Dense Vectors)</text>
-<rect fill="#313244" height="40" rx="6" stroke="#89b4fa" width="135" x="30" y="55"></rect>
-<text fill="#cdd6f4" font-size="11" x="45" y="80">Query q</text>
-<rect fill="#313244" height="40" rx="6" stroke="#a6e3a1" width="145" x="190" y="55"></rect>
-<text fill="#cdd6f4" font-size="11" x="205" y="80">Document d</text>
-<text fill="#f38ba8" font-size="18" x="80" y="120">↓</text>
-<text fill="#f38ba8" font-size="18" x="245" y="120">↓</text>
-<rect fill="#181825" height="45" rx="6" stroke="#cba6f7" width="135" x="30" y="135"></rect>
-<text fill="#cba6f7" font-size="10" x="45" y="155">BERT Encoder f_θ</text>
-<text fill="#9399b2" font-size="9" x="55" y="170">vec(u) in R^1024</text>
-<rect fill="#181825" height="45" rx="6" stroke="#cba6f7" width="145" x="190" y="135"></rect>
-<text fill="#cba6f7" font-size="10" x="205" y="155">BERT Encoder f_θ</text>
-<text fill="#9399b2" font-size="9" x="215" y="170">vec(v) in R^1024</text>
-<path d="M 97 180 L 172 215" stroke="#fab387" stroke-width="1.5"></path>
-<path d="M 262 180 L 172 215" stroke="#fab387" stroke-width="1.5"></path>
-<rect fill="#fab387" height="35" rx="6" width="135" x="105" y="215"></rect>
-<text fill="#11111b" font-size="11" font-weight="bold" x="115" y="237">Dot Product: u · v</text>
-<text fill="#a6adc8" font-size="9" x="30" y="258">Fast ANN (HNSW) | Zero cross-attention</text>
-<!-- Right: Cross-Encoder -->
-<rect fill="url(#bi-grad-19)" height="260" rx="10" stroke="#f38ba8" stroke-width="1.5" width="355" x="375" y="10"></rect>
-<text fill="#f38ba8" font-size="13" font-weight="bold" x="390" y="35">Stage 2: Cross-Encoder (Joint Attention)</text>
-<rect fill="#313244" height="45" rx="6" stroke="#f38ba8" width="315" x="395" y="55"></rect>
-<text fill="#cdd6f4" font-size="11" x="410" y="82">[CLS] + Query Tokens + [SEP] + Document Tokens</text>
-<text fill="#f38ba8" font-size="18" x="545" y="125">↓</text>
-<rect fill="#181825" height="55" rx="6" stroke="#f9e2af" stroke-width="1.5" width="315" x="395" y="135"></rect>
-<text fill="#f9e2af" font-size="11" font-weight="bold" x="430" y="158">Full Multi-Layer Cross Self-Attention</text>
-<text fill="#9399b2" font-size="9.5" x="415" y="178">Every query token attends to every doc token (O(L^2))</text>
-<text fill="#f38ba8" font-size="18" x="545" y="208">↓</text>
-<rect fill="#a6e3a1" height="35" rx="6" width="215" x="445" y="215"></rect>
-<text fill="#11111b" font-size="11" font-weight="bold" x="460" y="237">Calibrated Relevance Score σ(W h_CLS)</text>
-</svg>
-<div class="diagram-cap">Figure 137.2: Architectural Comparison: Bi-Encoder Independent Projection vs Cross-Encoder Full Cross-Attention.</div>
-</div>
-<h3 class="sh3">2. Mathematical Formulation: Full Self-Attention Scoring</h3>
-<p>
-In a Bi-Encoder, the interaction between query and document is a late interaction reduced to a single dot product:
-</p>
-<div class="math-block">
-$$S_{\text{bi}}(q, d) = \langle \mathbf{u}(q), \mathbf{v}(d) 
-angle = \sum_{i=1}^D u_i v_i$$
-</div>
-<p>
-In a Cross-Encoder, the input sequence is concatenated and fed through $L$ transformer self-attention layers:
-</p>
-<div class="math-block">
-$$\mathbf{H}^{(l)} = \text{Softmax}\left( \frac{\mathbf{Q}^{(l)} {\mathbf{K}^{(l)}}^T}{\sqrt{d_k}} \right) \mathbf{V}^{(l)}$$
-</div>
-<p>
-Because every query token $q_i$ attends to every document token $d_j$ across all layers $l \in [1, L]$, the cross-encoder captures complex semantic dependencies (such as qualifying adjectives, temporal constraints, and conditional clauses) that are completely lost in a single pooled embedding vector.
-</p>
-<h3 class="sh3">3. Production Python Implementation: Batch Reranking Engine</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Any
-<span class="kw">import</span> math
 
-<span class="kw">class</span> <span class="fn">CrossEncoderReranker</span>:
-    <span class="str">"""
-    Stage-2 Candidate Reranker using Cross-Encoder Joint Scoring.
-    """</span>
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, model_name: str = <span class="str">"BAAI/bge-reranker-large"</span>, batch_size: int = <span class="num">32</span>):
-        self.model_name = model_name
-        self.batch_size = batch_size
 
-    <span class="kw">def</span> <span class="fn">compute_relevance</span>(self, query: str, passage: str) -&gt; float:
-        q_tokens = set(query.lower().split())
-        p_tokens = passage.lower().split()
-        
-        <span class="cm"># Compute lexical and contextual overlap</span>
-        overlap = sum(<span class="num">2.0</span> <span class="kw">if</span> t <span class="kw">in</span> q_tokens <span class="kw">else</span> <span class="num">0.0</span> <span class="kw">for</span> t <span class="kw">in</span> p_tokens)
-        logit = (overlap / (len(p_tokens) + <span class="num">1.0</span>)) * <span class="num">4.0</span> - <span class="num">1.5</span>
-        
-        <span class="cm"># Calibrated Sigmoid probability</span>
-        probability = <span class="num">1.0</span> / (<span class="num">1.0</span> + math.exp(-logit))
-        <span class="kw">return</span> round(probability, <span class="num">5</span>)
-
-    <span class="kw">def</span> <span class="fn">rerank</span>(self, query: str, candidates: List[Dict[str, Any]], top_k: int = <span class="num">5</span>) -&gt; List[Dict[str, Any]]:
-        scored = []
-        <span class="kw">for</span> doc <span class="kw">in</span> candidates:
-            item = dict(doc)
-            item[<span class="str">'rerank_score'</span>] = self.compute_relevance(query, doc.get(<span class="str">'text'</span>, <span class="str">''</span>))
-            scored.append(item)
-            
-        scored.sort(key=<span class="kw">lambda</span> x: x[<span class="str">'rerank_score'</span>], reverse=<span class="kw">True</span>)
-        <span class="kw">return</span> scored[:top_k]</code></pre>
-</div>
-<h3 class="sh3">4. Candidate Pool Sizing SLA Analysis</h3>
-<p>
-To keep total end-to-end RAG response latency under $150\text{ms}$:
-</p>
-<ul>
-<li><strong>Pool Size $K = 50$:</strong> Cross-encoder latency $\approx 25\text{--}35\text{ms}$ on an NVIDIA T4 / A10G GPU. Recovers $\gt 95\%$ of top-relevant passages. (Recommended default).</li>
-<li><strong>Pool Size $K = 200$:</strong> Cross-encoder latency jumps to $\approx 120\text{--}150\text{ms}$, risking p99 timeout violations on concurrent traffic.</li>
-</ul>
-<h3 class="sh3">5. Score Calibration and Probability Thresholding</h3>
-<p>
-Raw cross-encoder outputs are uncalibrated logits $z \in (-\infty, \infty)$. To make scores interpretable for hard relevance cutoffs (e.g. discarding chunks if relevance &lt; 0.35), calibrate logits using Temperature-scaled Sigmoid:
-</p>
-<div class="math-block">
-$$\hat{p} = \sigma\left(\frac{z}{T} \right) = \frac{1}{1 + e^{-z / T}}$$
-</div>
-<h3 class="sh3">6. Cross-Encoder Distillation to Bi-Encoders</h3>
-<p>
-Cross-encoders are often used as teacher models to train lightweight bi-encoders via knowledge distillation (Margin MSE loss):
-</p>
-<div class="math-block">
-$$\mathcal{L}_{\text{distill}} = \left| (S_{\text{bi}}(q, d^+) - S_{\text{bi}}(q, d^-)) - (S_{\text{cross}}(q, d^+) - S_{\text{cross}}(q, d^-)) \right|^2$$
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Production Engineering Walkthrough: Cross-Encoders &amp; Re-ranking</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Cross-Encoders &amp; Re-ranking</strong> in high-throughput enterprise systems:
-</p>
 <div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_cross_encoder_reranker.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 137 — Production Cross-Encoder Reranker (BGE-Reranker-Large)
@@ -1168,8 +792,7 @@ if __name__ == "__main__":
     assert len(ranked) == 5
     print("CrossEncoderReranker: OK")
 </code></pre>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1586,7 +1209,6 @@ print("✓ Cross-encoder reranker verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -1668,198 +1290,9 @@ print("✓ Cross-encoder reranker verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-138-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. The Chunking Granularity Trade-Off</h3>
 <p>
-In vector search pipelines, chunking converts long unstructured documents into discrete retrievable units. The selected chunk size creates an unavoidable tension:
-</p>
-<ul>
-<li><strong>Small Chunks (e.g. 128 tokens):</strong> Deliver high vector specificity and pinpoint retrieval accuracy, but strip away surrounding context, leaving the LLM unable to answer multi-sentence comprehension questions.</li>
-<li><strong>Large Chunks (e.g. 1024+ tokens):</strong> Preserve complete conversational context, but dilute vector embeddings because the embedding vector averages too many disparate topics ("lost in the middle" effect).</li>
-</ul>
-<h3 class="sh3">2. Advanced Chunking Paradigms</h3>
-<div class="mermaid">
-graph TD
-    RawDoc["Raw Enterprise Document (PDF, Markdown, HTML)"] --&gt; Strategy{"Chunking Strategy"}
-    Strategy --&gt; ParentChild["1. Parent-Child / Small-to-Big Indexing
-(Index 128-token child chunks for search,
-Return 1024-token parent chunk to LLM)"]
-    Strategy --&gt; SemanticChunk["2. Semantic Boundary Chunking
-(Split on embedding cosine similarity drops
-between consecutive sentences)"]
-    Strategy --&gt; DocStructure["3. Document-Aware Recursive Markdown
-(Split strictly on #, ##, ### headers, tables, code blocks)"]
-</div>
-<div class="diagram-cap">Figure 138.1: Advanced chunking methodologies resolving embedding dilution and context loss.</div>
-<h3 class="sh3">3. Parent-Child (Small-to-Big) Indexing Implementation</h3>
-<p>
-Parent-Child indexing solves the granularity dilemma cleanly by separating the <strong>indexing unit</strong> from the <strong>generation context unit</strong>:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Any
-<span class="kw">import</span> uuid
-
-<span class="kw">class</span> <span class="fn">ParentChildChunker</span>:
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, parent_size: int = <span class="num">1024</span>, child_size: int = <span class="num">256</span>, overlap: int = <span class="num">32</span>):
-        self.parent_size = parent_size
-        self.child_size = child_size
-        self.overlap = overlap
-
-    <span class="kw">def</span> <span class="fn">chunk_document</span>(self, text: str) -&gt; Dict[str, Any]:
-        parents = []
-        children = []
-        words = text.split()
-        parent_step = self.parent_size - self.overlap
-        
-        <span class="kw">for</span> p_start <span class="kw">in</span> range(<span class="num">0</span>, len(words), parent_step):
-            p_words = words[p_start : p_start + self.parent_size]
-            parent_id = str(uuid.uuid4())
-            parent_text = <span class="str">" "</span>.join(p_words)
-            parents.append({<span class="str">'parent_id'</span>: parent_id, <span class="str">'text'</span>: parent_text})
-
-            child_step = self.child_size - self.overlap
-            <span class="kw">for</span> c_start <span class="kw">in</span> range(<span class="num">0</span>, len(p_words), child_step):
-                c_words = p_words[c_start : c_start + self.child_size]
-                children.append({
-                    <span class="str">'child_id'</span>: str(uuid.uuid4()),
-                    <span class="str">'parent_id'</span>: parent_id,
-                    <span class="str">'text'</span>: <span class="str">" "</span>.join(c_words)
-                })
-
-        <span class="kw">return</span> {<span class="str">'parents'</span>: parents, <span class="str">'children'</span>: children}</code></pre>
-</div>
-<h3 class="sh3">4. Semantic Chunking Mathematical Formulation</h3>
-<p>
-Semantic chunking calculates the cosine distance between consecutive sentence embeddings $s_i$ and $s_{i+1}$:
-</p>
-<div class="math-block">
-$$d_i = 1 - \frac{\vec{e}(s_i) \cdot \vec{e}(s_{i+1})}{\|\vec{e}(s_i)\| \|\vec{e}(s_{i+1})\|}$$
-</div>
-<p>
-A chunk boundary is inserted wherever $d_i \gt  \mu_d + k \cdot \sigma_d$, identifying natural thematic shifts in text narrative.
-</p>
-<h3 class="sh3">5. Document Structure Preservation (AST Markdown Splitting)</h3>
-<p>
-Naive text splitting cuts through Markdown tables, code fences (<code>```python ... ```</code>), and nested lists, corrupting syntax. Document-aware splitters parse the document into an Abstract Syntax Tree (AST), preserving table integrity and header hierarchies.
-</p>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Production Engineering Walkthrough: Advanced Chunking Strategies</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Advanced Chunking Strategies</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_semantic_chunker.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 138 — Production Semantic + Parent-Document Chunker
-import re, time, logging
-from typing import List, Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("SemanticChunker")
-
-class ParentDocumentChunker:
-    """
-    Parent-document chunking: index small child chunks (256 tokens) for dense retrieval,
-    but return large parent chunks (2048 tokens) to the LLM for context richness.
-    """
-
-    def __init__(self, child_chunk_size: int = 256, parent_chunk_size: int = 2048,
-                 overlap: int = 32):
-        self.child_size = child_chunk_size
-        self.parent_size = parent_chunk_size
-        self.overlap = overlap
-
-    def _token_count(self, text: str) -&gt; int:
-        # Approximation: 1 token ≈ 4 chars
-        return len(text) // 4
-
-    def _split_by_tokens(self, text: str, chunk_tokens: int, overlap_tokens: int) -&gt; List[str]:
-        words = text.split()
-        chars_per_token = 4
-        chunk_words = chunk_tokens * chars_per_token // 5  # avg word length ~5
-        overlap_words = overlap_tokens * chars_per_token // 5
-        chunks, i = [], 0
-        while i &lt; len(words):
-            chunk = " ".join(words[i:i+chunk_words])
-            chunks.append(chunk)
-            i += chunk_words - overlap_words
-        return chunks
-
-    def chunk(self, document: Dict[str, Any]) -&gt; Dict[str, List[Dict]]:
-        text = document["text"]
-        doc_id = document.get("id", "doc")
-        parent_chunks = self._split_by_tokens(text, self.parent_size, self.overlap)
-        result = {"parent_chunks": [], "child_chunks": []}
-        for p_idx, parent in enumerate(parent_chunks):
-            parent_id = f"{doc_id}_p{p_idx}"
-            result["parent_chunks"].append({
-                "chunk_id": parent_id, "text": parent,
-                "token_count": self._token_count(parent)
-            })
-            child_chunks = self._split_by_tokens(parent, self.child_size, self.overlap // 2)
-            for c_idx, child in enumerate(child_chunks):
-                result["child_chunks"].append({
-                    "chunk_id": f"{parent_id}_c{c_idx}", "parent_id": parent_id,
-                    "text": child, "token_count": self._token_count(child)
-                })
-        logger.info(f"Doc {doc_id}: {len(result['parent_chunks'])} parent, "
-                    f"{len(result['child_chunks'])} child chunks")
-        return result
-
-if __name__ == "__main__":
-    import random, string
-    # Generate a long document
-    words = " ".join(["".join(random.choices(string.ascii_lowercase, k=random.randint(3,10))) for _ in range(5000)])
-    doc = {"id": "doc_001", "text": words}
-    chunker = ParentDocumentChunker(child_chunk_size=256, parent_chunk_size=1024)
-    result = chunker.chunk(doc)
-    print(f"Parent chunks: {len(result['parent_chunks'])}")
-    print(f"Child chunks:  {len(result['child_chunks'])}")
-    assert len(result["child_chunks"]) &gt;= len(result["parent_chunks"])
-    # Verify parent-child link
-    child = result["child_chunks"][0]
-    assert child["parent_id"] in {p["chunk_id"] for p in result["parent_chunks"]}
-    print("ParentDocumentChunker: OK")
-</code></pre>
-</div>
-</div>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Advanced Chunking Strategies** in enterprise production systems:
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2288,7 +1721,6 @@ print("✓ Semantic boundary chunking verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -2374,176 +1806,6 @@ print("✓ Semantic boundary chunking verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-139-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Vector Indexing Trade-Offs: Precision vs Latency</h3>
-<p>
-Exact Flat $k$-NN search calculates pairwise cosine distances across every stored vector ($O(N \cdot d)$), providing $100\%$ recall but taking hundreds of milliseconds on datasets larger than $100,000$ documents. Enterprise systems rely on <strong>Approximate Nearest Neighbor (ANN)</strong> indexing:
-</p>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Index Type</th>
-<th style="padding:8px;">Search Complexity</th>
-<th style="padding:8px;">Memory Footprint</th>
-<th style="padding:8px;">Typical Recall@10</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Flat (Exact k-NN)</strong></td>
-<td style="padding:8px;">$O(N \cdot d)$ (Linear Scan)</td>
-<td style="padding:8px;">100% (Raw FP32 vectors)</td>
-<td style="padding:8px;">100.0%</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>IVF-Flat (Inverted File)</strong></td>
-<td style="padding:8px;">$O(\frac{N}{K} \cdot d \cdot \text{nprobe})$</td>
-<td style="padding:8px;">100% + Centroid overhead</td>
-<td style="padding:8px;">92 - 97%</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>HNSW (Hierarchical Graph)</strong></td>
-<td style="padding:8px;">$O(\log N)$</td>
-<td style="padding:8px;">150 - 200% (Edge pointers)</td>
-<td style="padding:8px;">98 - 99.5%</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>IVF-PQ (Product Quantization)</strong></td>
-<td style="padding:8px;">$O(M \cdot \text{nprobe})$</td>
-<td style="padding:8px;"><strong>4 - 8% (Compressed)</strong></td>
-<td style="padding:8px;">85 - 92%</td>
-</tr>
-</tbody>
-</table>
-<h3 class="sh3">2. HNSW Skip-List Graph Architecture</h3>
-<p>
-<strong>Hierarchical Navigable Small World (HNSW)</strong> constructs a multi-layer graph where upper layers contain sparse, long-range highway edges and lower layers contain dense local neighbor clusters. Greedy routing hops across highway edges on layer $L$ to locate the nearest centroid before descending to layer $L-1$, achieving logarithmic $O(\log N)$ query times under 2ms.
-</p>
-<h3 class="sh3">3. Production Python Implementation: FAISS HNSW &amp; IVF-PQ Benchmarking</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">import</span> numpy <span class="kw">as</span> np
-<span class="kw">import</span> time
-
-<span class="kw">class</span> <span class="fn">VectorIndexBenchmark</span>:
-    <span class="str">"""
-    Benchmarking Framework for ANN Search: Precision, Latency, and Memory.
-    """</span>
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, dim: int = <span class="num">768</span>, n_vectors: int = <span class="num">50000</span>):
-        self.dim = dim
-        self.n_vectors = n_vectors
-        self.vectors = np.random.randn(n_vectors, dim).astype(<span class="str">'float32'</span>)
-        <span class="cm"># Normalize for cosine similarity</span>
-        norms = np.linalg.norm(self.vectors, axis=<span class="num">1</span>, keepdims=<span class="kw">True</span>)
-        self.vectors = self.vectors / norms
-
-    <span class="kw">def</span> <span class="fn">flat_exact_search</span>(self, query: np.ndarray, k: int = <span class="num">10</span>):
-        t0 = time.perf_counter()
-        scores = np.dot(self.vectors, query)
-        top_k_idx = np.argpartition(scores, -k)[-k:]
-        sorted_idx = top_k_idx[np.argsort(-scores[top_k_idx])]
-        latency_ms = (time.perf_counter() - t0) * <span class="num">1000</span>
-        <span class="kw">return</span> sorted_idx, latency_ms</code></pre>
-</div>
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
-$$ \text{Dist}(q, p) = \sqrt{\sum_{i=1}^{d} (q_i - p_i)^2} \quad \text{approx. via } \text{IVF-PQ} $$
-<p class="math-caption">L2 distance approximation using Inverted File Index with Product Quantization.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Vector Indexing Deep Dive</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Vector Indexing Deep Dive</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Vector Indexing Deep Dive</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_faiss_hnsw_index.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["faiss"] = MagicMock()
-
-# Day 139 — Production FAISS HNSW Index with IVF-PQ Compression
-import time, logging
-import numpy as np
-from typing import List, Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("FAISSHNSWIndex")
-
-class FAISSHNSWIndex:
-    """Production FAISS HNSW index: M=32 connections, ef_search=64, inner product metric."""
-
-    def __init__(self, dim: int = 1536, M: int = 32, ef_construction: int = 200):
-        import faiss
-        self.dim = dim
-        self.index = faiss.IndexHNSWFlat(dim, M, faiss.METRIC_INNER_PRODUCT)
-        self.index.hnsw.efConstruction = ef_construction
-        self.metadata: List[Dict] = []
-        logger.info(f"HNSW index: dim={dim}, M={M}, efConstruction={ef_construction}")
-
-    def build(self, vectors: np.ndarray, metadata: List[Dict]) -&gt; None:
-        import faiss
-        assert vectors.shape[0] == len(metadata)
-        faiss.normalize_L2(vectors)          # cosine via inner product on unit vecs
-        self.index.add(vectors)
-        self.metadata = metadata
-        logger.info(f"Built HNSW index: {vectors.shape[0]} vectors, dim={vectors.shape[1]}")
-
-    def search(self, query: np.ndarray, top_k: int = 10, ef_search: int = 64) -&gt; List[Dict]:
-        import faiss
-        t0 = time.perf_counter()
-        self.index.hnsw.efSearch = ef_search
-        q = query.reshape(1, -1).astype("float32")
-        faiss.normalize_L2(q)
-        scores, indices = self.index.search(q, top_k)
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-        results = [
-            {"score": float(scores[0][i]), "metadata": self.metadata[int(indices[0][i])]}
-            for i in range(top_k) if indices[0][i] &gt;= 0
-        ]
-        logger.info(f"HNSW search: {elapsed_ms:.2f}ms, {len(results)} results")
-        return results
-
-    def save(self, path: str) -&gt; None:
-        import faiss, pickle
-        faiss.write_index(self.index, f"{path}.faiss")
-        with open(f"{path}.meta", "wb") as f:
-            pickle.dump(self.metadata, f)
-        logger.info(f"Saved index to {path}.faiss")
-
-    def load(self, path: str) -&gt; None:
-        import faiss, pickle
-        self.index = faiss.read_index(f"{path}.faiss")
-        with open(f"{path}.meta", "rb") as f:
-            self.metadata = pickle.load(f)
-        logger.info(f"Loaded index from {path}.faiss: {self.index.ntotal} vectors")
-
-if __name__ == "__main__":
-    dim, n = 128, 10_000
-    vecs = np.random.randn(n, dim).astype("float32")
-    meta = [{"doc_id": i, "chunk": f"chunk_{i}"} for i in range(n)]
-    idx = FAISSHNSWIndex(dim=dim, M=16)
-    idx.build(vecs, meta)
-    query = np.random.randn(dim).astype("float32")
-    results = idx.search(query, top_k=5)
-    print(f"Top-5: {[r['metadata']['doc_id'] for r in results]}")
-    assert len(results) == 5
-    assert results[0]["score"] &gt;= results[-1]["score"]
-    print("FAISSHNSWIndex: OK")
-</pre>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -2568,10 +1830,6 @@ if __name__ == "__main__":
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["faiss"] = MagicMock()
-
 import time, logging
 import numpy as np
 from typing import List, Tuple, Dict
@@ -2665,10 +1923,6 @@ if __name__ == "__main__":
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["faiss"] = MagicMock()
-
 # Solution for Task: HNSW in FAISS
 import faiss
 import numpy as np
@@ -3009,7 +2263,6 @@ print("✅ Vector indexing assertions passed")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -3091,102 +2344,10 @@ print("✅ Vector indexing assertions passed")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-140-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Deep Technical Principles: GraphRAG &amp; Knowledge Graphs</h3>
-<p>
-Traditional vector search treats text chunks as isolated semantic points in vector space. When answering complex, global queries across thousands of documents (e.g. <em>"What are the overarching corporate risks across all subsidiaries?"</em>), pure vector search fails because no single chunk contains the answer.
-</p>
-<p>
-<strong>GraphRAG (Edge et al., Microsoft Research)</strong> builds an interconnected Knowledge Graph from raw text corpus:
-</p>
-<ol>
-<li><strong>Entity &amp; Relationship Extraction:</strong> LLM extracts structured $(u, v, e)$ triples (e.g. <code>(EntityA)-[SUPPLIES]-&gt;(EntityB)</code>).</li>
-<li><strong>Leiden Community Detection:</strong> Hierarchical graph clustering groups densely connected entity subgraphs into modular communities.</li>
-<li><strong>Community Summarization:</strong> Pre-generates comprehensive narrative summaries for each cluster at multiple resolution tiers.</li>
-</ol>
-<h3 class="sh3">2. Production Python Implementation: Knowledge Graph Triple Extractor</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Tuple
-<span class="kw">import</span> json
-
-<span class="kw">class</span> <span class="fn">KnowledgeGraphStore</span>:
-    <span class="kw">def</span> <span class="fn">__init__</span>(self):
-        self.nodes: Dict[str, Dict] = {}
-        self.edges: List[Tuple[str, str, str]] = []
-
-    <span class="kw">def</span> <span class="fn">add_entity</span>(self, entity_id: str, entity_type: str, description: str):
-        self.nodes[entity_id] = {
-            <span class="str">"type"</span>: entity_type,
-            <span class="str">"description"</span>: description
-        }
-
-    <span class="kw">def</span> <span class="fn">add_relationship</span>(self, src: str, dst: str, rel_type: str):
-        self.edges.append((src, dst, rel_type))
-
-    <span class="kw">def</span> <span class="fn">get_subgraph</span>(self, entity_id: str, depth: int = <span class="num">2</span>) -&gt; List[Tuple[str, str, str]]:
-        <span class="cm"># BFS traversal to extract local knowledge neighborhood</span>
-        visited = set([entity_id])
-        queue = [(entity_id, <span class="num">0</span>)]
-        matched_edges = []
-
-        <span class="kw">while</span> queue:
-            curr, d = queue.pop(<span class="num">0</span>)
-            <span class="kw">if</span> d &gt;= depth: <span class="kw">continue</span>
-            <span class="kw">for</span> s, tgt, r <span class="kw">in</span> self.edges:
-                <span class="kw">if</span> s == curr <span class="kw">and</span> tgt <span class="kw">not</span> <span class="kw">in</span> visited:
-                    visited.add(tgt)
-                    matched_edges.append((s, tgt, r))
-                    queue.append((tgt, d + <span class="num">1</span>))
-        <span class="kw">return</span> matched_edges</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ \text{Centrality}(v) = \sum_{s \ne v \ne t} \frac{\sigma_{st}(v)}{\sigma_{st}} $$
 <p class="math-caption">Betweenness centrality calculation for node $v$ in a Neo4j knowledge graph.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</div><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: GraphRAG &amp; Knowledge Graphs</strong></p>
 <div class="mermaid">
 graph LR
@@ -3195,88 +2356,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: GraphRAG &amp; Knowledge Graphs</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>GraphRAG &amp; Knowledge Graphs</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_knowledge_graph_extractor.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 140 — Production Neo4j Knowledge Graph Triple Extractor
-import time, logging, json
-from typing import List, Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("KGExtractor")
-
-EXTRACTION_PROMPT = """Extract (subject, predicate, object) triples from the text.
-Return ONLY a JSON array: [{"subject": "...", "predicate": "...", "object": "..."}, ...]
-Limit to 10 most important factual triples. No explanation."""
-
-class Neo4jKnowledgeGraphBuilder:
-    """LLM-powered triple extraction + Neo4j ingestion for GraphRAG."""
-
-    def __init__(self, openai_client, neo4j_uri: str, neo4j_user: str, neo4j_password: str):
-        self.client = openai_client
-        from neo4j import GraphDatabase
-        self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
-
-    def extract_triples(self, text: str, model: str = "gpt-4o-mini") -&gt; List[Dict[str, str]]:
-        t0 = time.perf_counter()
-        resp = self.client.chat.completions.create(
-            model=model, temperature=0.0,
-            messages=[{"role": "system", "content": EXTRACTION_PROMPT},
-                      {"role": "user", "content": text}]
-        )
-        content = resp.choices[0].message.content.strip()
-        # Strip code fences if present
-        content = content.strip("`").removeprefix("json
-").strip()
-        triples = json.loads(content) if content.startswith("[") else []
-        logger.info(f"Extracted {len(triples)} triples in {(time.perf_counter()-t0)*1000:.0f}ms")
-        return triples
-
-    def ingest_triples(self, triples: List[Dict[str, str]]) -&gt; int:
-        cypher = (
-            "MERGE (s:Entity {name: $subject}) "
-            "MERGE (o:Entity {name: $object}) "
-            "MERGE (s)-[r:RELATES {type: $predicate}]-&gt;(o) "
-            "ON CREATE SET r.count = 1 "
-            "ON MATCH SET r.count = r.count + 1"
-        )
-        with self.driver.session() as session:
-            for t in triples:
-                session.run(cypher, subject=t["subject"],
-                            predicate=t["predicate"], object=t["object"])
-        logger.info(f"Ingested {len(triples)} triples")
-        return len(triples)
-
-    def query_neighbors(self, entity: str, max_hops: int = 2) -&gt; List[Dict]:
-        cypher = (
-            f"MATCH path = (e:Entity {{name: $entity}})-[*1..{max_hops}]-(n:Entity) "
-            "RETURN DISTINCT n.name AS neighbor, length(path) AS hops"
-        )
-        with self.driver.session() as session:
-            result = session.run(cypher, entity=entity)
-            return [{"neighbor": r["neighbor"], "hops": r["hops"]} for r in result]
-
-if __name__ == "__main__":
-    print("Neo4jKnowledgeGraphBuilder: Requires OpenAI + Neo4j")
-    # Simulate triple extraction
-    simulated_triples = [
-        {"subject": "FAISS",    "predicate": "implements", "object": "HNSW"},
-        {"subject": "BM25",     "predicate": "uses",       "object": "TF-IDF"},
-        {"subject": "RAG",      "predicate": "combines",   "object": "retrieval"},
-        {"subject": "RRF",      "predicate": "fuses",      "object": "ranked lists"},
-    ]
-    print(f"Simulated triples ({len(simulated_triples)}):")
-    for t in simulated_triples:
-        print(f"  ({t['subject']}) -[{t['predicate']}]-&gt; ({t['object']})")
-    assert len(simulated_triples) == 4
-    print("KnowledgeGraphBuilder: OK")
-</code></pre>
-</div>
-</div>
+</div><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **GraphRAG &amp; Knowledge Graphs** in enterprise production systems:
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3737,7 +2819,6 @@ print("✅ GraphRAG assertions passed")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -3819,156 +2900,9 @@ print("✅ GraphRAG assertions passed")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-141-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Query Reformulation Strategies in Enterprise RAG</h3>
 <p>
-User queries are frequently poorly formulated, ambiguous, or conceptually distant from the target document phrasing. <strong>Advanced Query Transformations</strong> rewrite, expand, or decompose the raw user prompt prior to vector index querying:
-</p>
-<div class="mermaid">
-graph TD
-    RawPrompt["User Query"] --&gt; Transform{"Transformation Engine"}
-    Transform --&gt; HyDE["1. HyDE (Hypothetical Document Embeddings)
-Generate a hypothetical answer with LLM;
-Embed the hallucinated answer instead of query"]
-    Transform --&gt; MultiQuery["2. Multi-Query Expansion
-Generate 3-5 diverse linguistic variants of query;
-Execute parallel searches and fuse results"]
-    Transform --&gt; StepBack["3. Step-Back Prompting
-Abstract query into high-level fundamental principle;
-Retrieve foundational background context"]
-    Transform --&gt; SubQuery["4. Sub-Query Decomposition
-Decompose complex multi-hop question into sub-queries;
-Execute in parallel and synthesize"]
-</div>
-<div class="diagram-cap">Figure 141.1: The Four Core Query Transformation Pipelines.</div>
-<h3 class="sh3">2. Hypothetical Document Embeddings (HyDE) Formulation</h3>
-<p>
-HyDE (Gao et al., 2022) leverages an instruction-tuned LLM $M$ to synthesize a hypothetical document:
-</p>
-<div class="math-block">
-$$\hat{d} = M(q), \quad \vec{v}_{\text{query}} = \text{Embed}(\hat{d})$$
-</div>
-<p>
-Because $\hat{d}$ resides directly in the <em>document embedding manifold</em> (sharing document vocabulary, grammar, and structural tone), $\vec{v}_{\text{query}}$ achieves significantly higher cosine similarity with actual relevant documents than the short query vector $\text{Embed}(q)$.
-</p>
-<h3 class="sh3">3. Step-Back Prompting for Multi-Hop Principles</h3>
-<p>
-When answering questions that require high-level physics or financial formulas, Step-Back Prompting abstracts the specific query to its foundational theoretical laws first (e.g. <em>"If ideal gas temperature doubles at constant volume, what happens to pressure?"</em> abstracts to <em>"State Gay-Lussac's Law and its mathematical formula"</em>).
-</p>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Production Engineering Walkthrough: Advanced Query Transformations</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Advanced Query Transformations</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_141_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 141 — Production HyDE + Step-Back Query Expander
-import time, logging, json
-from typing import List, Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("QueryExpander")
-
-class HyDEQueryExpander:
-    """
-    Hypothetical Document Embedding (HyDE): generate a fake ideal answer,
-    embed it, retrieve real docs similar to the fake answer.
-    Also implements Step-Back prompting for abstraction-level expansion.
-    """
-
-    HYDE_PROMPT = "Write a short, detailed paragraph that would perfectly answer this question:
-{query}
-Answer in 2-3 sentences as if you are a technical expert:"
-
-    STEPBACK_PROMPT = "What is the broader, more general topic behind this specific question?
-Question: {query}
-Broader topic (1 sentence):"
-
-    def __init__(self, llm_client, embedding_model):
-        self.llm = llm_client
-        self.embedder = embedding_model
-
-    def generate_hypothetical_doc(self, query: str) -&gt; str:
-        t0 = time.perf_counter()
-        resp = self.llm.chat.completions.create(
-            model="gpt-4o-mini", temperature=0.3,
-            messages=[{"role": "user", "content": self.HYDE_PROMPT.format(query=query)}]
-        )
-        hyp_doc = resp.choices[0].message.content.strip()
-        logger.info(f"HyDE doc generated in {(time.perf_counter()-t0)*1000:.0f}ms: {hyp_doc[:60]}...")
-        return hyp_doc
-
-    def step_back_query(self, query: str) -&gt; str:
-        resp = self.llm.chat.completions.create(
-            model="gpt-4o-mini", temperature=0.0,
-            messages=[{"role": "user", "content": self.STEPBACK_PROMPT.format(query=query)}]
-        )
-        return resp.choices[0].message.content.strip()
-
-    def expand_query(self, query: str) -&gt; Dict[str, Any]:
-        hyp_doc = self.generate_hypothetical_doc(query)
-        step_back = self.step_back_query(query)
-        hyp_embedding = self.embedder.encode(hyp_doc)
-        query_embedding = self.embedder.encode(query)
-        return {
-            "original_query": query,
-            "hypothetical_doc": hyp_doc,
-            "step_back_query": step_back,
-            "hyp_embedding": hyp_embedding.tolist(),
-            "query_embedding": query_embedding.tolist(),
-        }
-
-if __name__ == "__main__":
-    print("HyDEQueryExpander: Requires OpenAI + SentenceTransformer")
-    # Simulate without LLM
-    query = "How does HNSW graph index work for approximate nearest neighbor search?"
-    hyp_doc = ("HNSW builds a hierarchical graph where each node connects to M nearest neighbors. "
-                "Search traverses from the top layer greedily toward the query, then refines at lower layers.")
-    step_back = "Graph-based approximate nearest neighbor search algorithms"
-    print(f"Query:        {query}")
-    print(f"HyDE doc:     {hyp_doc[:70]}...")
-    print(f"Step-back:    {step_back}")
-    print("HyDEQueryExpander: OK")
-</code></pre>
-</div>
-</div>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Advanced Query Transformations** in enterprise production systems:
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -4340,7 +3274,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -4422,84 +3355,10 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-142-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Production RAG Architecture: End-to-End Blueprint</h3>
-<p>
-Building an enterprise-grade RAG system requires integrating ingestion, retrieval, reranking, and continuous evaluation into a unified, resilient microservice:
-</p>
-<div class="mermaid">
-graph TD
-    User["Client App"] --&gt; APIGateway["FastAPI Gateway + Rate Limiter"]
-    APIGateway --&gt; Cache["Semantic Vector Cache (Redis)"]
-    Cache --&gt;|Cache Miss| Transform["Query Transformation (HyDE + Multi-Query)"]
-    Transform --&gt; HybridSearch["Qdrant Hybrid Index (HNSW + BM25)"]
-    HybridSearch --&gt; RRF["RRF Fusion (Top 50 Candidates)"]
-    RRF --&gt; CrossEncoder["Cross-Encoder Reranker (BGE-Reranker-Large)"]
-    CrossEncoder --&gt; GuardrailIn["Input Safety Guardrail (Presidio PII Scrubbing)"]
-    GuardrailIn --&gt; LLM["vLLM Serving Cluster (Llama-3-70B)"]
-    LLM --&gt; GuardrailOut["Output Grounding Guardrail (Hallucination Check)"]
-    GuardrailOut --&gt; Telemetry["OpenTelemetry Tracing + RAGAS Monitoring"]
-    GuardrailOut --&gt; User
-</div>
-<div class="diagram-cap">Figure 142.1: End-to-End Enterprise Production RAG Blueprint.</div>
-<h3 class="sh3">2. Production Operational SLA Targets</h3>
-<ul>
-<li><strong>Cache Hit Latency:</strong> &lt;5ms (Redis semantic vector cache).</li>
-<li><strong>Hybrid Search + Reranking:</strong> &lt;45ms.</li>
-<li><strong>First Token Time-To-First-Token (TTFT):</strong> &lt;60ms.</li>
-<li><strong>Continuous Evaluation Gates:</strong> Automated CI/CD assertion testing Faithfulness $\ge 0.90$ and Answer Relevance $\ge 0.85$ on golden test sets.</li>
-</ul>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ \text{RRF}(d) = \sum_{r \in R} \frac{1}{k + \text{rank}_r(d)} $$
 <p class="math-caption">Reciprocal Rank Fusion score for document $d$ across multiple retrieval models $R$.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<h3 class="sh3">Production Engineering Walkthrough: Capstone: Production RAG</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Capstone: Production RAG</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Capstone: Production RAG</h3><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_142_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 142 — Production End-to-End RAG Pipeline
 import time, logging
@@ -4574,8 +3433,7 @@ if __name__ == "__main__":
     print("Output includes: answer, sources, contexts (for RAGAS), latency_ms, tokens_used")
     print("RAGPipeline: OK")
 </code></pre>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -5022,7 +3880,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">

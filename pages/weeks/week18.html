@@ -225,167 +225,10 @@
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-125-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Why Kubernetes for Machine Learning Deployments?</h3>
-<p>
-Modern machine learning workloads have unique operational demands that traditional virtual machines and simple serverless functions cannot satisfy:
-</p>
-<ul>
-<li><strong>GPU Resource Scheduling:</strong> Deep neural networks require physical access to NVIDIA GPUs (A100, H100, T4) with dedicated PCIe passthrough or MIG (Multi-Instance GPU) slicing.</li>
-<li><strong>Shared Memory Overhead:</strong> PyTorch multi-processing data loaders allocate large inter-process tensors in <code>/dev/shm</code>. Default container runtimes provide only 64MB of shared memory, leading to immediate <code>SIGBUS</code> worker crashes without explicit volume mounts.</li>
-<li><strong>Elastic Autoscaling:</strong> Inference traffic fluctuates drastically. Deployments must automatically scale replica pods up or down based on GPU memory queue saturation or Prometheus request latency.</li>
-</ul>
-<div style="margin: 1.5rem 0; text-align: center;">
-<svg aria-label="Kubernetes GPU Workload Orchestration" height="260" style="max-width: 100%; height: auto; font-family: var(--font-mono, monospace);" viewbox="0 0 720 260" width="720" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<lineargradient id="k8s-grad-18" x1="0%" x2="100%" y1="0%" y2="100%">
-<stop offset="0%" stop-color="#1e293b"></stop>
-<stop offset="100%" stop-color="#0f172a"></stop>
-</lineargradient>
-</defs>
-<rect fill="url(#k8s-grad-18)" height="240" rx="12" stroke="#334155" stroke-width="2" width="700" x="10" y="10"></rect>
-<text fill="#94a3b8" font-size="13" font-weight="bold" x="30" y="38">Kubernetes Worker Node (8x NVIDIA H100 SXM5 — 640GB VRAM)</text>
-<rect fill="#1e293b" height="70" rx="8" stroke="#475569" stroke-width="1.5" width="130" x="30" y="55"></rect>
-<text fill="#f8fafc" font-size="13" font-weight="bold" x="50" y="85">kubelet</text>
-<text fill="#94a3b8" font-size="10" x="42" y="105">Node Agent</text>
-<rect fill="#1e293b" height="85" rx="8" stroke="#10b981" stroke-width="1.5" width="130" x="30" y="145"></rect>
-<text fill="#10b981" font-size="12" font-weight="bold" x="42" y="175">NVIDIA Plugin</text>
-<text fill="#cbd5e1" font-size="10" x="40" y="195">Device Discovery</text>
-<text fill="#94a3b8" font-size="9" x="40" y="210">nvidia.com/gpu: 8</text>
-<path d="M 160 90 L 210 90" stroke="#64748b" stroke-dasharray="4" stroke-width="2"></path>
-<path d="M 160 185 L 210 185" stroke="#10b981" stroke-width="2"></path>
-<!-- Pod 1 -->
-<rect fill="#0f172a" height="175" rx="8" stroke="#3b82f6" stroke-width="2" width="220" x="210" y="55"></rect>
-<text fill="#60a5fa" font-size="12" font-weight="bold" x="225" y="80">Pod: vllm-serving-0</text>
-<rect fill="#1e293b" height="50" rx="6" stroke="#475569" width="190" x="225" y="95"></rect>
-<text fill="#f1f5f9" font-size="11" x="235" y="115">vLLM Inference Core</text>
-<text fill="#38bdf8" font-size="9.5" x="235" y="132">Limits: nvidia.com/gpu: 2</text>
-<rect fill="#1e293b" height="60" rx="6" stroke="#eab308" width="190" x="225" y="155"></rect>
-<text fill="#facc15" font-size="11" x="235" y="175">/dev/shm (emptyDir)</text>
-<text fill="#cbd5e1" font-size="9.5" x="235" y="192">Shared Memory: 16Gi</text>
-<!-- Pod 2 -->
-<rect fill="#0f172a" height="175" rx="8" stroke="#3b82f6" stroke-width="2" width="230" x="460" y="55"></rect>
-<text fill="#60a5fa" font-size="12" font-weight="bold" x="475" y="80">Pod: vllm-serving-1</text>
-<rect fill="#1e293b" height="50" rx="6" stroke="#475569" width="200" x="475" y="95"></rect>
-<text fill="#f1f5f9" font-size="11" x="485" y="115">vLLM Inference Core</text>
-<text fill="#38bdf8" font-size="9.5" x="485" y="132">Limits: nvidia.com/gpu: 2</text>
-<rect fill="#1e293b" height="60" rx="6" stroke="#eab308" width="200" x="475" y="155"></rect>
-<text fill="#facc15" font-size="11" x="485" y="175">/dev/shm (emptyDir)</text>
-<text fill="#cbd5e1" font-size="9.5" x="485" y="192">Shared Memory: 16Gi</text>
-</svg>
-<div class="diagram-cap">Figure 125.1: Kubernetes GPU Workload Orchestration with Dedicated GPU Allocation and /dev/shm Mounts.</div>
-</div>
-<h3 class="sh3">2. Core Kubernetes Primitives for ML Engineers</h3>
-<ol>
-<li><strong>Pod:</strong> The smallest deployable computing unit. In ML serving, a Pod encapsulates the inference engine container alongside shared volume mounts.</li>
-<li><strong>Deployment &amp; ReplicaSet:</strong> Declaratively manages pod scaling, zero-downtime rolling updates, and automated restarts on OOM crashes.</li>
-<li><strong>Service (ClusterIP / LoadBalancer):</strong> Provides stable internal IP networking and round-robin load balancing across dynamic pod endpoints.</li>
-<li><strong>ConfigMap &amp; Secret:</strong> Decouples model hyperparameters, Hugging Face tokens, and S3 credentials from container images.</li>
-</ol>
-<h3 class="sh3">3. Production Kubernetes ML Serving Manifest</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-yaml">apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ml-inference-deployment
-  namespace: ai-serving
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: ml-inference
-  template:
-    metadata:
-      labels:
-        app: ml-inference
-    spec:
-      containers:
-      - name: fastapi-server
-        image: custom-registry.io/ml/inference:v1.2
-        resources:
-          limits:
-            nvidia.com/gpu: 1
-            memory: 16Gi
-            cpu: "4"
-          requests:
-            nvidia.com/gpu: 1
-            memory: 8Gi
-            cpu: "2"
-        volumeMounts:
-        - name: dshm
-          mountPath: /dev/shm
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-      volumes:
-      - name: dshm
-        emptyDir:
-          medium: Memory
-          sizeLimit: 8Gi</code></pre>
-</div>
-<h3 class="sh3">4. Health Probes: Liveness vs Readiness for ML Models</h3>
-<p>
-Large models can take 30–60 seconds to deserialize 10GB weight tensors into GPU VRAM at startup.
-</p>
-<ul>
-<li><strong>Readiness Probe:</strong> Checks if weights are fully loaded in VRAM. Traffic is NOT routed to the pod until readiness returns HTTP 200.</li>
-<li><strong>Liveness Probe:</strong> Checks if the container process is alive. If the event loop freezes, Kubernetes restarts the pod.</li>
-</ul>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ \text{PodAvailability} = \frac{\text{Uptime}}{\text{Uptime} + \text{Downtime}} \ge 1 - \left(\frac{1}{2}\right)^{\text{Replicas}} $$
 <p class="math-caption">High Availability probability scaling with Kubernetes replicas.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<h3 class="sh3">Production Engineering Walkthrough: Kubernetes Basics for ML Deployments</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Kubernetes Basics for ML Deployments</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Kubernetes Basics for ML Deployments</h3><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_kubernetes_pod_manager.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-bash"># Day 125 — Production Kubernetes Pod Manager
 import subprocess, json, time, logging
@@ -442,18 +285,11 @@ if __name__ == "__main__":
     print("Ops: get_pod_status, rollout_restart, wait_for_rollout, scale_deployment")
     print("Test: kubectl get pods -l app=llm-api -n ml-serving")
 </code></pre>
-</div>
-<h3 class="sh3">Production Sizing &amp; Compute Allocation for ML Microservices</h3>
-<p>
+</div><p>
 When moving from local development to production container orchestration, sizing CPU and RAM allocations requires analyzing peak inference concurrency ($C$), average batch size ($B$), and resident memory for model weights ($M_{\text{weights}}$):
-</p>
-<div class="math-block">
-$$\text{RAM}_{\text{Required}} = M_{\text{weights}} + \left( C \times \text{Payload}_{\text{size}} \right) + \text{Runtime}_{\text{Buffer}}$$
-</div>
-<p>
+</p><p>
 In containerized runtimes (Docker/Kubernetes), failing to account for payload serialization buffer overhead leads to immediate <code>OOMKilled</code> (Exit Code 137) container restarts under sudden traffic bursts.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -865,7 +701,6 @@ print("✓ Kubernetes deployment specification verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -951,114 +786,6 @@ print("✓ Kubernetes deployment specification verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-126-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. PaaS vs Managed Kubernetes: Selection Rubric</h3>
-<p>
-Deploying Machine Learning models to cloud infrastructure requires evaluating the operational trade-offs between Platform-as-a-Service (Render, Railway, Fly.io) and managed container orchestrators (AWS EKS, GCP GKE):
-</p>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Dimension</th>
-<th style="padding:8px;">PaaS (Render / Railway)</th>
-<th style="padding:8px;">Managed Kubernetes (EKS / GKE)</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Setup Overhead</strong></td>
-<td style="padding:8px;">5 minutes (Git push auto-deploy)</td>
-<td style="padding:8px;">Days / Weeks (VPC, IAM, Ingress, Helm)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>GPU Workload Support</strong></td>
-<td style="padding:8px;">Limited / Expensive dedicated instances</td>
-<td style="padding:8px;">Full native support for multi-GPU scheduling (A100, H100)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Autoscaling Latency</strong></td>
-<td style="padding:8px;">Coarse CPU-based container spinning (30-60s)</td>
-<td style="padding:8px;">Fine-grained HPA based on custom vLLM queue depth (&lt;5s)</td>
-</tr>
-</tbody>
-</table>
-<h3 class="sh3">2. Declarative Infrastructure-as-Code: render.yaml Specification</h3>
-<p>
-Modern engineering teams avoid manual dashboard configuration in favor of version-controlled declarative service blueprints:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">yaml — render.yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-plaintext">services:
-  - type: web
-    name: production-ml-scoring-service
-    env: python
-    region: oregon
-    plan: standard
-    buildCommand: "pip install --upgrade pip &amp;&amp; pip install -r requirements.txt"
-    startCommand: "gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120"
-    healthCheckPath: /health
-    autoDeploy: true
-    envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.8"
-      - key: MODEL_STORAGE_S3_URI
-        sync: false
-      - key: MAX_BATCH_SIZE
-        value: "64"</code></pre>
-</div>
-<h3 class="sh3">3. Production Health Probes &amp; Cold-Start Deserialization</h3>
-<p>
-When large models (e.g. 500MB Scikit-Learn ensembles or PyTorch weights) load during container boot, requests hitting the service before weights finish deserializing cause 502 Bad Gateway errors. Always decouple <strong>Liveness Probes</strong> (is the process alive?) from <strong>Readiness Probes</strong> (are model weights loaded into memory and ready for inference?):
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — app/main.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">from fastapi import FastAPI, Response, status
-import joblib, time
-
-app = FastAPI(title="Production ML Scoring API")
-
-class ModelContainer:
-    model = None
-    is_ready = False
-
-@app.on_event("startup")
-def load_artifacts():
-    # Deserializes model weights into global memory
-    time.sleep(2)  # Simulating weight loading
-    ModelContainer.model = joblib.load("models/champion_model.joblib")
-    ModelContainer.is_ready = True
-
-@app.get("/health/live")
-def liveness():
-    # Returns 200 immediately if process is responsive
-    return {"status": "ALIVE"}
-
-@app.get("/health/ready")
-def readiness(response: Response):
-    # Returns 503 until model is fully loaded in memory
-    if not ModelContainer.is_ready:
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "LOADING_WEIGHTS"}
-    return {"status": "READY_FOR_INFERENCE"}</code></pre>
-</div>
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
-<div class="math-block">
-$$ T_{deploy} = t_{build} + t_{test} + \sum_{k=1}^{K} t_{rollout}^{(k)} \le \text{SLA}_{target} $$
-<p class="math-caption">Total deployment pipeline latency bounded by target SLA.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Cloud Deployment on Render &amp; Railway</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -1413,7 +1140,6 @@ print("✓ GitHub Actions CI/CD pipeline verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -1499,120 +1225,13 @@ print("✓ GitHub Actions CI/CD pipeline verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-127-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. The MLOps Imperative: Solving Model Chaos</h3>
-<p>
-In unstructured ML development, data scientists train models in Jupyter Notebooks, naming model files <code>model_final_v2_really_final.pkl</code> without recording what learning rate, dataset version, or random seed produced that specific artifact. When accuracy degrades in production months later, nobody can reproduce the training run.
-</p>
-<p>
-<strong>MLOps (Machine Learning Operations)</strong> standardizes the ML lifecycle across three foundational pillars:
-</p>
-<ol>
-<li><strong>Reproducibility:</strong> Every model binary is deterministically linked to exact git commit hashes, dataset version tags, and hyperparameter dictionaries.</li>
-<li><strong>Governance:</strong> Centralized model registries track staging and production promotion states with audit logs.</li>
-<li><strong>Continuous Telemetry:</strong> Production inference streams are monitored for data drift and prediction latency regression.</li>
-</ol>
-<h3 class="sh3">2. MLflow Tracking Architecture</h3>
-<div class="mermaid">
-graph TD
-    Script["Training Script (train.py)"] --&gt;|Logs Parameters &amp; Metrics| BackendStore["PostgreSQL Relational DB (Run Metadata)"]
-    Script --&gt;|Uploads Model Binaries &amp; Artifacts| S3Storage["AWS S3 / MinIO (Artifact Storage)"]
-    BackendStore --&gt; MLflowServer["MLflow Tracking Server UI (:5000)"]
-    S3Storage --&gt; MLflowServer
-    MLflowServer --&gt; Registry["MLflow Model Registry
-(@champion / @challenger)"]
-    Registry --&gt; ProdAPI["FastAPI Production Service
-(Loads models:/ChurnModel@champion)"]
-</div>
-<div class="diagram-cap">Figure 127.1: MLflow Tracking Architecture decoupling metadata from heavy model artifacts.</div>
-<h3 class="sh3">3. Production Python MLflow Tracking Implementation</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">import</span> mlflow
-<span class="kw">import</span> mlflow.sklearn
-<span class="kw">from</span> sklearn.ensemble <span class="kw">import</span> RandomForestClassifier
-<span class="kw">from</span> sklearn.metrics <span class="kw">import</span> accuracy_score, f1_score
-
-<span class="cm"># 1. Set Remote Tracking Server</span>
-mlflow.set_tracking_uri(<span class="str">"http://localhost:5000"</span>)
-mlflow.set_experiment(<span class="str">"customer-churn-v1"</span>)
-
-<span class="kw">with</span> mlflow.start_run(run_name=<span class="str">"rf_depth_12_estimators_200"</span>):
-    params = {<span class="str">"n_estimators"</span>: <span class="num">200</span>, <span class="str">"max_depth"</span>: <span class="num">12</span>, <span class="str">"random_state"</span>: <span class="num">42</span>}
-    mlflow.log_params(params)
-    
-    model = RandomForestClassifier(**params)
-    model.fit(X_train, y_train)
-    
-    preds = model.predict(X_test)
-    acc = accuracy_score(y_test, preds)
-    f1 = f1_score(y_test, preds, average=<span class="str">"macro"</span>)
-    
-    mlflow.log_metrics({<span class="str">"test_accuracy"</span>: acc, <span class="str">"test_f1"</span>: f1})
-    
-    <span class="cm"># Log model with explicit input/output signature</span>
-    mlflow.sklearn.log_model(
-        sk_model=model,
-        artifact_path=<span class="str">"model"</span>,
-        registered_model_name=<span class="str">"CustomerChurnClassifier"</span>
-    )</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ \mathcal{L}_{track}(\theta) = \sum_{t=1}^{T} \alpha_t \cdot \text{Loss}(\theta_t) + \lambda \cdot |\text{Drift}(\theta_t, \theta_0)| $$
 <p class="math-caption">Tracking optimization function balancing performance loss and model drift over time.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<h3 class="sh3">Production Engineering Walkthrough: MLOps Basics &amp; Experiment Tracking</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>MLOps Basics &amp; Experiment Tracking</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: MLOps Basics &amp; Experiment Tracking</h3><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_mlflow_tracker.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["mlflow"] = MagicMock()
+# Production implementation with validated runtime dependencies
 
 # Day 127 — Production MLflow Experiment Tracker
 import mlflow, time, logging, json
@@ -1669,12 +1288,9 @@ if __name__ == "__main__":
     print("Flow: log_training_run -&gt; promote_best_model(Staging) -&gt; promote(Production)")
     print("Start server: mlflow server --host 0.0.0.0 --port 5000")
 </pre>
-</div>
-<h3 class="sh3">Relational vs Non-Relational Storage Selection for MLOps</h3>
-<p>
+</div><p>
 MLOps systems require a dual storage architecture: relational databases (PostgreSQL) manage user metadata, access tokens, and structured feature tables with strict ACID guarantees, while object stores (S3/GCS) store large immutable artifact blobs (serialized pickle models, ONNX graphs, and evaluation datasets). Storing model binaries directly inside relational rows introduces severe I/O bottlenecks during horizontal scaling.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1698,10 +1314,6 @@ MLOps systems require a dual storage architecture: relational databases (Postgre
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["mlflow"] = MagicMock()
-
 import mlflow, time, logging, os
 from typing import Dict, Any
 
@@ -1778,10 +1390,6 @@ if __name__ == "__main__":
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["mlflow"] = MagicMock()
-
 import mlflow
 import mlflow.sklearn
 from sklearn.datasets import load_iris
@@ -1854,10 +1462,6 @@ assert f1 is not None, "f1 should not be None"</pre>
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["mlflow"] = MagicMock()
-
 import mlflow
 import pandas as pd
 
@@ -2089,7 +1693,6 @@ assert best_run is not None, "best_run should not be None"</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -2175,117 +1778,10 @@ assert best_run is not None, "best_run should not be None"</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-128-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Capstone Track Selection &amp; Systems Blueprint</h3>
-<p>
-The capstone project serves as the primary technical asset on your engineering portfolio, demonstrating full-lifecycle machine learning competency from raw data ingestion to containerized microservice deployment. Choose one of three enterprise tracks:
-</p>
-<ul>
-<li><strong>Track A: FinTech Transaction Fraud Detection:</strong> Extreme class imbalance ($0.1\%$ fraud rate), strict 15ms p99 inference SLA, and high financial cost of false negatives.</li>
-<li><strong>Track B: E-Commerce Dynamic Customer Churn &amp; LTV:</strong> Multi-modal tabular signals, temporal purchase sequences, and survival analysis modeling.</li>
-<li><strong>Track C: Healthcare Diagnostic Risk Stratification:</strong> High-cardinality clinical features, strict missingness patterns, and interpretable SHAP explainability.</li>
-</ul>
-<div class="mermaid">
-graph LR
-    Raw["Raw Parquet / CSV Data"] --&gt; Split["Temporal Train / Test Split (Zero Future Leakage)"]
-    Split --&gt; Pipe["Atomic Scikit-Learn Pipeline
-(RobustScaler + TargetEncoder)"]
-    Pipe --&gt; Train["LightGBM / XGBoost GPU Training"]
-    Train --&gt; Opt["Optuna Hyperparameter Search (100 Trials)"]
-    Opt --&gt; Reg["MLflow Model Registry (@champion)"]
-    Reg --&gt; Fast["FastAPI Asynchronous Microservice"]
-</div>
-<div class="diagram-cap">Figure 128.1: Production ML Systems Architecture: From Raw Features to Registry Artifact.</div>
-<h3 class="sh3">2. Preventing Temporal Data Leakage</h3>
-<p>
-A common failure mode in production ML is random train/test splitting on time-series signals. Random cross-validation leaks future trends into past training records, producing falsely inflated test metrics that collapse upon live deployment. Always enforce <strong>TimeSeriesSplit</strong> or strict timestamp boundary partitioning.
-</p>
-<h3 class="sh3">3. Production Python Implementation: Temporal Split &amp; Pipeline Architecture</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">import</span> pandas <span class="kw">as</span> pd
-<span class="kw">import</span> numpy <span class="kw">as</span> np
-<span class="kw">from</span> sklearn.model_selection <span class="kw">import</span> TimeSeriesSplit
-<span class="kw">from</span> sklearn.compose <span class="kw">import</span> ColumnTransformer
-<span class="kw">from</span> sklearn.pipeline <span class="kw">import</span> Pipeline
-<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> RobustScaler, OneHotEncoder
-<span class="kw">from</span> sklearn.impute <span class="kw">import</span> SimpleImputer
-
-<span class="kw">def</span> <span class="fn">build_capstone_pipeline</span>(numeric_cols: list, categorical_cols: list) -&gt; Pipeline:
-    <span class="str">"""
-    Constructs an atomic, production-safe Scikit-Learn preprocessing pipeline.
-    Guarantees zero data leakage between train, validation, and serving splits.
-    """</span>
-    num_transformer = Pipeline(steps=[
-        (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'median'</span>)),
-        (<span class="str">'scaler'</span>, RobustScaler())
-    ])
-
-    cat_transformer = Pipeline(steps=[
-        (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'constant'</span>, fill_value=<span class="str">'MISSING'</span>)),
-        (<span class="str">'onehot'</span>, OneHotEncoder(handle_unknown=<span class="str">'ignore'</span>, sparse_output=<span class="kw">False</span>))
-    ])
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            (<span class="str">'num'</span>, num_transformer, numeric_cols),
-            (<span class="str">'cat'</span>, cat_transformer, categorical_cols)
-        ]
-    )
-
-    <span class="kw">return</span> Pipeline(steps=[(<span class="str">'preprocessor'</span>, preprocessor)])</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ R_{system} = 1 - \prod_{j=1}^{M} (1 - R_j) $$
 <p class="math-caption">Overall system reliability $R_{system}$ for parallel redundant components $M$.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<h3 class="sh3">Production Engineering Walkthrough: Capstone Part 1: Project Architecture Specification</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Capstone Part 1: Project Architecture Specification</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Capstone Part 1: Project Architecture Specification</h3><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_pipeline_architecture.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 128 — Capstone System Architecture Validator
 import time, hashlib, json, logging
@@ -2364,8 +1860,7 @@ if __name__ == "__main__":
     assert report["status"] == "READY", f"Blueprint issues: {report['issues']}"
     print("CapstoneBlueprint validation: OK")
 </code></pre>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2768,7 +2263,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -2854,129 +2348,7 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-129-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Production Preprocessing: The Scikit-Learn ColumnTransformer Pattern</h3>
-<p>
-In enterprise ML pipelines, feature transformations must be atomic and serializable. Never execute ad-hoc Pandas data cleaning in separate scripts; encapsulate all imputation, scaling, and categorical encoding into a single Scikit-Learn <code>Pipeline</code>:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — src/pipeline.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">import pandas as pd
-import numpy as np
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import RobustScaler, OneHotEncoder
-from sklearn.ensemble import HistGradientBoostingClassifier
-import joblib
-
-def create_end_to_end_pipeline(num_features: list, cat_features: list) -&gt; Pipeline:
-    num_pipeline = Pipeline([
-        ('imputer', SimpleImputer(strategy='median')),
-        ('scaler', RobustScaler())
-    ])
-
-    cat_pipeline = Pipeline([
-        ('imputer', SimpleImputer(strategy='constant', fill_value='UNKNOWN')),
-        ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
-    ])
-
-    preprocessor = ColumnTransformer(transformers=[
-        ('num', num_pipeline, num_features),
-        ('cat', cat_pipeline, cat_features)
-    ])
-
-    full_pipeline = Pipeline([
-        ('preprocessor', preprocessor),
-        ('classifier', HistGradientBoostingClassifier(max_iter=200, random_state=42))
-    ])
-
-    return full_pipeline</code></pre>
-</div>
-<h3 class="sh3">2. Bayesian Hyperparameter Optimization with Optuna</h3>
-<p>
-Grid search is computationally inefficient ($O(\prod |S_i|)$), while Random Search ignores trial history. <strong>Tree-structured Parzen Estimators (TPE)</strong> in Optuna construct a probabilistic model of the objective function:
-</p>
-<div class="math-block">
-$$p(\theta \mid y) = \begin{cases} \ell(\theta) & \text{if } y \lt  y^* \ g(\theta) & \text{if } y \ge y^* \end{cases}$$
-</div>
-<p>
-Optuna samples candidate hyperparameter configurations that maximize the expected improvement ratio $\frac{\ell(\theta)}{g(\theta)}$, finding optimal hyperparameters in <strong>10x fewer iterations</strong> than random search.
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — src/tune.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">import optuna
-from sklearn.model_selection import cross_val_score
-
-def objective(trial, X, y):
-    params = {
-        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
-        'max_leaf_nodes': trial.suggest_int('max_leaf_nodes', 15, 63),
-        'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100),
-        'l2_regularization': trial.suggest_float('l2_regularization', 1e-4, 10.0, log=True)
-    }
-    
-    model = HistGradientBoostingClassifier(**params, random_state=42)
-    scores = cross_val_score(model, X, y, cv=5, scoring='roc_auc', n_jobs=-1)
-    return scores.mean()
-
-# Execute 100 Bayesian optimization trials
-study = optuna.create_study(direction='maximize')
-# study.optimize(lambda trial: objective(trial, X_train, y_train), n_trials=100)</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Capstone Part 2: Model Training &amp; Core Pipeline</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div>
-<h3 class="sh3">4. Model Explainability: TreeSHAP Feature Attribution</h3>
-<p>
-Before promoting an ensemble model to the production registry, engineers must audit feature attribution using TreeSHAP to verify that predictions align with domain logic and do not exploit spurious correlations or proxy bias:
-</p>
-<div class="cb">
+<h3 class="sh3">4. Model Explainability: TreeSHAP Feature Attribution</h3><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — src/explainability.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python">import shap
 import joblib
@@ -2993,8 +2365,7 @@ def generate_shap_audit_report(model_path: str, X_val):
     for rank, (feat, score) in enumerate(zip(X_val.columns[:5], mean_shap[:5]), 1):
         print(f"  {rank}. {feat}: {score:.4f}")
 </code></pre>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3113,14 +2484,6 @@ print("✓ Scikit-Learn data preprocessing pipeline verified.")</pre>
 </div>
 </div>
 <pre>
-import sys
-from unittest.mock import MagicMock
-sys.modules["torch"] = MagicMock()
-sys.modules["torch.nn"] = MagicMock()
-sys.modules["torch.nn.functional"] = MagicMock()
-sys.modules["torch.utils"] = MagicMock()
-sys.modules["torch.utils.data"] = MagicMock()
-
 """
 Production Implementation: Build Model Training Loop
 Module: Day 129 — Capstone Part 2: Model Training &amp; Core Pipeline
@@ -3380,7 +2743,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -3466,109 +2828,10 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-130-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. FastAPI Asynchronous Architecture &amp; Pydantic Contracts</h3>
-<p>
-FastAPI leverages Python's <code>asyncio</code> event loop and Starlette core to handle thousands of concurrent requests with minimal overhead. Strict input/output validation contracts defined via Pydantic prevent malformed payloads from reaching model inference routines.
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — app/schemas.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">from pydantic import BaseModel, Field, validator
-from typing import List
-
-class PredictionInput(BaseModel):
-    account_age_days: int = Field(..., ge=0, description="Age of user account in days")
-    transaction_amount_usd: float = Field(..., gt=0.0, description="Transaction value in USD")
-    country_code: str = Field(..., min_length=2, max_length=3)
-    is_foreign_ip: bool
-
-    @validator('country_code')
-    def uppercase_country(cls, v):
-        return v.upper()
-
-class PredictionOutput(BaseModel):
-    fraud_probability: float = Field(..., ge=0.0, le=1.0)
-    decision: str
-    model_version: str</code></pre>
-</div>
-<h3 class="sh3">2. Non-Blocking Prediction Route with Process Pools</h3>
-<p>
-CPU-bound inference (e.g. matrix multiplications in Scikit-Learn or PyTorch) blocks the asynchronous event loop if invoked directly inside an <code>async def</code> route. Offload computation to an execution pool using <code>run_in_threadpool</code>:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — app/routes.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">from fastapi import APIRouter
-from fastapi.concurrency import run_in_threadpool
-from app.schemas import PredictionInput, PredictionOutput
-import pandas as pd
-
-router = APIRouter()
-
-def sync_predict(pipeline, df: pd.DataFrame) -&gt; float:
-    # CPU-bound Scikit-Learn inference
-    proba = pipeline.predict_proba(df)[0, 1]
-    return float(proba)
-
-@router.post("/predict", response_model=PredictionOutput)
-async def predict_fraud(payload: PredictionInput):
-    df = pd.DataFrame([payload.dict()])
-    # Execute CPU task without stalling async event loop
-    score = await run_in_threadpool(sync_predict, ModelContainer.model, df)
-    
-    decision = "FLAG_FRAUD" if score &gt;= 0.75 else "APPROVE"
-    return PredictionOutput(
-        fraud_probability=round(score, 4),
-        decision=decision,
-        model_version="v1.2.0"
-    )</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ \text{Throughput} = \frac{C \cdot \text{BatchSize}}{\text{Latency}_{avg}} \quad \text{where } C \text{ is concurrent workers.} $$
 <p class="math-caption">Theoretical maximum throughput for a FastAPI + Uvicorn worker architecture.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</div><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Capstone Part 3: API Wrapper &amp; Containerization</strong></p>
 <div class="mermaid">
 graph LR
@@ -3577,8 +2840,7 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3930,7 +3192,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -4016,89 +3277,10 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-131-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Full-Stack ML: Connecting UI with APIs</h3>
-<p>
-A machine learning model is only valuable when end-users and business stakeholders can interact with it. A modern full-stack ML application decouples the <strong>User Interface (Streamlit / React)</strong> from the <strong>Inference API (FastAPI)</strong>:
-</p>
-<div class="mermaid">
-graph LR
-    User["End User Browser"] --&gt; Frontend["Streamlit / Next.js Web UI
-(Hosted on Vercel / Render)"]
-    Frontend --&gt;|POST JSON with Bearer Token| Backend["FastAPI Serving Microservice
-(Hosted on Railway / AWS)"]
-    Backend --&gt; Model["Scikit-Learn / ONNX Pipeline"]
-    Backend --&gt;|Return JSON Prediction| Frontend
-    Frontend --&gt;|Render Interactive Charts &amp; Gauges| User
-</div>
-<div class="diagram-cap">Figure 131.1: Decoupled Full-Stack ML Architecture.</div>
-<h3 class="sh3">2. CORS Security &amp; Environment Configuration</h3>
-<p>
-When your frontend (e.g. <code>https://my-ml-app.vercel.app</code>) calls your backend (e.g. <code>https://api.railway.app</code>), browsers enforce Cross-Origin Resource Sharing (CORS). Configure explicit allowed origins in FastAPI:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">from</span> fastapi.middleware.cors <span class="kw">import</span> CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[<span class="str">"https://my-ml-app.vercel.app"</span>, <span class="str">"http://localhost:3000"</span>],
-    allow_credentials=<span class="kw">True</span>,
-    allow_methods=[<span class="str">"GET"</span>, <span class="str">"POST"</span>],
-    allow_headers=[<span class="str">"*"</span>],
-)</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ P(\text{Healthy}) = \lim_{n \to \infty} \left(1 - \frac{1}{n}\right)^{\text{Retries}} = e^{-1} \approx 36.8\% \text{ (baseline)} $$
 <p class="math-caption">Probability analysis of health-check success over repeated polling intervals.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<h3 class="sh3">Production Engineering Walkthrough: Capstone Part 4: Cloud Deployment &amp; Frontend</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Capstone Part 4: Cloud Deployment &amp; Frontend</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Capstone Part 4: Cloud Deployment &amp; Frontend</h3><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_131_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 131 — Production Render/Railway Deployment Checker
 import subprocess, json, time, logging, os
@@ -4161,12 +3343,9 @@ if __name__ == "__main__":
     assert mock_result["status"] == "healthy"
     print("RenderHealthChecker: OK")
 </code></pre>
-</div>
-<h3 class="sh3">Zero-Downtime Rolling Container Deployments</h3>
-<p>
+</div><p>
 Deploying container updates without dropping in-flight inference requests requires configuring readiness probes with appropriate initial delays. During deployment, the ingress load balancer only directs traffic to new pods after model weights are fully deserialized into memory and warm-up inference queries return <code>200 OK</code>.
-</p>
-</div>
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -4570,7 +3749,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -4656,88 +3834,10 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-132-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. GitHub Repository Engineering Best Practices</h3>
-<p>
-Engineering hiring managers evaluate repositories within 60 seconds. A repository with no README, missing dependencies, or unformatted code will be rejected immediately.
-</p>
-<p>
-A tier-1 AI/ML engineering repository includes:
-</p>
-<ul>
-<li><strong>Interactive Hero Banner:</strong> GIF animation or architecture diagram showing the live working product.</li>
-<li><strong>Live Demo Links:</strong> One-click hosted frontend (Vercel/Streamlit) and Swagger API documentation link.</li>
-<li><strong>One-Line Docker Quickstart:</strong> <code>docker compose up --build</code> allowing anyone to run the full stack locally with zero configuration.</li>
-<li><strong>Pinned Dependency Lockfiles:</strong> <code>requirements.lock</code> or Poetry lockfiles guaranteeing reproducible builds.</li>
-<li><strong>CI/CD Build Badges:</strong> Passing GitHub Actions unit test badges.</li>
-</ul>
-<h3 class="sh3">2. Production Repository Directory Structure</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">text</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-plaintext">customer-churn-mlops/
-├── .github/workflows/ci.yaml      # Automated linting &amp; pytest
-├── app/
-│   ├── main.py                   # FastAPI application
-│   ├── schemas.py                # Pydantic validation models
-│   └── pipeline.py               # Preprocessing &amp; inference logic
-├── data/
-│   └── raw_data.dvc              # DVC dataset pointer
-├── models/
-│   └── churn_model.onnx          # Versioned model artifact
-├── tests/
-│   ├── test_api.py               # HTTP endpoint tests
-│   └── test_model.py             # Accuracy &amp; schema tests
-├── Dockerfile                    # Multi-stage container build
-├── docker-compose.yaml           # Local multi-service orchestration
-└── README.md                     # Comprehensive documentation</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ \text{DocCoverage} = \frac{N_{documented}}{N_{total}} \times \left(1 - e^{-\lambda \cdot t_{update}}\right) $$
 <p class="math-caption">Documentation freshness and coverage decay over time $\lambda$.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</div><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: GitHub Portfolio Polish</strong></p>
 <div class="mermaid">
 graph LR
@@ -4746,127 +3846,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: GitHub Portfolio Polish</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>GitHub Portfolio Polish</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_132_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-bash"># Day 132 — Production Repository Documentation Generator
-import os, json, logging, subprocess
-from typing import Dict, Any, List
-from pathlib import Path
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("DocGenerator")
-
-class MLProjectDocGenerator:
-    """
-    Generates structured README.md and repo documentation
-    for ML capstone projects with badges, architecture diagrams, and setup instructions.
-    """
-
-    README_TEMPLATE = """# {project_name}
-
-{badges}
-
-## Overview
-{description}
-
-## Architecture
-```
-{architecture}
-```
-
-## Quick Start
-```bash
-# Clone and setup
-git clone &lt;repo_url&gt;
-cd {slug}
-pip install -r requirements.txt
-
-# Set environment variables
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run locally
-{run_command}
-
-# Docker
-docker build -t {slug}:latest .
-docker run -p 8000:8000 --env-file .env {slug}:latest
-```
-
-## API Reference
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| /health  | GET    | Service health check |
-| /predict | POST   | Run model inference |
-| /metrics | GET    | Prometheus metrics |
-
-## Model Performance
-{metrics_table}
-
-## Project Structure
-```
-{tree}
-```
-
-## MLflow Experiment Tracking
-Experiments tracked at: `{mlflow_uri}`
-Model registry: `{model_name}`
-"""
-
-    def generate_readme(self, config: Dict[str, Any]) -&gt; str:
-        badges = " ".join([
-            f"![{k}](https://img.shields.io/badge/{k.replace(' ','-')}-{v.replace(' ','-')}-blue)"
-            for k, v in config.get("badges", {}).items()
-        ])
-        metrics_rows = "
-".join([f"| {k} | {v} |" for k, v in config.get("metrics", {}).items()])
-        metrics_table = f"| Metric | Value |
-|--------|-------|
-{metrics_rows}" if metrics_rows else "See MLflow for latest metrics."
-        return self.README_TEMPLATE.format(
-            project_name=config["project_name"],
-            slug=config["project_name"].lower().replace(" ", "-"),
-            description=config.get("description", ""),
-            badges=badges,
-            architecture=config.get("architecture", "API → Model → Cache → DB"),
-            run_command=config.get("run_command", "uvicorn app:app --host 0.0.0.0 --port 8000"),
-            metrics_table=metrics_table,
-            tree=config.get("tree", "src/  tests/  models/  notebooks/"),
-            mlflow_uri=config.get("mlflow_uri", "http://localhost:5000"),
-            model_name=config.get("model_name", "project_model"),
-        )
-
-    def write(self, config: Dict[str, Any], output_path: str = "README.md") -&gt; None:
-        content = self.generate_readme(config)
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        logger.info(f"README written to {output_path} ({len(content)} chars)")
-
-if __name__ == "__main__":
-    gen = MLProjectDocGenerator()
-    config = {
-        "project_name": "Customer Churn Prediction API",
-        "description": "Production ML API predicting customer churn with XGBoost + SHAP explanations.",
-        "badges": {"Python": "3.11", "Framework": "FastAPI", "ML": "XGBoost"},
-        "metrics": {"AUC-ROC": "0.924", "F1 Score": "0.871", "Latency P99": "48ms"},
-        "architecture": "FastAPI → XGBoost → Redis Cache → PostgreSQL",
-        "run_command": "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4",
-        "mlflow_uri": "https://mlflow.myproject.com", "model_name": "churn_model",
-        "tree": "app/  models/  tests/  notebooks/  Dockerfile  docker-compose.yml"
-    }
-    readme = gen.generate_readme(config)
-    print(f"Generated README ({len(readme)} chars)")
-    assert "Quick Start" in readme
-    assert "0.924" in readme
-    print("MLProjectDocGenerator: OK")
-</code></pre>
-</div>
-</div>
+</div><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **GitHub Portfolio Polish** in enterprise production systems:
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -5265,7 +4247,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -5351,68 +4332,10 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-133-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Positioning AI/ML Engineering Competencies</h3>
-<p>
-Recruiters and ATS scanners screen for concrete engineering impact rather than generic course lists.
-</p>
-<p>
-Use Google's $X \to Y \to Z$ formula for every resume bullet: <em>"Accomplished [X] as measured by [Y] by doing [Z]."</em>
-</p>
-<h3 class="sh3">2. High-Impact Resume Bullet Examples</h3>
-<ul>
-<li><strong>Weak:</strong> <em>"Trained a machine learning model to predict customer churn using Random Forest."</em></li>
-<li><strong>Strong (X-Y-Z):</strong> <em>"Architected and deployed an end-to-end customer churn prediction pipeline on AWS ECS, achieving 0.91 PR-AUC and cutting enterprise customer attrition by 14% ($1.2M annual revenue retained) using XGBoost, FastAPI, and Docker."</em></li>
-<li><strong>Weak:</strong> <em>"Used MLflow to log experiments."</em></li>
-<li><strong>Strong (X-Y-Z):</strong> <em>"Established centralized MLOps governance with MLflow and DVC across 50+ hyperparameter sweeps, standardizing automated model lineage and cutting deployment turnaround from 3 weeks to 15 minutes."</em></li>
-</ul>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ \text{ATS\_Score} = \alpha \cdot \text{TF-IDF}(\text{Resume}, \text{JD}) + \beta \cdot \text{ImpactMetrics} $$
 <p class="math-caption">Heuristic scoring function for resume keyword matching and impact quantification.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</div><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Resume &amp; LinkedIn Optimization</strong></p>
 <div class="mermaid">
 graph LR
@@ -5421,95 +4344,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Resume &amp; LinkedIn Optimization</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Resume &amp; LinkedIn Optimization</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_133_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 133 — Production Resume ATS Optimizer
-import re, logging
-from typing import Dict, Any, List, Tuple
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("ATSOptimizer")
-
-class ATSResumeOptimizer:
-    """
-    Analyzes resume bullets against job descriptions for ATS keyword matching
-    and generates quantified, impact-first reformulations.
-    """
-
-    ML_KEYWORDS = {
-        "infrastructure": ["kubernetes", "docker", "mlflow", "airflow", "ray", "dvc", "helm"],
-        "modeling": ["pytorch", "transformers", "xgboost", "llm", "fine-tuning", "qlora", "vllm"],
-        "cloud": ["aws", "sagemaker", "azure", "gcp", "vertex", "lambda", "s3"],
-        "evaluation": ["ragas", "deepeval", "prometheus", "grafana", "opentelemetry"],
-        "retrieval": ["rag", "faiss", "hnsw", "bm25", "reranking", "embedding"],
-    }
-
-    def ats_score(self, resume_text: str, job_description: str) -&gt; Dict[str, Any]:
-        resume_lower = resume_text.lower()
-        jd_lower = job_description.lower()
-        found, missing = {}, {}
-        for category, keywords in self.ML_KEYWORDS.items():
-            cat_found = [kw for kw in keywords if kw in jd_lower and kw in resume_lower]
-            cat_missing = [kw for kw in keywords if kw in jd_lower and kw not in resume_lower]
-            if cat_found: found[category] = cat_found
-            if cat_missing: missing[category] = cat_missing
-        total_jd = sum(len(v) for v in self.ML_KEYWORDS.values() if any(kw in jd_lower for kw in v))
-        total_found = sum(len(v) for v in found.values())
-        score = round(total_found / max(total_jd, 1) * 100, 1)
-        return {"score_pct": score, "matched": found, "missing": missing}
-
-    def improve_bullet(self, bullet: str, context: str = "") -&gt; str:
-        """Reformulate a bullet to be impact-first with quantified metrics."""
-        bullet = bullet.strip().lstrip("-•* ")
-        # Detect passive voice indicators
-        passive = re.search(r"^(was|were|is|are|been)\s", bullet.lower())
-        # Detect missing quantification
-        has_number = bool(re.search(r"\d", bullet))
-        improvements = []
-        if not has_number:
-            improvements.append("Add a metric: latency reduced by X%, accuracy improved by X%, cost saved $X")
-        if passive:
-            improvements.append("Use active voice: 'Built ...' not 'Was responsible for building ...'")
-        if not bullet[0].isupper():
-            improvements.append("Start with a strong action verb: Built, Deployed, Optimised, Achieved")
-        logger.info(f"Bullet improvements: {len(improvements)}")
-        return bullet if not improvements else f"{bullet}
-  💡 Improvements: {'; '.join(improvements)}"
-
-    def generate_bullets(self, project: Dict[str, Any]) -&gt; List[str]:
-        """Generate 3 STAR-format resume bullets from project metadata."""
-        name = project.get("name", "ML system")
-        tech = ", ".join(project.get("tech", [])[:3])
-        metric1 = project.get("metric1", "latency reduced by 40%")
-        metric2 = project.get("metric2", "throughput increased 2x")
-        return [
-            f"Built production {name} using {tech}, achieving {metric1} in A/B test against baseline",
-            f"Implemented end-to-end MLOps pipeline with MLflow + Docker, reducing deployment time from 2 days to 15 minutes",
-            f"Deployed containerised inference API on Kubernetes handling 1,000 req/s with P99 latency {metric2}",
-        ]
-
-if __name__ == "__main__":
-    optimizer = ATSResumeOptimizer()
-    resume = "Built RAG system using FAISS and vLLM. Deployed on AWS SageMaker with MLflow tracking. Kubernetes deployment."
-    jd = "We need experience with RAG, FAISS, vLLM, PyTorch, SageMaker, MLflow, Kubernetes, and RAGAS evaluation."
-    score = optimizer.ats_score(resume, jd)
-    print(f"ATS Score: {score['score_pct']}%")
-    print(f"Matched: {score['matched']}")
-    print(f"Missing: {score['missing']}")
-    bullets = optimizer.generate_bullets({"name": "Churn Prediction API", "tech": ["FastAPI", "XGBoost", "Docker"], "metric1": "AUC 0.924", "metric2": "&lt; 50ms"})
-    print("
-Generated bullets:")
-    for b in bullets:
-        print(f"  • {b}")
-    print("ATSResumeOptimizer: OK")
-</code></pre>
-</div>
-</div>
+</div><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Resume &amp; LinkedIn Optimization** in enterprise production systems:
+</p></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -5887,7 +4724,6 @@ if __name__ == '__main__':
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -5973,87 +4809,10 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-134-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Core ML Interview Matrix: Theory, Math &amp; System Design</h3>
-<p>
-Senior Machine Learning Engineer interview loops assess depth across three primary pillars:
-</p>
-<ol>
-<li><strong>Statistical Foundations:</strong> Bias-Variance decomposition, L1 (Lasso) sparsity geometry vs L2 (Ridge) weight decay, and gradient optimization dynamics.</li>
-<li><strong>Vectorized Coding Drills:</strong> Writing pure NumPy / PyTorch matrix operations without Python loops.</li>
-<li><strong>System Design &amp; Trade-Offs:</strong> Latency vs throughput budgets, caching, feature stores, and cold-start mitigations.</li>
-</ol>
-<h3 class="sh3">2. Vectorized Self-Attention Implementation in NumPy</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-html"><span class="kw">import</span> numpy <span class="kw">as</span> np
-
-<span class="kw">def</span> <span class="fn">vectorized_scaled_dot_product_attention</span>(
-    Q: np.ndarray, K: np.ndarray, V: np.ndarray, mask: np.ndarray = <span class="kw">None</span>
-) -&gt; np.ndarray:
-    <span class="str">"""
-    Computes Scaled Dot-Product Attention: Softmax(Q·K^T / sqrt(d_k))·V
-    Shapes: Q, K, V -&gt; (Batch, SeqLen, d_k)
-    """</span>
-    d_k = Q.shape[-<span class="num">1</span>]
-    scores = np.matmul(Q, K.swapaxes(-<span class="num">1</span>, -<span class="num">2</span>)) / np.sqrt(d_k)
-    
-    <span class="kw">if</span> mask <span class="kw">is</span> <span class="kw">not</span> <span class="kw">None</span>:
-        scores = np.where(mask == <span class="num">0</span>, -<span class="num">1e9</span>, scores)
-
-    <span class="cm"># Numerically stable softmax</span>
-    exp_scores = np.exp(scores - np.max(scores, axis=-<span class="num">1</span>, keepdims=<span class="kw">True</span>))
-    attention_weights = exp_scores / np.sum(exp_scores, axis=-<span class="num">1</span>, keepdims=<span class="kw">True</span>)
-    
-    <span class="kw">return</span> np.matmul(attention_weights, V)</code></pre>
-</div>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}} \odot M\right)V $$
 <p class="math-caption">Self-attention mechanism with causal masking matrix $M$.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
+</div><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
 <p><strong>System Execution Flowchart: Final Interview Prep: ML Theory &amp; Coding</strong></p>
 <div class="mermaid">
 graph LR
@@ -6062,98 +4821,9 @@ graph LR
     Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
     Cache --&gt; Egress["5. Verified Output Response"]
 </div>
-</div>
-<h3 class="sh3">Production Engineering Walkthrough: Final Interview Prep: ML Theory &amp; Coding</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Final Interview Prep: ML Theory &amp; Coding</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_134_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 134 — Production Self-Attention NumPy Implementation
-import time, logging
-import numpy as np
-from typing import Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("SelfAttention")
-
-class VectorizedSelfAttention:
-    """
-    Vectorized multi-head self-attention in NumPy (interview-grade implementation).
-    Matches PyTorch nn.MultiheadAttention output (without dropout/bias).
-    """
-
-    def __init__(self, d_model: int = 512, num_heads: int = 8):
-        assert d_model % num_heads == 0
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.d_k = d_model // num_heads
-        self.scale = np.sqrt(self.d_k)
-        # Initialise projection weights
-        rng = np.random.default_rng(42)
-        self.W_q = rng.normal(0, 0.02, (d_model, d_model))
-        self.W_k = rng.normal(0, 0.02, (d_model, d_model))
-        self.W_v = rng.normal(0, 0.02, (d_model, d_model))
-        self.W_o = rng.normal(0, 0.02, (d_model, d_model))
-
-    def _softmax(self, x: np.ndarray) -&gt; np.ndarray:
-        x = x - x.max(axis=-1, keepdims=True)  # numerical stability
-        exp_x = np.exp(x)
-        return exp_x / exp_x.sum(axis=-1, keepdims=True)
-
-    def _causal_mask(self, T: int) -&gt; np.ndarray:
-        return np.triu(np.ones((T, T), dtype=bool), k=1)  # True = masked
-
-    def forward(self, x: np.ndarray, causal: bool = False,
-                mask: Optional[np.ndarray] = None) -&gt; np.ndarray:
-        """
-        x: (B, T, d_model)
-        Returns: (B, T, d_model)
-        """
-        B, T, D = x.shape
-        # Linear projections: (B, T, d_model)
-        Q = x @ self.W_q
-        K = x @ self.W_k
-        V = x @ self.W_v
-        # Split into heads: (B, H, T, d_k)
-        Q = Q.reshape(B, T, self.num_heads, self.d_k).transpose(0, 2, 1, 3)
-        K = K.reshape(B, T, self.num_heads, self.d_k).transpose(0, 2, 1, 3)
-        V = V.reshape(B, T, self.num_heads, self.d_k).transpose(0, 2, 1, 3)
-        # Scaled dot-product attention: (B, H, T, T)
-        scores = (Q @ K.transpose(0, 1, 3, 2)) / self.scale
-        if causal:
-            causal_m = self._causal_mask(T)
-            scores[:, :, causal_m] = -1e9
-        if mask is not None:
-            scores[mask[:, None, None, :].broadcast_to(scores.shape)] = -1e9
-        attn = self._softmax(scores)
-        # Context: (B, H, T, d_k) → (B, T, d_model)
-        ctx = (attn @ V).transpose(0, 2, 1, 3).reshape(B, T, D)
-        return ctx @ self.W_o
-
-if __name__ == "__main__":
-    attn = VectorizedSelfAttention(d_model=256, num_heads=8)
-    x = np.random.randn(2, 16, 256).astype(np.float32)
-    t0 = time.perf_counter()
-    out = attn.forward(x, causal=True)
-    ms = (time.perf_counter() - t0) * 1000
-    print(f"Input: {x.shape} → Output: {out.shape} in {ms:.2f}ms")
-    assert out.shape == (2, 16, 256)
-    # Check causal masking: position 0 should not attend to positions &gt; 0
-    scores = x[0:1] @ attn.W_q
-    print(f"Causal mask check: output at t=0 is unaffected by t&gt;0")
-    print("VectorizedSelfAttention: OK")
-</code></pre>
-</div>
-<h3 class="sh3">ML System Portfolio Presentation &amp; Technical Storytelling</h3>
-<p>
-Senior and Staff ML interview loops evaluate portfolio projects across four engineering axes:
-1. <strong>Problem Formulation:</strong> Business metric alignment and baseline benchmarking.
-2. <strong>Data Lineage:</strong> Leakage prevention, out-of-fold validation, and feature drift detection.
-3. <strong>Serving SLA:</strong> Latency distribution (p50, p95, p99), throughput (RPS), and compute efficiency.
-4. <strong>Failure Modes:</strong> Graceful degradation, fallback models, and observability instrumentation.
-</p>
-</div>
+</div><p>
+The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Final Interview Prep: ML Theory &amp; Coding** in enterprise production systems:
+</p><h3 class="sh3">ML System Portfolio Presentation &amp; Technical Storytelling</h3></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -6530,7 +5200,6 @@ print("✓ Classical ML algorithms from scratch verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
@@ -6616,82 +5285,10 @@ print("✓ Classical ML algorithms from scratch verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-135-theory">
-<h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-<h3 class="sh3">1. Mid-Course Milestone: Systems &amp; Engineering Synthesis</h3>
-<p>
-Congratulations on completing the first 135 days of the curriculum! You have progressed from foundational Python, Linear Algebra, and Calculus all the way through Classical ML, Deep Neural Networks, CNNs, Transformers, Docker, FastAPI, and Kubernetes MLOps infrastructure.
-</p>
-<h3 class="sh3">2. Curriculum Progression Horizon</h3>
-<div class="mermaid">
-graph LR
-    P1["Phase 1 (Days 1-50)
-Math &amp; Classical ML"] --&gt; P2["Phase 2 (Days 51-120)
-Deep Learning &amp; NLP"]
-    P2 --&gt; P3["Phase 3 (Days 121-135)
-Production MLOps &amp; Docker"]
-    P3 --&gt; P4["Phase 4 (Days 136-191)
-Frontier GenAI, Agents &amp; Scale"]
-</div>
-<div class="diagram-cap">Figure 135.1: Curriculum Roadmap: The Transition into Advanced Generative AI and Frontier Systems.</div>
-<h3 class="sh3">3. Preview of Weeks 19–26 (The Frontier Horizon)</h3>
-<ul>
-<li><strong>Advanced RAG:</strong> Hybrid search (BM25 + Dense Vectors), Reciprocal Rank Fusion, Cross-Encoder reranking, GraphRAG with Leiden clustering.</li>
-<li><strong>Autonomous LLM Agents:</strong> ReAct state machines, LangGraph cyclic execution graphs, Multi-Agent swarms, Human-in-the-Loop breakpoints.</li>
-<li><strong>LLM Serving &amp; Quantization:</strong> PagedAttention in vLLM, FlashAttention-2 SRAM tiling, QLoRA NF4 quantization, Direct Preference Optimization (DPO).</li>
-<li><strong>Distributed Cloud &amp; Kubernetes:</strong> Prometheus custom metric HPA autoscaling, Helm charts, GitHub Actions GitOps CI/CD.</li>
-<li><strong>Multimodal AI &amp; System Design:</strong> Vision-Language Models (VLMs), ColPali multimodal RAG, billion-scale semantic search architectures.</li>
-</ul>
-<h3 class="sh3">Engineering Decision Matrix: General Production Trade-offs</h3>
-<div style="overflow-x:auto;">
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px; text-align:left;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); background:var(--bg-secondary);">
-<th style="padding:10px;">Architecture Strategy</th>
-<th style="padding:10px;">Upfront Cost</th>
-<th style="padding:10px;">Maintenance</th>
-<th style="padding:10px;">Scalability</th>
-<th style="padding:10px;">Time-to-Market</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Monolithic MVP</strong></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span> (Initially)</td>
-<td style="padding:10px;">Poor</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Fast</span> (< 1 week)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Microservices</strong></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;"><span style='color:var(--orange);'>High</span></td>
-<td style="padding:10px;">Excellent</td>
-<td style="padding:10px;"><span style='color:var(--red);'>Slow</span> (Months)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
-<td style="padding:10px;"><strong>Serverless Functions</strong></td>
-<td style="padding:10px;">Medium</td>
-<td style="padding:10px;"><span style='color:var(--green);'>Low</span></td>
-<td style="padding:10px;">Infinite</td>
-<td style="padding:10px;">Medium</td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3>
 <div class="math-block">
 $$ L_{p99} \approx \mu_{latency} + 2.33 \cdot \sigma_{latency} \le 200\text{ms} $$
 <p class="math-caption">Estimating P99 latency bounds under Gaussian assumption for system design.</p>
-</div>
-<p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p>
-<h3 class="sh3">Production Engineering Walkthrough: Mid-Course Milestone: MLOps &amp; System Design Architecture</h3>
-<p>
-The following production snippet demonstrates the foundational design pattern, error handling strategies, and telemetry hooks required when deploying <strong>Mid-Course Milestone: MLOps &amp; System Design Architecture</strong> in high-throughput enterprise systems:
-</p>
-<div class="cb">
+</div><h3 class="sh3">Production Engineering Walkthrough: Mid-Course Milestone: MLOps &amp; System Design Architecture</h3><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_135_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code class="language-python"># Day 135 — Production End-to-End System Design Validator
 import time, logging, json
@@ -6778,8 +5375,7 @@ if __name__ == "__main__":
     assert report["total_p99_latency_ms"] == 427.0
     print("SystemDesignBlueprint: OK")
 </code></pre>
-</div>
-</div>
+</div></div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -7160,7 +5756,6 @@ print("✓ Model drift metrics review verified.")</pre>
 <div class="rc-sub">Open source platform for the machine learning lifecycle.</div>
 </a>
 </div>
-
 </div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
