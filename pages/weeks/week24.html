@@ -213,96 +213,17 @@ MLflow logs Git commit hashes and dataset digests via <code>mlflow.data.from_pan
 </p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What MLflow tracking method is called to record validation loss at epoch 10?</p>
-<input class="predict-input" id="p171-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p171', 'log_metric')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p171-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d171', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d171">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: mlflow.log_metric('val_loss', 0.15, step=10) records time-series metrics during training.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-171">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What MLflow tracking method is called to record validation loss at epoch 10?</p>
+<pre><code class="language-python">method = "log_metric"
+print(method)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-171-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-171', 'log_metric')">Check Answer</button>
 </div>
-</div>
-<pre>import logging, numpy as np
-from typing import Dict, Any, Optional, List
-from scipy import stats
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("DriftDetector")
-
-class StatisticalDriftDetector:
-    """Production drift detector: PSI for categorical/continuous + KS test for distribution shift."""
-
-    PSI_BINS = 10
-    PSI_THRESHOLD_WARN = 0.1
-    PSI_THRESHOLD_ALERT = 0.2
-    KS_ALPHA = 0.05
-
-    def psi(self, reference: np.ndarray, production: np.ndarray,
-             buckets: Optional[np.ndarray] = None) -&gt; Dict[str, Any]:
-        """Population Stability Index: PSI &lt; 0.1 stable, 0.1-0.2 monitoring needed, &gt;0.2 retrain."""
-        if buckets is None:
-            _, buckets = np.histogram(reference, bins=self.PSI_BINS)
-        ref_counts, _ = np.histogram(reference, bins=buckets)
-        prod_counts, _ = np.histogram(production, bins=buckets)
-        ref_pct = (ref_counts + 1e-8) / len(reference)
-        prod_pct = (prod_counts + 1e-8) / len(production)
-        psi_value = float(np.sum((prod_pct - ref_pct) * np.log(prod_pct / ref_pct)))
-        status = ("STABLE" if psi_value &lt; self.PSI_THRESHOLD_WARN
-                  else "WARNING" if psi_value &lt; self.PSI_THRESHOLD_ALERT else "ALERT")
-        logger.info(f"PSI={psi_value:.4f} → {status}")
-        return {"psi": round(psi_value, 4), "status": status, "buckets": len(buckets)-1}
-
-    def ks_test(self, reference: np.ndarray, production: np.ndarray) -&gt; Dict[str, Any]:
-        """Kolmogorov-Smirnov test: detects any distribution shift."""
-        stat, p_value = stats.ks_2samp(reference, production)
-        drifted = p_value &lt; self.KS_ALPHA
-        logger.info(f"KS: stat={stat:.4f}, p={p_value:.4f}, drifted={drifted}")
-        return {"ks_statistic": round(stat, 4), "p_value": round(p_value, 4),
-                "drifted": drifted, "alpha": self.KS_ALPHA}
-
-    def full_report(self, reference_df, production_df, feature_cols: List[str]) -&gt; Dict[str, Any]:
-        report = {}
-        for col in feature_cols:
-            ref = reference_df[col].dropna().values
-            prod = production_df[col].dropna().values
-            report[col] = {
-                "psi": self.psi(ref, prod),
-                "ks_test": self.ks_test(ref, prod),
-            }
-        drifted = [c for c, r in report.items() if r["ks_test"]["drifted"]]
-        report["_summary"] = {"drifted_features": drifted, "total_checked": len(feature_cols)}
-        return report
-
-if __name__ == "__main__":
-    detector = StatisticalDriftDetector()
-    ref = np.random.normal(0, 1, 10000)
-    # Stable case
-    prod_stable = np.random.normal(0, 1, 5000)
-    psi_result = detector.psi(ref, prod_stable)
-    ks_result = detector.ks_test(ref, prod_stable)
-    print(f"Stable: PSI={psi_result['psi']:.4f} ({psi_result['status']}), KS drifted={ks_result['drifted']}")
-    # Drifted case
-    prod_drifted = np.random.normal(2.0, 1.5, 5000)
-    psi_result2 = detector.psi(ref, prod_drifted)
-    ks_result2 = detector.ks_test(ref, prod_drifted)
-    print(f"Drifted: PSI={psi_result2['psi']:.4f} ({psi_result2['status']}), KS drifted={ks_result2['drifted']}")
-    assert psi_result["psi"] &lt; psi_result2["psi"]
-    print("StatisticalDriftDetector: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-171-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-171-exp" style="display:none;">💡 <strong>Explanation:</strong> mlflow.log_metric('val_loss', 0.15, step=10) records time-series metrics during training.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -451,49 +372,50 @@ print("✅ All MLflow tracking assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-171">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-171-1">
 <p class="quiz-q"><strong>Question 1:</strong> In MLflow, what is the difference between Parameters, Metrics, and Artifacts?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q171_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Parameters are hyperparameters logged at run start; Metrics are numerical scalars tracked over epochs; Artifacts are ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Parameters are model weights; Metrics are user names; Artifacts are error logs.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'They are three names for the same integer variable.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Parameters only apply to databases.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q171_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Parameters are hyperparameters logged at run start; Metrics are numerical scalars tracked over epochs; Artifacts are ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Parameters are model weights; Metrics are user names; Artifacts are error logs.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They are three names for the same integer variable.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Parameters only apply to databases.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q171_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q171_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q171_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for MLflow Experiment Tracking &amp; Metadata Logging.</div>
+<div class="quiz-feedback wrong-fb" id="q171_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for MLflow Experiment Tracking &amp; Metadata Logging.</div>
 </div>
 <div class="quiz-block" id="quiz-block-171-2">
 <p class="quiz-q"><strong>Question 2:</strong> What backend architecture is recommended for production MLflow Tracking Servers?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q171_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A managed SQL database (e.g. Amazon RDS PostgreSQL) for metadata tracking combined with an S3 bucket for artifact sto...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A local SQLite file stored in a shared folder.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A plain text notepad file on a desktop computer.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Storing all artifacts in browser localStorage.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q171_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A managed SQL database (e.g. Amazon RDS PostgreSQL) for metadata tracking combined with an S3 bucket for artifact sto...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A local SQLite file stored in a shared folder.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A plain text notepad file on a desktop computer.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Storing all artifacts in browser localStorage.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q171_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q171_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q171_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for MLflow Experiment Tracking &amp; Metadata Logging.</div>
+<div class="quiz-feedback wrong-fb" id="q171_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for MLflow Experiment Tracking &amp; Metadata Logging.</div>
 </div>
 <div class="quiz-block" id="quiz-block-171-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the MLflow Model Registry and how does it manage model lifecycle states?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q171_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A centralized model repository that versions models and tracks transitions across stages (e.g. Development ➔ Staging ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A marketplace where users buy and sell models for money.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A tool that deletes old models automatically.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A Python package for training linear regressions.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q171_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A centralized model repository that versions models and tracks transitions across stages (e.g. Development ➔ Staging ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A marketplace where users buy and sell models for money.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A tool that deletes old models automatically.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Python package for training linear regressions.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q171_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q171_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q171_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for MLflow Experiment Tracking &amp; Metadata Logging.</div>
+<div class="quiz-feedback wrong-fb" id="q171_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for MLflow Experiment Tracking &amp; Metadata Logging.</div>
 </div>
 <div class="quiz-block" id="quiz-block-171-4">
 <p class="quiz-q"><strong>Question 4:</strong> Why should large model weights never be logged directly to the tracking server's SQL database?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q171_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It causes severe database bloat, connection timeouts, and locking contention; large files must be stored in object st...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Because SQL databases only support English text.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Because model weights lose precision in SQL.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Because SQL databases delete large files automatically.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q171_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It causes severe database bloat, connection timeouts, and locking contention; large files must be stored in object st...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Because SQL databases only support English text.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Because model weights lose precision in SQL.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q171_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Because SQL databases delete large files automatically.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q171_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q171_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q171_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for MLflow Experiment Tracking &amp; Metadata Logging.</div>
+<div class="quiz-feedback wrong-fb" id="q171_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for MLflow Experiment Tracking &amp; Metadata Logging.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -657,90 +579,17 @@ $$ \text{PromotionRisk} = \frac{\text{Errors}_{staging}}{\text{Requests}_{stagin
 <p class="math-caption">Risk assessment function before promoting models from Staging to Production in MLflow.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What model alias is assigned to the top-performing model promoted to production serving in MLflow Model Registry?</p>
-<input class="predict-input" id="p172-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p172', 'champion')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p172-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d172', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d172">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Modern MLflow Model Registry uses aliases like '@champion' (production) and '@challenger' (staging).</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-172">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What model alias is assigned to the top-performing model promoted to production serving in MLflow Model Registry?</p>
+<pre><code class="language-python">alias = "champion"
+print(alias)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-172-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-172', 'champion')">Check Answer</button>
 </div>
-</div>
-<pre>
-import mlflow, logging, time
-from typing import Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("MLflowRegistry")
-
-class ProductionModelRegistry:
-    """Production MLflow Model Registry: stage transitions with validation gates."""
-
-    STAGES = ["None", "Staging", "Production", "Archived"]
-
-    def __init__(self, tracking_uri: str = "http://localhost:5000", model_name: str = "churn_model"):
-        mlflow.set_tracking_uri(tracking_uri)
-        self.client = mlflow.MlflowClient()
-        self.model_name = model_name
-        try:
-            self.client.create_registered_model(model_name)
-        except Exception:
-            pass  # already exists
-
-    def register_run(self, run_id: str, artifact_path: str = "model") -&gt; str:
-        result = mlflow.register_model(f"runs:/{run_id}/{artifact_path}", self.model_name)
-        logger.info(f"Registered v{result.version} from run {run_id}")
-        return result.version
-
-    def validate_and_promote(self, version: str, val_metrics: Dict[str, float],
-                              min_f1: float = 0.80, target_stage: str = "Staging") -&gt; bool:
-        f1 = val_metrics.get("val_f1", 0.0)
-        if f1 &lt; min_f1:
-            logger.warning(f"v{version} FAILED gate: val_f1={f1:.3f} &lt; {min_f1}")
-            self.client.set_model_version_tag(self.model_name, version, "gate_result", "FAILED")
-            return False
-        self.client.transition_model_version_stage(
-            name=self.model_name, version=version, stage=target_stage,
-            archive_existing_versions=(target_stage == "Production")
-        )
-        self.client.set_model_version_tag(self.model_name, version, "gate_result", "PASSED")
-        logger.info(f"Promoted v{version} to {target_stage}: f1={f1:.3f}")
-        return True
-
-    def get_production_model(self):
-        versions = self.client.get_latest_versions(self.model_name, stages=["Production"])
-        if not versions:
-            raise RuntimeError("No Production model available")
-        v = versions[0]
-        model = mlflow.pyfunc.load_model(f"models:/{self.model_name}/Production")
-        logger.info(f"Loaded Production v{v.version}")
-        return model, v.version
-
-if __name__ == "__main__":
-    print("ProductionModelRegistry: Requires MLflow server")
-    print("Flow: register_run → validate_and_promote(Staging) → promote(Production)")
-    print("Gate: val_f1 &gt;= 0.80 required for Staging promotion")
-    # Simulate validation logic
-    metrics_pass = {"val_f1": 0.87, "val_auc": 0.92}
-    metrics_fail = {"val_f1": 0.73, "val_auc": 0.81}
-    print(f"Pass gate: f1={metrics_pass['val_f1']:.2f} &gt;= 0.80: True")
-    print(f"Fail gate: f1={metrics_fail['val_f1']:.2f} &gt;= 0.80: False")
-    print("ProductionModelRegistry: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-172-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-172-exp" style="display:none;">💡 <strong>Explanation:</strong> Modern MLflow Model Registry uses aliases like '@champion' (production) and '@challenger' (staging).</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -906,49 +755,50 @@ print("✅ MLflow Model Registry assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-172">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-172-1">
 <p class="quiz-q"><strong>Question 1:</strong> In an enterprise Model Registry (e.g. MLflow Model Registry), what is the purpose of Model Aliases (e.g. `@champion`, `@challenger`) over fixed version numbers?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'They reduce model file size on S3', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'They allow downstream serving endpoints to dynamically consume production models without requiring code changes or re...', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'They automatically quantize the model weights', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'They encrypt the model weights', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They reduce model file size on S3</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They allow downstream serving endpoints to dynamically consume production models without requiring code changes or re...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They automatically quantize the model weights</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They encrypt the model weights</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q172_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q172_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q172_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for MLflow Model Registry &amp; Model Aliases.</div>
+<div class="quiz-feedback wrong-fb" id="q172_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for MLflow Model Registry &amp; Model Aliases.</div>
 </div>
 <div class="quiz-block" id="quiz-block-172-2">
 <p class="quiz-q"><strong>Question 2:</strong> What governance artifact documents a model's training data, performance benchmarks, intended use cases, and known limitations?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A Dockerfile', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A Model Card', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A Git commit hash', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A Prometheus alert rule', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Dockerfile</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Model Card</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Git commit hash</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Prometheus alert rule</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q172_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q172_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q172_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for MLflow Model Registry &amp; Model Aliases.</div>
+<div class="quiz-feedback wrong-fb" id="q172_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for MLflow Model Registry &amp; Model Aliases.</div>
 </div>
 <div class="quiz-block" id="quiz-block-172-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the primary advantage of using MLflow Model Aliases (e.g. `@champion`) over numeric version IDs in production?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q172_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Inference services load models via dynamic alias URIs (`models:/Fraud@champion`) without code changes or redeployments', 'is_correct': True}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Model aliases reduce model weight file sizes', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Aliases convert Scikit-Learn models to PyTorch automatically', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Aliases eliminate the need for an MLflow tracking server', 'is_correct': False}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q172_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Inference services load models via dynamic alias URIs (`models:/Fraud@champion`) without code changes or redeployments</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Model aliases reduce model weight file sizes</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Aliases convert Scikit-Learn models to PyTorch automatically</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Aliases eliminate the need for an MLflow tracking server</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q172_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q172_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q172_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for MLflow Model Registry &amp; Model Aliases.</div>
+<div class="quiz-feedback wrong-fb" id="q172_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for MLflow Model Registry &amp; Model Aliases.</div>
 </div>
 <div class="quiz-block" id="quiz-block-172-4">
 <p class="quiz-q"><strong>Question 4:</strong> How should candidate model promotion from `@challenger` to `@champion` be governed in an enterprise MLOps pipeline?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q172_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Via automated CI/CD evaluation gates asserting superior validation metrics and latency SLA compliance', 'is_correct': True}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'By manually renaming files in AWS S3 buckets', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'By promoting every newly trained model without evaluation', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'By deleting the previous champion model weights', 'is_correct': False}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q172_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Via automated CI/CD evaluation gates asserting superior validation metrics and latency SLA compliance</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By manually renaming files in AWS S3 buckets</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By promoting every newly trained model without evaluation</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q172_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By deleting the previous champion model weights</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q172_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q172_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q172_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for MLflow Model Registry &amp; Model Aliases.</div>
+<div class="quiz-feedback wrong-fb" id="q172_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for MLflow Model Registry &amp; Model Aliases.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1117,70 +967,43 @@ $$ \text{StorageSize} = \text{Size}_{base} + \sum_{v \in \text{versions}} \text{
 <p class="math-caption">DVC storage efficiency via content-addressable deduplication across dataset versions.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What does
+<div class="predict-block" id="predict-block-173">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What does
        
         dvc repro
        
        do?</p>
-<input class="predict-input" id="p173-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p173', '✓ Dataset successfully versioned and pushed to S3 remote store.
+<pre><code class="language-python">import subprocess
+
+def run_dvc_pipeline():
+    """
+    Executes reproducible DVC pipeline stages for dataset versioning and preprocessing.
+    """
+    commands = [
+        "dvc init --no-scm",
+        "dvc remote add -d s3remote s3://my-mlops-bucket/dvc-store",
+        "dvc add data/raw_customers.csv",
+        "git add data/raw_customers.csv.dvc .gitignore",
+        "dvc push"
+    ]
+    for cmd in commands:
+        print(f"Executing: {cmd}")
+        # In production: subprocess.run(cmd.split(), check=True)
+print("✓ Dataset successfully versioned and pushed to S3 remote store.")
+
+run_dvc_pipeline()</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-173-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-173', '✓ Dataset successfully versioned and pushed to S3 remote store.
 Executing: dvc init --no-scm
 Executing: dvc remote add -d s3remote s3://my-mlops-bucket/dvc-store
 Executing: dvc add data/raw_customers.csv
 Executing: git add data/raw_customers.csv.dvc .gitignore
-Executing: dvc push')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p173-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d173', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d173">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: dvc repro executes the data and model pipeline stages defined in dvc.yaml, skipping steps whose input data and code hashes have not changed.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+Executing: dvc push')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday173")
-
-class DayDay173Engine:
-    """Production implementation for Week 24 day-173: Git for Datasets and Models."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay173Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay173Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-173-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-173-exp" style="display:none;">💡 <strong>Explanation:</strong> dvc repro executes the data and model pipeline stages defined in dvc.yaml, skipping steps whose input data and code hashes have not changed.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1369,49 +1192,50 @@ with tempfile.TemporaryDirectory() as ws:
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-173">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-173-1">
 <p class="quiz-q"><strong>Question 1:</strong> What critical problem does a Feature Store (e.g. Feast, Tecton) solve in enterprise ML?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q173_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Train-serve skew, by ensuring identical feature engineering logic and consistent point-in-time correct data across tr...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It provides a graphical user interface for playing video games.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It eliminates the need for machine learning algorithms.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It makes databases 100% free of charge.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q173_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Train-serve skew, by ensuring identical feature engineering logic and consistent point-in-time correct data across tr...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It provides a graphical user interface for playing video games.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It eliminates the need for machine learning algorithms.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It makes databases 100% free of charge.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q173_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q173_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q173_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Data Version Control (DVC) &amp; Dataset Lineage.</div>
+<div class="quiz-feedback wrong-fb" id="q173_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Data Version Control (DVC) &amp; Dataset Lineage.</div>
 </div>
 <div class="quiz-block" id="quiz-block-173-2">
 <p class="quiz-q"><strong>Question 2:</strong> What is 'Point-in-Time Correctness' (Time-Travel Joins) in feature engineering?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q173_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Joining features as they existed at the exact historical timestamp of each training label, preventing future data lea...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Changing the system clock on the server.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Predicting timestamps into the next decade.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Deleting features that are older than 1 day.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q173_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Joining features as they existed at the exact historical timestamp of each training label, preventing future data lea...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Changing the system clock on the server.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Predicting timestamps into the next decade.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Deleting features that are older than 1 day.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q173_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q173_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q173_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Data Version Control (DVC) &amp; Dataset Lineage.</div>
+<div class="quiz-feedback wrong-fb" id="q173_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Data Version Control (DVC) &amp; Dataset Lineage.</div>
 </div>
 <div class="quiz-block" id="quiz-block-173-3">
 <p class="quiz-q"><strong>Question 3:</strong> In Feast feature store architecture, what is the difference between the Offline Store and Online Store?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q173_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The Offline store (Snowflake/BigQuery) handles high-throughput historical batch extraction; the Online store (Redis/D...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The Offline store is disconnected from power; the Online store is connected.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The Offline store is for images; the Online store is for text.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'There is no difference.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q173_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The Offline store (Snowflake/BigQuery) handles high-throughput historical batch extraction; the Online store (Redis/D...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The Offline store is disconnected from power; the Online store is connected.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The Offline store is for images; the Online store is for text.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">There is no difference.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q173_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q173_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q173_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Data Version Control (DVC) &amp; Dataset Lineage.</div>
+<div class="quiz-feedback wrong-fb" id="q173_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Data Version Control (DVC) &amp; Dataset Lineage.</div>
 </div>
 <div class="quiz-block" id="quiz-block-173-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is 'Train-Serve Skew' in machine learning operations?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q173_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Discrepancies in data transformations or feature definitions between the offline training environment and online prod...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A model that trains on a crooked monitor.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A training run that finishes too quickly.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A server with uneven network cables.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q173_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Discrepancies in data transformations or feature definitions between the offline training environment and online prod...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A model that trains on a crooked monitor.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A training run that finishes too quickly.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q173_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A server with uneven network cables.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q173_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q173_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q173_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Data Version Control (DVC) &amp; Dataset Lineage.</div>
+<div class="quiz-feedback wrong-fb" id="q173_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Data Version Control (DVC) &amp; Dataset Lineage.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1628,61 +1452,17 @@ Airflow manages task failures via exponential backoff retries (<code>retries=3, 
 </p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What string is output when an Apache Airflow DAG completes its scheduled daily retraining run?</p>
-<input class="predict-input" id="p174-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p174', 'success')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p174-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d174', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d174">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Airflow DAG task states transition to 'success' upon zero-exit completion.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-174">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What string is output when an Apache Airflow DAG completes its scheduled daily retraining run?</p>
+<pre><code class="language-python">dag_state = "success"
+print(dag_state)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-174-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-174', 'success')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday174")
-
-class DayDay174Engine:
-    """Production implementation for Week 24 day-174: Orchestrating ML Data Pipelines."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay174Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay174Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-174-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-174-exp" style="display:none;">💡 <strong>Explanation:</strong> Airflow DAG task states transition to 'success' upon zero-exit completion.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1912,49 +1692,50 @@ print("✅ Airflow DAG Orchestration assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-174">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-174-1">
 <p class="quiz-q"><strong>Question 1:</strong> In Apache Airflow, what is a DAG (Directed Acyclic Graph)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q174_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A mathematical representation of a workflow containing tasks and their explicit directional execution dependencies wi...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A database table that stores user passwords.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A neural network layer that processes audio.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A type of computer screen monitor.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q174_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A mathematical representation of a workflow containing tasks and their explicit directional execution dependencies wi...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A database table that stores user passwords.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A neural network layer that processes audio.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A type of computer screen monitor.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q174_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q174_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q174_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML Workflow Orchestration with Apache Airflow.</div>
+<div class="quiz-feedback wrong-fb" id="q174_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML Workflow Orchestration with Apache Airflow.</div>
 </div>
 <div class="quiz-block" id="quiz-block-174-2">
 <p class="quiz-q"><strong>Question 2:</strong> What is the role of the Airflow Scheduler in an orchestration cluster?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q174_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Monitoring all DAG tasks, resolving dependencies, and assigning ready tasks to the executor queue for worker execution.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Writing Python code for developers.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Rendering CSS styling for web pages.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Compressing model weights.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q174_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Monitoring all DAG tasks, resolving dependencies, and assigning ready tasks to the executor queue for worker execution.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Writing Python code for developers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Rendering CSS styling for web pages.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Compressing model weights.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q174_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q174_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q174_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML Workflow Orchestration with Apache Airflow.</div>
+<div class="quiz-feedback wrong-fb" id="q174_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML Workflow Orchestration with Apache Airflow.</div>
 </div>
 <div class="quiz-block" id="quiz-block-174-3">
 <p class="quiz-q"><strong>Question 3:</strong> Why are Airflow Sensors useful in machine learning data pipelines?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q174_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'They pause task execution and poll until an external condition is met (e.g. checking if a new daily dataset file exis...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'They measure the physical temperature of the CPU.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'They detect if a human is in the room.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'They translate audio into text.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q174_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They pause task execution and poll until an external condition is met (e.g. checking if a new daily dataset file exis...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They measure the physical temperature of the CPU.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They detect if a human is in the room.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They translate audio into text.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q174_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q174_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q174_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML Workflow Orchestration with Apache Airflow.</div>
+<div class="quiz-feedback wrong-fb" id="q174_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML Workflow Orchestration with Apache Airflow.</div>
 </div>
 <div class="quiz-block" id="quiz-block-174-4">
 <p class="quiz-q"><strong>Question 4:</strong> How does configuring automated retries with exponential backoff improve Airflow pipeline resilience?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q174_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It automatically re-executes failed tasks after transient cloud API network drops or spot instance interruptions with...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It permanently deletes failed tasks immediately.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It speeds up task execution by 100x.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It disables all error logging.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q174_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It automatically re-executes failed tasks after transient cloud API network drops or spot instance interruptions with...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It permanently deletes failed tasks immediately.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It speeds up task execution by 100x.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q174_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It disables all error logging.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q174_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q174_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q174_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML Workflow Orchestration with Apache Airflow.</div>
+<div class="quiz-feedback wrong-fb" id="q174_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML Workflow Orchestration with Apache Airflow.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2125,61 +1906,34 @@ print("✅ Airflow DAG Orchestration assertions passed")</pre>
 </ul>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What Population Stability Index (PSI) drift status string is returned for these binned reference vs target distributions?</p>
-<input class="predict-input" id="p175-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p175', 'Significant Drift')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p175-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d175', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d175">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: The computed PSI is 0.285 (&gt; 0.20 threshold), which flags a statistically significant population distribution shift requiring retraining.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-175">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What Population Stability Index (PSI) drift status string is returned for these binned reference vs target distributions?</p>
+<pre><code class="language-python">import numpy as np
+
+def compute_psi(ref_dist: np.ndarray, target_dist: np.ndarray) -&gt; float:
+    """PSI = sum((Actual% - Expected%) * ln(Actual% / Expected%))"""
+    ref_norm = ref_dist / np.sum(ref_dist)
+    tar_norm = target_dist / np.sum(target_dist)
+    eps = 1e-6
+    psi = np.sum((tar_norm - ref_norm) * np.log((tar_norm + eps) / (ref_norm + eps)))
+    return float(psi)
+
+def classify_drift(psi_val: float) -&gt; str:
+    if psi_val &lt; 0.10: return "Stable"
+    elif psi_val &lt; 0.20: return "Moderate Drift"
+    return "Significant Drift"
+
+ref = np.array([0.40, 0.30, 0.20, 0.10])
+target = np.array([0.15, 0.20, 0.35, 0.30])
+psi_score = compute_psi(ref, target)
+print(classify_drift(psi_score))</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-175-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-175', 'Significant Drift')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday175")
-
-class DayDay175Engine:
-    """Production implementation for Week 24 day-175: Evidently AI &amp; Monitoring in Production."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay175Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay175Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-175-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-175-exp" style="display:none;">💡 <strong>Explanation:</strong> The computed PSI is 0.285 (&gt; 0.20 threshold), which flags a statistically significant population distribution shift requiring retraining.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2324,49 +2078,50 @@ print("✓ Statistical drift detector benchmark verified.")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-175">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-175-1">
 <p class="quiz-q"><strong>Question 1:</strong> What is the difference between Data Drift (Covariate Shift) and Concept Drift in production ML systems?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Data Drift changes the input feature distribution P(X); Concept Drift changes the statistical relationship between fe...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Data Drift occurs only in computer vision; Concept Drift occurs in NLP', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Data Drift is caused by network latency; Concept Drift is caused by GPU memory bugs', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'There is no mathematical difference', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Data Drift changes the input feature distribution P(X); Concept Drift changes the statistical relationship between fe...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Data Drift occurs only in computer vision; Concept Drift occurs in NLP</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Data Drift is caused by network latency; Concept Drift is caused by GPU memory bugs</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">There is no mathematical difference</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q175_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q175_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q175_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Model &amp; Data Drift Monitoring with Evidently AI.</div>
+<div class="quiz-feedback wrong-fb" id="q175_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Model &amp; Data Drift Monitoring with Evidently AI.</div>
 </div>
 <div class="quiz-block" id="quiz-block-175-2">
 <p class="quiz-q"><strong>Question 2:</strong> Which statistical test is best suited for detecting data drift on continuous numeric features with non-normal distributions?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Chi-Square Test', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Kolmogorov-Smirnov (KS) Test or Population Stability Index (PSI)', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Exact String Equality', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'MD5 Checksum', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Chi-Square Test</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Kolmogorov-Smirnov (KS) Test or Population Stability Index (PSI)</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Exact String Equality</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">MD5 Checksum</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q175_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q175_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q175_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Model &amp; Data Drift Monitoring with Evidently AI.</div>
+<div class="quiz-feedback wrong-fb" id="q175_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Model &amp; Data Drift Monitoring with Evidently AI.</div>
 </div>
 <div class="quiz-block" id="quiz-block-175-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the difference between Data Drift (Covariate Shift) and Concept Drift in deployed ML models?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Data drift is input distribution shift $P(X)$; concept drift is the statistical relationship shift between inputs and labels $P(Y|X)$', 'is_correct': True}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Data drift only affects classification; concept drift only affects regression', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Concept drift occurs when the Python runtime version changes', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'There is no difference; both represent database corruption', 'is_correct': False}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Data drift is input distribution shift $P(X)$; concept drift is the statistical relationship shift between inputs and labels $P(Y|X)$</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Data drift only affects classification; concept drift only affects regression</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Concept drift occurs when the Python runtime version changes</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">There is no difference; both represent database corruption</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q175_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q175_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q175_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Model &amp; Data Drift Monitoring with Evidently AI.</div>
+<div class="quiz-feedback wrong-fb" id="q175_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Model &amp; Data Drift Monitoring with Evidently AI.</div>
 </div>
 <div class="quiz-block" id="quiz-block-175-4">
 <p class="quiz-q"><strong>Question 4:</strong> Which statistical metric is standard for detecting feature distribution shift in continuous numerical variables?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': "Kolmogorov-Smirnov (KS) test and Wasserstein (Earth Mover's) Distance", 'is_correct': True}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Gini impurity calculation', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Levenshtein edit distance', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'BLEU-4 score', 'is_correct': False}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q175_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Kolmogorov-Smirnov (KS) test and Wasserstein (Earth Mover's) Distance</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Gini impurity calculation</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Levenshtein edit distance</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q175_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">BLEU-4 score</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q175_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q175_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q175_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Model &amp; Data Drift Monitoring with Evidently AI.</div>
+<div class="quiz-feedback wrong-fb" id="q175_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Model &amp; Data Drift Monitoring with Evidently AI.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2578,61 +2333,17 @@ $$N = \frac{2 \cdot (Z_{\alpha/2} + Z_\beta)^2 \cdot p_{\text{pool}}(1 - p_{\tex
 </div>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What p-value threshold is required to declare statistical significance in a production ML A/B test?</p>
-<input class="predict-input" id="p176-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p176', '0.05')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p176-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d176', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d176">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Standard significance level alpha = 0.05 (95% confidence interval).</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-176">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What p-value threshold is required to declare statistical significance in a production ML A/B test?</p>
+<pre><code class="language-python">p_threshold = 0.05
+print(p_threshold)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-176-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-176', '0.05')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday176")
-
-class DayDay176Engine:
-    """Production implementation for Week 24 day-176: Safe Production Model Rollout."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay176Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay176Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-176-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-176-exp" style="display:none;">💡 <strong>Explanation:</strong> Standard significance level alpha = 0.05 (95% confidence interval).</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2817,49 +2528,50 @@ print("✅ Canary Deployment &amp; A/B Testing assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-176">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-176-1">
 <p class="quiz-q"><strong>Question 1:</strong> In Docker containerization for ML pipelines, what is Multi-Stage Building?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q176_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Using separate build stages to compile dependencies and tools, copying only the minimal runtime artifacts into the fi...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Running 10 Docker containers on 10 different computers.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Building a physical stage for a presentation.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Writing Dockerfiles in multiple programming languages.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q176_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Using separate build stages to compile dependencies and tools, copying only the minimal runtime artifacts into the fi...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Running 10 Docker containers on 10 different computers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Building a physical stage for a presentation.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Writing Dockerfiles in multiple programming languages.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q176_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q176_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q176_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Canary Deployments &amp; Statistical A/B Testing.</div>
+<div class="quiz-feedback wrong-fb" id="q176_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Canary Deployments &amp; Statistical A/B Testing.</div>
 </div>
 <div class="quiz-block" id="quiz-block-176-2">
 <p class="quiz-q"><strong>Question 2:</strong> Why should GPU Docker images use NVIDIA Container Toolkit (nvidia-docker)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q176_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It exposes underlying host NVIDIA GPU drivers and CUDA hardware directly to containerized PyTorch/vLLM applications.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It converts GPU code into CPU instructions.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It deletes the host operating system.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It speeds up hard drive write speeds.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q176_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It exposes underlying host NVIDIA GPU drivers and CUDA hardware directly to containerized PyTorch/vLLM applications.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts GPU code into CPU instructions.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It deletes the host operating system.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It speeds up hard drive write speeds.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q176_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q176_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q176_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Canary Deployments &amp; Statistical A/B Testing.</div>
+<div class="quiz-feedback wrong-fb" id="q176_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Canary Deployments &amp; Statistical A/B Testing.</div>
 </div>
 <div class="quiz-block" id="quiz-block-176-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the primary security vulnerability of running Docker containers as the `root` user in production?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q176_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Container breakout vulnerabilities could grant an attacker full administrative control over the host server operating...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The container runs out of memory faster.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The container cannot access the internet.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The container changes font sizes.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q176_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Container breakout vulnerabilities could grant an attacker full administrative control over the host server operating...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The container runs out of memory faster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The container cannot access the internet.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The container changes font sizes.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q176_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q176_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q176_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Canary Deployments &amp; Statistical A/B Testing.</div>
+<div class="quiz-feedback wrong-fb" id="q176_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Canary Deployments &amp; Statistical A/B Testing.</div>
 </div>
 <div class="quiz-block" id="quiz-block-176-4">
 <p class="quiz-q"><strong>Question 4:</strong> How does Docker layer caching accelerate CI/CD build pipelines?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q176_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Unchanged Dockerfile instructions (e.g. installing OS packages) are reused from cache, cutting build times from minut...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It deletes all code before building.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It recompiles Python on every commit.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It runs tests on multiple computers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q176_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Unchanged Dockerfile instructions (e.g. installing OS packages) are reused from cache, cutting build times from minut...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It deletes all code before building.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It recompiles Python on every commit.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q176_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It runs tests on multiple computers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q176_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q176_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q176_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Canary Deployments &amp; Statistical A/B Testing.</div>
+<div class="quiz-feedback wrong-fb" id="q176_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Canary Deployments &amp; Statistical A/B Testing.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -3026,63 +2738,27 @@ $$ \text{MLOpsMaturity} = \frac{\text{AutomatedSteps}}{\text{TotalPipelineSteps}
 <p class="math-caption">Heuristic index for measuring Level 2 MLOps automation (DVC + Airflow + MLflow + Evidently).</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>In this pipeline, what would trigger a full retrain even outside the weekly schedule?</p>
-<input class="predict-input" id="p177-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p177', 'Auto Retrain Status: True (Drift: True, Error Rate: 8.0%)
-Auto Retrain Status: True (Drift: False, Error Rate: 20.0%)
-Auto Retrain Status: False (Drift: False, Error Rate: 5.0%)')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p177-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d177', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d177">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Significant concept drift detected by the monitoring service, or a sudden spike in model prediction error rates exceeding predefined SLA thresholds.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday177")
-
-class DayDay177Engine:
-    """Production implementation for Week 24 day-177: DVC → MLflow → Airflow → Evidently."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
+<div class="predict-block" id="predict-block-177">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> In this pipeline, what would trigger a full retrain even outside the weekly schedule?</p>
+<pre><code class="language-python"># Verification Script for Day 177
+def auto_retrain_trigger(drift_detected: bool, error_rate: float, max_err=0.15):
+    trigger = drift_detected or (error_rate &gt; max_err)
+    print(f"Auto Retrain Status: {trigger} (Drift: {drift_detected}, Error Rate: {error_rate*100:.1f}%)")
+    return trigger
 
 if __name__ == "__main__":
-    engine = DayDay177Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay177Engine: OK")
-</pre>
+    assert auto_retrain_trigger(True, 0.08) is True
+    assert auto_retrain_trigger(False, 0.20) is True
+    assert auto_retrain_trigger(False, 0.05) is False</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-177-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-177', 'Auto Retrain Status: True (Drift: True, Error Rate: 8.0%)
+Auto Retrain Status: True (Drift: False, Error Rate: 20.0%)
+Auto Retrain Status: False (Drift: False, Error Rate: 5.0%)')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-177-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-177-exp" style="display:none;">💡 <strong>Explanation:</strong> Significant concept drift detected by the monitoring service, or a sudden spike in model prediction error rates exceeding predefined SLA thresholds.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -3199,49 +2875,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-177">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-177-1">
 <p class="quiz-q"><strong>Question 1:</strong> What is a Canary Deployment strategy in machine learning production systems?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q177_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Routing a small percentage of live traffic (e.g. 5%) to the new model version to validate performance before rolling ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Testing models exclusively on canary birds.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Deploying software without testing.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Shutting down the server for 24 hours.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q177_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Routing a small percentage of live traffic (e.g. 5%) to the new model version to validate performance before rolling ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Testing models exclusively on canary birds.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Deploying software without testing.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Shutting down the server for 24 hours.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q177_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q177_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q177_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
+<div class="quiz-feedback wrong-fb" id="q177_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
 </div>
 <div class="quiz-block" id="quiz-block-177-2">
 <p class="quiz-q"><strong>Question 2:</strong> How does Blue/Green Deployment ensure zero-downtime model updates?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q177_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Maintaining two identical environments (Blue=Live, Green=New); once Green passes health checks, router traffic instan...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Painting the servers blue and green.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Running models only during daytime hours.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Disabling all network traffic during updates.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q177_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Maintaining two identical environments (Blue=Live, Green=New); once Green passes health checks, router traffic instan...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Painting the servers blue and green.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Running models only during daytime hours.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Disabling all network traffic during updates.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q177_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q177_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q177_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
+<div class="quiz-feedback wrong-fb" id="q177_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
 </div>
 <div class="quiz-block" id="quiz-block-177-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is Shadow Deployment (Dark Launching) in ML evaluation?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q177_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Duplicating live production requests to the new model in the background, logging its predictions for comparison witho...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Deploying code at midnight.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Turning off server room lights.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Hiding code from developers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q177_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Duplicating live production requests to the new model in the background, logging its predictions for comparison witho...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Deploying code at midnight.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Turning off server room lights.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Hiding code from developers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q177_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q177_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q177_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
+<div class="quiz-feedback wrong-fb" id="q177_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
 </div>
 <div class="quiz-block" id="quiz-block-177-4">
 <p class="quiz-q"><strong>Question 4:</strong> What automated trigger should initiate an immediate rollback during a model deployment?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q177_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A spike in p99 latency beyond SLA thresholds, error rate exceeding 1%, or an anomaly in prediction distribution.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The developer receiving an email.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A user clicking the refresh button.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The system clock striking 12:00.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q177_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A spike in p99 latency beyond SLA thresholds, error rate exceeding 1%, or an anomaly in prediction distribution.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The developer receiving an email.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A user clicking the refresh button.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q177_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The system clock striking 12:00.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q177_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q177_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q177_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
+<div class="quiz-feedback wrong-fb" id="q177_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: End-to-End Enterprise MLOps Pipeline.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->

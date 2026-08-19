@@ -118,33 +118,30 @@ days:
     sol_id: sol-w21d150t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: |
-      # Solution for Task: Offline Batch Inference
-      import time
-      from typing import List
+      # Day 150 Task 1: vLLM PagedAttention KV Cache Simulator
+      from typing import List, Dict
+      import numpy as np
 
-      class OfflineBatchInferenceEngine:
-          def __init__(self, model_id: str = "meta-llama/Meta-Llama-3-8B"):
-              self.model_id = model_id
-              print(f"Loaded vLLM Engine instance with model: {model_id}")
+      class VirtualBlockTable:
+          """Simulates vLLM PagedAttention non-contiguous physical block allocation."""
+          def __init__(self, block_size: int = 16, total_gpu_blocks: int = 100):
+              self.block_size = block_size
+              self.free_blocks = list(range(total_gpu_blocks))
+              self.table: Dict[str, List[int]] = {}
 
-      def generate_batch(self, prompts: List[str], max_tokens: int = 64) -> List[str]:
-              t0 = time.time()
-              completions = [f"Generated response for prompt: '{p[:20]}...'" for p in prompts]
-              latency = (time.time() - t0) * 1000
-      print(f"Batch Inference Completed: {len(prompts)} prompts in {latency:.2f}ms")
-      return completions
+          def allocate_sequence(self, req_id: str, num_tokens: int) -> List[int]:
+              needed_blocks = (num_tokens + self.block_size - 1) // self.block_size
+              blocks = []
+              for _ in range(needed_blocks):
+                  if self.free_blocks:
+                      blocks.append(self.free_blocks.pop(0))
+              self.table[req_id] = blocks
+              return blocks
 
-      engine = OfflineBatchInferenceEngine()
-      batch_prompts = [
-          "Explain PagedAttention virtual memory allocation.",
-          "What is the difference between QLoRA and LoRA?",
-          "How does DPO eliminate the need for a separate reward model?",
-          "Compare AWQ vs GPTQ quantization algorithms."
-      ]
-      results = engine.generate_batch(batch_prompts)
-      for idx, r in enumerate(results, 1):
-          print(f"Completion {idx}: {r}")
-      assert results is not None, "results should not be None"
+      vbt = VirtualBlockTable(block_size=16)
+      alloc = vbt.allocate_sequence("req_001", 35)
+      assert len(alloc) == 3
+      print("Allocated Paged Blocks for 35 tokens:", alloc)
     solution_lang: python
   - title: 'Task 2: Implement vLLM & PagedAttention'
     badge: MEDIUM
@@ -286,109 +283,46 @@ days:
       print("✓ Continuous iteration-level batching verified.")
     solution_lang: python
   quizzes:
-  - num_str: Question 1
+  - qid: q150_1
+    num_str: Question 1
     question: What core problem does vLLM PagedAttention solve in LLM serving?
-    qid: q150_1
     options:
-    - letter: A
-      text: It eliminates GPU memory fragmentation by dividing the Key-Value (KV) cache into non-contiguous virtual pages,
-        boosti...
-      is_correct: true
-      id: a
-    - letter: B
-      text: It converts Python code into CUDA kernels automatically.
-      is_correct: false
-      id: b
-    - letter: C
-      text: It eliminates the need for GPUs during inference.
-      is_correct: false
-      id: c
-    - letter: D
-      text: It shrinks foundation model weights by 99%.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for VLLM & PagedAttention Serving
-      Architecture.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for VLLM & PagedAttention Serving Architecture.
-    correct: a
-    explanation: ''
-  - num_str: Question 2
+    - It eliminates GPU memory fragmentation by dividing the Key-Value (KV) cache into non-contiguous virtual pages, boosti...
+    - It converts Python code into CUDA kernels automatically.
+    - It eliminates the need for GPUs during inference.
+    - It shrinks foundation model weights by 99%.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for VLLM & PagedAttention Serving Architecture.
+  - qid: q150_2
+    num_str: Question 2
     question: How does Continuous (Iteration-Level) Batching differ from traditional Static Batching?
-    qid: q150_2
     options:
-    - letter: A
-      text: Continuous batching schedules new requests immediately at the token iteration level rather than waiting for an
-        entire...
-      is_correct: true
-      id: a
-    - letter: B
-      text: Continuous batching only allows 1 user request at a time.
-      is_correct: false
-      id: b
-    - letter: C
-      text: Continuous batching requires stopping the server every 10 seconds.
-      is_correct: false
-      id: c
-    - letter: D
-      text: Static batching is 10x faster than continuous batching.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for VLLM & PagedAttention Serving
-      Architecture.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for VLLM & PagedAttention Serving Architecture.
-    correct: a
-    explanation: ''
-  - num_str: Question 3
+    - Continuous batching schedules new requests immediately at the token iteration level rather than waiting for an entire...
+    - Continuous batching only allows 1 user request at a time.
+    - Continuous batching requires stopping the server every 10 seconds.
+    - Static batching is 10x faster than continuous batching.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for VLLM & PagedAttention Serving Architecture.
+  - qid: q150_3
+    num_str: Question 3
     question: What is the consequence of setting vLLM max_model_len higher than necessary?
-    qid: q150_3
     options:
-    - letter: A
-      text: It reserves larger pre-allocated KV-cache slots per sequence, reducing the total number of concurrent requests
-        the GP...
-      is_correct: true
-      id: a
-    - letter: B
-      text: It causes the server to download additional weights from HuggingFace.
-      is_correct: false
-      id: b
-    - letter: C
-      text: It changes the model's tokenizer vocab size.
-      is_correct: false
-      id: c
-    - letter: D
-      text: It permanently damages GPU memory chips.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for VLLM & PagedAttention Serving
-      Architecture.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for VLLM & PagedAttention Serving Architecture.
-    correct: a
-    explanation: ''
-  - num_str: Question 4
+    - It reserves larger pre-allocated KV-cache slots per sequence, reducing the total number of concurrent requests the GP...
+    - It causes the server to download additional weights from HuggingFace.
+    - It changes the model's tokenizer vocab size.
+    - It permanently damages GPU memory chips.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for VLLM & PagedAttention Serving Architecture.
+  - qid: q150_4
+    num_str: Question 4
     question: In vLLM multi-GPU serving, what parallelism strategy is typically used across GPUs on a single node?
-    qid: q150_4
     options:
-    - letter: A
-      text: Tensor Parallelism (TP) using NCCL All-Reduce to split matrix multiplications across GPU Tensor Cores.
-      is_correct: true
-      id: a
-    - letter: B
-      text: Data Parallelism with CPU offloading.
-      is_correct: false
-      id: b
-    - letter: C
-      text: Pipeline Parallelism with 10-second delays.
-      is_correct: false
-      id: c
-    - letter: D
-      text: Zero parallelism, running identical copies.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for VLLM & PagedAttention Serving
-      Architecture.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for VLLM & PagedAttention Serving Architecture.
-    correct: a
-    explanation: ''
+    - Tensor Parallelism (TP) using NCCL All-Reduce to split matrix multiplications across GPU Tensor Cores.
+    - Data Parallelism with CPU offloading.
+    - Pipeline Parallelism with 10-second delays.
+    - Zero parallelism, running identical copies.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for VLLM & PagedAttention Serving Architecture.
   flashcards:
   - front: PagedAttention Virtual Memory Mapping?
     back: • Allocates KV cache memory dynamically in fixed-size contiguous blocks, slashing GPU memory fragmentation from
@@ -398,13 +332,6 @@ days:
       in VLLM & PagedAttention Serving Architecture, ensuring memory efficiency, numerical stability, and robust scaling.
   - front: Continuous Batching?
     back: • vLLM's ability to add new requests to an in-progress batch without waiting for all sequences to finish.
-  - front: How is VLLM & PagedAttention Serving Architecture tested and validated in industrial ML pipelines (Day 150)?
-    back: • Validated via automated unit and integration tests asserting contract compliance and error resilience for VLLM
-      & PagedAttention Serving Architecture.
-  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling VLLM & PagedAttention Serving Architecture in distributed
-      systems?'
-    back: • Trade-off balances resource consumption vs response latency and operational complexity in VLLM & PagedAttention
-      Serving Architecture.
   gotcha:
     title: '⚠️ Gotcha: KV Cache Eviction Panics on GPU Saturation'
     description: When GPU memory utilization is set too close to 1.0 (e.g. gpu_memory_utilization=0.98), activation memory
@@ -581,48 +508,31 @@ days:
     sol_id: sol-w21d151t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: |
-      """
-      Production Implementation: Task 1: vLLM Speculative Setup · MEDIUM
-      Module: Day 151 — FlashAttention & Speculative Decoding
-      """
+      # Day 151 Task 1: Speculative Decoding Verification Engine
+      from typing import List, Tuple
 
-      # Solution for Task: vLLM Speculative Setup
-      from typing import Dict
+      def speculative_decoding_verify(
+          draft_tokens: List[int],
+          draft_probs: List[float],
+          target_probs: List[float]
+      ) -> Tuple[List[int], int]:
+          """Speculatively verifies draft tokens against target model probabilities."""
+          accepted = []
+          for token, p_draft, p_target in zip(draft_tokens, draft_probs, target_probs):
+              if p_target >= p_draft:
+                  accepted.append(token)
+              else:
+                  # Acceptance probability threshold
+                  if p_target / max(1e-6, p_draft) > 0.8:
+                      accepted.append(token)
+                  else:
+                      break
+          return accepted, len(accepted)
 
-      class vLLMSpeculativeDecodingEngine:
-          def __init__(self, target_model: str, draft_model: str, k_draft_tokens: int = 5):
-              self.target = target_model
-              self.draft = draft_model
-              self.k = k_draft_tokens
-
-      def run_speculative_step(self, prompt: str) -> Dict[str, float]:
-              draft_accepted_tokens = 4
-              acceptance_rate = draft_accepted_tokens / self.k
-              latency_speedup = 1.0 + (acceptance_rate * 0.8)
-      return {
-                  "draft_tokens": self.k,
-                  "accepted_tokens": draft_accepted_tokens,
-                  "acceptance_rate": acceptance_rate,
-                  "speedup": latency_speedup
-              }
-
-      spec_engine = vLLMSpeculativeDecodingEngine("Llama-3-70B", "Llama-3-8B", k_draft_tokens=5)
-      metrics = spec_engine.run_speculative_step("Explain FlashAttention")
-      print("=== Speculative Decoding Performance ===")
-      print(f"Acceptance Rate: {metrics['acceptance_rate']:.2%}")
-      print(f"Inference Latency Speedup: {metrics['speedup']:.2f}x baseline")
-
-      # ── Self-Verifying Unit Test & Execution Assertion Block ──
-      if __name__ == '__main__':
-          print(f"Executing self-test suite for: Task 1: vLLM Speculative Setup · MEDIUM...")
-          try:
-              # Automated runtime integrity check
-              instance = vLLMSpeculativeDecodingEngine()
-              assert instance is not None, "vLLMSpeculativeDecodingEngine instantiation failed"
-              print("✓ All validation test assertions passed successfully!")
-          except Exception as err:
-              print(f"❌ Test verification error: {err}")
-              raise
+      draft = [101, 2054, 2003, 1037]
+      accepted, count = speculative_decoding_verify(draft, [0.9, 0.8, 0.85, 0.7], [0.95, 0.85, 0.9, 0.75])
+      assert count == 4
+      print("Speculative Tokens Accepted:", accepted)
     solution_lang: python
   - title: 'Task 2: Implement FlashAttention & Speculative Decoding'
     badge: MEDIUM
@@ -749,97 +659,46 @@ days:
       print("✓ Speculative decoding verification passed.")
     solution_lang: python
   quizzes:
-  - question: How does FlashAttention-2 achieve a 2-4x speedup over standard multi-head attention?
-    options:
-    - letter: A
-      text: By quantizing attention weights to 1-bit
-      is_correct: false
-      id: a
-    - letter: B
-      text: By tiling computation to minimize slow GPU High Bandwidth Memory (HBM) reads/writes and keeping intermediate matrices...
-      is_correct: true
-      id: b
-    - letter: C
-      text: By skipping attention over half the tokens randomly
-      is_correct: false
-      id: c
-    - letter: D
-      text: By calculating attention on CPU instead of GPU
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for FlashAttention & Speculative
-      Decoding.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for FlashAttention & Speculative Decoding.
-    correct: b
-    qid: q151_1
+  - qid: q151_1
     num_str: Question 1
-    explanation: ''
-  - question: What is Speculative Decoding in LLM acceleration?
+    question: How does FlashAttention-2 achieve a 2-4x speedup over standard multi-head attention?
     options:
-    - letter: A
-      text: Guessing model weights before training
-      is_correct: false
-      id: a
-    - letter: B
-      text: Using a fast draft model to generate candidate tokens in parallel, verified in a single forward pass by the target
-        LLM
-      is_correct: true
-      id: b
-    - letter: C
-      text: Pruning 50% of the transformer layers
-      is_correct: false
-      id: c
-    - letter: D
-      text: Distilling the model into an SVM
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for FlashAttention & Speculative
-      Decoding.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for FlashAttention & Speculative Decoding.
-    correct: b
-    qid: q151_2
+    - By quantizing attention weights to 1-bit
+    - By tiling computation to minimize slow GPU High Bandwidth Memory (HBM) reads/writes and keeping intermediate matrices...
+    - By skipping attention over half the tokens randomly
+    - By calculating attention on CPU instead of GPU
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for FlashAttention & Speculative Decoding.
+  - qid: q151_2
     num_str: Question 2
-    explanation: ''
-  - num_str: Question 3
-    qid: q151_3
+    question: What is Speculative Decoding in LLM acceleration?
+    options:
+    - Guessing model weights before training
+    - Using a fast draft model to generate candidate tokens in parallel, verified in a single forward pass by the target LLM
+    - Pruning 50% of the transformer layers
+    - Distilling the model into an SVM
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for FlashAttention & Speculative Decoding.
+  - qid: q151_3
+    num_str: Question 3
     question: Why does standard Self-Attention become memory-bandwidth bound on GPUs for long sequence lengths?
     options:
-    - letter: A
-      text: GPUs do not support matrix multiplication for dimensions over 1024
-      is_correct: false
-    - letter: B
-      text: Writing and reading the $N \\times N$ attention matrix between slow GPU HBM and fast SRAM creates an IO bottleneck
-      is_correct: true
-    - letter: C
-      text: Softmax requires exponential CPU operations
-      is_correct: false
-    - letter: D
-      text: PyTorch tensors cannot exceed 1GB in size
-      is_correct: false
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for FlashAttention & Speculative
-      Decoding.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for FlashAttention & Speculative Decoding.
-    explanation: ''
-  - num_str: Question 4
-    qid: q151_4
+    - GPUs do not support matrix multiplication for dimensions over 1024
+    - Writing and reading the $N \\times N$ attention matrix between slow GPU HBM and fast SRAM creates an IO bottleneck
+    - Softmax requires exponential CPU operations
+    - PyTorch tensors cannot exceed 1GB in size
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for FlashAttention & Speculative Decoding.
+  - qid: q151_4
+    num_str: Question 4
     question: What is the key theoretical guarantee of Speculative Decoding?
     options:
-    - letter: A
-      text: It guarantees 100% draft token acceptance on every forward pass
-      is_correct: false
-    - letter: B
-      text: It produces an output token distribution mathematically identical to sampling directly from the target model
-      is_correct: true
-    - letter: C
-      text: It reduces model weight size by 8x
-      is_correct: false
-    - letter: D
-      text: It eliminates the need for GPU accelerators
-      is_correct: false
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for FlashAttention & Speculative
-      Decoding.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for FlashAttention & Speculative Decoding.
-    explanation: ''
+    - It guarantees 100% draft token acceptance on every forward pass
+    - It produces an output token distribution mathematically identical to sampling directly from the target model
+    - It reduces model weight size by 8x
+    - It eliminates the need for GPU accelerators
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for FlashAttention & Speculative Decoding.
   flashcards:
   - front: Speculative Decoding?
     back: • Drafting K tokens with a small model, verifying in 1 parallel pass with a large model.<br/>• Lossless speedup!.
@@ -847,13 +706,6 @@ days:
     back: • Computing attention block-by-block in fast SRAM instead of writing the full N x N matrix to slow HBM.
   - front: Draft Model (Speculative)?
     back: • A smaller, fast model that proposes K tokens speculatively for the large model to verify in one pass.
-  - front: How is FlashAttention & Speculative Decoding tested and validated in industrial ML pipelines (Day 151)?
-    back: • Validated via automated unit and integration tests asserting contract compliance and error resilience for FlashAttention
-      & Speculative Decoding.
-  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling FlashAttention & Speculative Decoding in distributed
-      systems?'
-    back: • Trade-off balances resource consumption vs response latency and operational complexity in FlashAttention & Speculative
-      Decoding.
   gotcha:
     title: '⚠️ Gotcha: Kernel Incompatibility on Older GPU Architectures'
     description: FlashAttention-2 requires NVIDIA Ampere (A100), Ada Lovelace (RTX 4090), or Hopper (H100) GPUs with FP16/BF16
@@ -963,11 +815,12 @@ days:
     $$\hat{X} = (X_{\text{quant}} - Z) \times \text{Scale}$$
     </div>
   predict:
-    question: A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much VRAM does it take in INT4?
+    question: A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much total VRAM does it require in INT4 including
+      a 1.5GB KV cache?
     answer: '7.0B model at 4-bit: 4.76 GB VRAM required'
-    explanation: Roughly 3.5GB to 4GB VRAM (each parameter takes 0.5 bytes in 4-bit quantization, plus ~0.5GB metadata/quantization
-      scales).
-    code: |-
+    explanation: 'Roughly 4.76 GB total VRAM: 4-bit quantization reduces 7B weights to ~3.26 GB (7B × 0.5 bytes), plus 1.5
+      GB allocated for the KV cache and runtime scales.'
+    code: |
       # Verification Script for Day 152
       def estimate_quantized_vram(params_billions=7.0, bit_width=4):
           bytes_per_param = bit_width / 8.0
@@ -999,39 +852,26 @@ days:
     sol_id: sol-w21d152t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: |
-      """
-      Production Implementation: Task 1: BitsAndBytes in Transformers
-      Module: Day 152 — Quantization
-      """
+      # Day 152 Task 1: Symmetric Affine Quantization Engine
+      import numpy as np
+      from typing import Tuple
 
-      # Solution for Task: BitsAndBytes in Transformers
-      import torch
+      def quantize_tensor_symmetric_int8(tensor: np.ndarray) -> Tuple[np.ndarray, float]:
+          """Quantizes FP32 weights to INT8 with symmetric scale."""
+          max_val = np.max(np.abs(tensor))
+          scale = float(max_val / 127.0) if max_val > 0 else 1.0
+          q_tensor = np.clip(np.round(tensor / scale), -128, 127).astype(np.int8)
+          return q_tensor, scale
 
-      def configure_bitsandbytes_nf4():
-          """Configure 4-bit NormalFloat (NF4) quantization spec with double quantization."""
-          bnb_config = {
-              "load_in_4bit": True,
-              "bnb_4bit_quant_type": "nf4",
-              "bnb_4bit_compute_dtype": torch.float16,
-              "bnb_4bit_use_double_quant": True
-          }
-          print("=== BitsAndBytes 4-bit Quantization Configured ===")
-          for key, val in bnb_config.items():
-              print(f"  {key:30s}: {val}")
-      return bnb_config
+      def dequantize_tensor_int8(q_tensor: np.ndarray, scale: float) -> np.ndarray:
+          """Dequantizes INT8 tensor back to approximate FP32."""
+          return (q_tensor * scale).astype(np.float32)
 
-      config = configure_bitsandbytes_nf4()
-
-      # ── Self-Verifying Unit Test & Execution Assertion Block ──
-      if __name__ == '__main__':
-          print(f"Executing self-test suite for: Task 1: BitsAndBytes in Transformers...")
-          try:
-              # Automated runtime integrity check
-              assert callable(configure_bitsandbytes_nf4), "configure_bitsandbytes_nf4 must be defined and callable"
-              print("✓ All validation test assertions passed successfully!")
-          except Exception as err:
-              print(f"❌ Test verification error: {err}")
-              raise
+      weights = np.array([-0.5, 0.12, 0.89, -1.25], dtype=np.float32)
+      q_weights, s = quantize_tensor_symmetric_int8(weights)
+      deq_weights = dequantize_tensor_int8(q_weights, s)
+      assert q_weights.dtype == np.int8
+      print("Quantized INT8:", q_weights, "Scale:", s)
     solution_lang: python
   - title: 'Task 2: Implement Quantization'
     badge: MEDIUM
@@ -1089,106 +929,48 @@ days:
       print("✓ INT8 uniform quantization verified.")
     solution_lang: python
   quizzes:
-  - num_str: Question 1
+  - qid: q152_1
+    num_str: Question 1
     question: What is the fundamental difference between Weight-Only Quantization (e.g. GPTQ/AWQ) and Weight-Activation Quantization
       (e.g. SmoothQuant)?
-    qid: q152_1
     options:
-    - letter: A
-      text: Weight-only quantizes model weights to INT4/INT8 while keeping activations in FP16; weight-activation quantizes
-        both ...
-      is_correct: true
-      id: a
-    - letter: B
-      text: Weight-only runs on CPUs only; weight-activation runs on quantum computers.
-      is_correct: false
-      id: b
-    - letter: C
-      text: Weight-only deletes all biases; weight-activation deletes all weights.
-      is_correct: false
-      id: c
-    - letter: D
-      text: There is no difference.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for Quantization.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for Quantization.
-    correct: a
-    explanation: ''
-  - num_str: Question 2
+    - Weight-only quantizes model weights to INT4/INT8 while keeping activations in FP16; weight-activation quantizes both
+      ...
+    - Weight-only runs on CPUs only; weight-activation runs on quantum computers.
+    - Weight-only deletes all biases; weight-activation deletes all weights.
+    - There is no difference.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for Quantization.
+  - qid: q152_2
+    num_str: Question 2
     question: How does AWQ (Activation-aware Weight Quantization) protect model accuracy during 4-bit compression?
-    qid: q152_2
     options:
-    - letter: A
-      text: It identifies the 1% most salient weight channels based on activation magnitudes and protects them from aggressive
-        qu...
-      is_correct: true
-      id: a
-    - letter: B
-      text: It doubles the size of every layer in the model.
-      is_correct: false
-      id: b
-    - letter: C
-      text: It removes all negative numbers from the tensor.
-      is_correct: false
-      id: c
-    - letter: D
-      text: It replaces floating point weights with random integers.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for Quantization.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for Quantization.
-    correct: a
-    explanation: ''
-  - num_str: Question 3
+    - It identifies the 1% most salient weight channels based on activation magnitudes and protects them from aggressive qu...
+    - It doubles the size of every layer in the model.
+    - It removes all negative numbers from the tensor.
+    - It replaces floating point weights with random integers.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for Quantization.
+  - qid: q152_3
+    num_str: Question 3
     question: What file format is standard for local CPU/GPU LLM inference using llama.cpp?
-    qid: q152_3
     options:
-    - letter: A
-      text: GGUF (GPT-Generated Unified Format), which bundles metadata, tokenizer specs, and quantized tensors into a single
-        bin...
-      is_correct: true
-      id: a
-    - letter: B
-      text: CSV spreadsheet files.
-      is_correct: false
-      id: b
-    - letter: C
-      text: Plain text JSON files.
-      is_correct: false
-      id: c
-    - letter: D
-      text: ZIP archives containing pickle files.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for Quantization.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for Quantization.
-    correct: a
-    explanation: ''
-  - num_str: Question 4
+    - GGUF (GPT-Generated Unified Format), which bundles metadata, tokenizer specs, and quantized tensors into a single bin...
+    - CSV spreadsheet files.
+    - Plain text JSON files.
+    - ZIP archives containing pickle files.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for Quantization.
+  - qid: q152_4
+    num_str: Question 4
     question: What is the primary degradation symptom when an LLM is over-quantized (e.g. 2-bit quantization)?
-    qid: q152_4
     options:
-    - letter: A
-      text: Severe perplexity spikes, repetitive text loops, and loss of complex multi-step reasoning capabilities.
-      is_correct: true
-      id: a
-    - letter: B
-      text: The model generates text 100x faster.
-      is_correct: false
-      id: b
-    - letter: C
-      text: The model switches its language to Latin.
-      is_correct: false
-      id: c
-    - letter: D
-      text: The file size on disk expands.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for Quantization.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for Quantization.
-    correct: a
-    explanation: ''
+    - Severe perplexity spikes, repetitive text loops, and loss of complex multi-step reasoning capabilities.
+    - The model generates text 100x faster.
+    - The model switches its language to Latin.
+    - The file size on disk expands.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for Quantization.
   flashcards:
   - front: AWQ vs GPTQ Quantization?
     back: • AWQ protects salient 1% activation weights while quantizing the rest; GPTQ uses second-order Hessian information
@@ -1197,10 +979,6 @@ days:
     back: • A C/C++ port of LLMs highly optimized for CPU inference and Apple Metal.
   - front: 'Core concept: What is the significance of Q4_K_M in Quantization?'
     back: '• A GGUF quantization variant: 4-bit weights with a mixed k-quants strategy for best quality/speed.'
-  - front: How is Quantization tested and validated in industrial ML pipelines (Day 152)?
-    back: • Validated via automated unit and integration tests asserting contract compliance and error resilience for Quantization.
-  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Quantization in distributed systems?'
-    back: • Trade-off balances resource consumption vs response latency and operational complexity in Quantization.
   gotcha:
     title: '⚠️ Gotcha: Zero-Point Misalignment in Symmetric vs Asymmetric Quantization'
     description: Asymmetric quantization introduces a zero-point offset Z that requires additional integer subtraction during
@@ -1433,92 +1211,46 @@ days:
               raise
     solution_lang: python
   quizzes:
-  - question: In LoRA (Low-Rank Adaptation), how is the weight update matrix ΔW represented for a base weight matrix W ∈ ℝ^(d×k)?
-    options:
-    - letter: A
-      text: As a full d×k dense matrix
-      is_correct: false
-      id: a
-    - letter: B
-      text: As the product of two low-rank matrices B · A where B ∈ ℝ^(d×r) and A ∈ ℝ^(r×k) with rank r ≪ min(d, k)
-      is_correct: true
-      id: b
-    - letter: C
-      text: As a 1-dimensional bias vector
-      is_correct: false
-      id: c
-    - letter: D
-      text: As an orthogonal permutation matrix
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for QLoRA & PEFT.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for QLoRA & PEFT.
-    correct: b
-    qid: q153_1
+  - qid: q153_1
     num_str: Question 1
-    explanation: ''
-  - question: What are the two key innovations of QLoRA compared to standard LoRA?
+    question: In LoRA (Low-Rank Adaptation), how is the weight update matrix ΔW represented for a base weight matrix W ∈ ℝ^(d×k)?
     options:
-    - letter: A
-      text: 8-bit quantization and CPU offloading
-      is_correct: false
-      id: a
-    - letter: B
-      text: 4-bit NormalFloat (NF4) quantization, Double Quantization, and Paged Optimizers
-      is_correct: true
-      id: b
-    - letter: C
-      text: Pruning and knowledge distillation
-      is_correct: false
-      id: c
-    - letter: D
-      text: Skipping backpropagation entirely
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for QLoRA & PEFT.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for QLoRA & PEFT.
-    correct: b
-    qid: q153_2
+    - As a full d×k dense matrix
+    - As the product of two low-rank matrices B · A where B ∈ ℝ^(d×r) and A ∈ ℝ^(r×k) with rank r ≪ min(d, k)
+    - As a 1-dimensional bias vector
+    - As an orthogonal permutation matrix
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for QLoRA & PEFT.
+  - qid: q153_2
     num_str: Question 2
-    explanation: ''
-  - num_str: Question 3
-    qid: q153_3
+    question: What are the two key innovations of QLoRA compared to standard LoRA?
+    options:
+    - 8-bit quantization and CPU offloading
+    - 4-bit NormalFloat (NF4) quantization, Double Quantization, and Paged Optimizers
+    - Pruning and knowledge distillation
+    - Skipping backpropagation entirely
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for QLoRA & PEFT.
+  - qid: q153_3
+    num_str: Question 3
     question: What is the memory footprint advantage of QLoRA over standard LoRA during fine-tuning?
     options:
-    - letter: A
-      text: QLoRA stores base model weights in 4-bit NormalFloat (NF4) while maintaining 16-bit LoRA adapter gradients
-      is_correct: true
-    - letter: B
-      text: QLoRA eliminates the need for backpropagation gradients
-      is_correct: false
-    - letter: C
-      text: QLoRA runs exclusively on CPU RAM
-      is_correct: false
-    - letter: D
-      text: QLoRA quantizes optimizer states to 1-bit
-      is_correct: false
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for QLoRA & PEFT.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for QLoRA & PEFT.
-    explanation: ''
-  - num_str: Question 4
-    qid: q153_4
+    - QLoRA stores base model weights in 4-bit NormalFloat (NF4) while maintaining 16-bit LoRA adapter gradients
+    - QLoRA eliminates the need for backpropagation gradients
+    - QLoRA runs exclusively on CPU RAM
+    - QLoRA quantizes optimizer states to 1-bit
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for QLoRA & PEFT.
+  - qid: q153_4
+    num_str: Question 4
     question: Why should LoRA adapter weights be merged into base model weights before deploying to production vLLM clusters?
     options:
-    - letter: A
-      text: To eliminate the secondary matrix addition overhead during token decoding ($W_0 + \Delta W$)
-      is_correct: true
-    - letter: B
-      text: Merged models require 50% less RAM than base weights
-      is_correct: false
-    - letter: C
-      text: vLLM does not support Python
-      is_correct: false
-    - letter: D
-      text: To change the tokenizer vocabulary size
-      is_correct: false
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for QLoRA & PEFT.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for QLoRA & PEFT.
-    explanation: ''
+    - To eliminate the secondary matrix addition overhead during token decoding ($W_0 + \Delta W$)
+    - Merged models require 50% less RAM than base weights
+    - vLLM does not support Python
+    - To change the tokenizer vocabulary size
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for QLoRA & PEFT.
   flashcards:
   - front: QLoRA NormalFloat4 (NF4) Quantization?
     back: • Information-theoretically optimal quantile quantization for normally distributed weights, with double quantization
@@ -1528,11 +1260,6 @@ days:
   - front: 'Core concept: What is the significance of r (LoRA Rank) in QLoRA & PEFT?'
     back: • The inner dimension of LoRA matrices.<br/>• Higher r = more trainable params, more expressiveness, higher RAM
       usage.
-  - front: How is QLoRA & PEFT tested and validated in industrial ML pipelines (Day 153)?
-    back: • Validated via automated unit and integration tests asserting contract compliance and error resilience for QLoRA
-      & PEFT.
-  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling QLoRA & PEFT in distributed systems?'
-    back: • Trade-off balances resource consumption vs response latency and operational complexity in QLoRA & PEFT.
   gotcha:
     title: '⚠️ Gotcha: Target Module Omission in LoRA Fine-Tuning'
     description: Applying LoRA only to query/value projections (q_proj, v_proj) yields significantly worse fine-tuning convergence
@@ -1668,42 +1395,26 @@ days:
     sol_id: sol-w21d154t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: |
-      """
-      Production Implementation: Task 1: DPO Formatting · MEDIUM
-      Module: Day 154 — DPO, ORPO & GRPO
-      """
+      # Day 154 Task 1: Direct Preference Optimization (DPO) Loss Calculator
+      import numpy as np
 
-      # Solution for Task: DPO Formatting
-      from typing import Dict
+      def compute_dpo_loss(
+          pi_logp_chosen: float,
+          pi_logp_rejected: float,
+          ref_logp_chosen: float,
+          ref_logp_rejected: float,
+          beta: float = 0.1
+      ) -> float:
+          """Calculates closed-form Direct Preference Optimization (DPO) loss."""
+          pi_logr = pi_logp_chosen - pi_logp_rejected
+          ref_logr = ref_logp_chosen - ref_logp_rejected
+          logits = beta * (pi_logr - ref_logr)
+          loss = -float(np.log(1.0 / (1.0 + np.exp(-logits))))
+          return round(loss, 6)
 
-      def format_dpo_preference_tuple(prompt: str, chosen_response: str, rejected_response: str) -> Dict[str, str]:
-          """Format raw interaction data for Direct Preference Optimization (DPO) trainers."""
-      return {
-              "prompt": prompt.strip(),
-              "chosen": chosen_response.strip(),
-              "rejected": rejected_response.strip()
-          }
-
-      dpo_sample = format_dpo_preference_tuple(
-          prompt="Explain how RRF combines rank lists.",
-          chosen="Reciprocal Rank Fusion calculates document scores using rrf_score = sum(1 / (k + rank_i)) across multiple ranked lists.",
-          rejected="It just picks the top document from the first list."
-      )
-      print("=== DPO Training Dataset Sample ===")
-      print("Prompt:  ", dpo_sample["prompt"])
-      print("Chosen:  ", dpo_sample["chosen"])
-      print("Rejected:", dpo_sample["rejected"])
-
-      # ── Self-Verifying Unit Test & Execution Assertion Block ──
-      if __name__ == '__main__':
-          print(f"Executing self-test suite for: Task 1: DPO Formatting · MEDIUM...")
-          try:
-              # Automated runtime integrity check
-              assert callable(format_dpo_preference_tuple), "format_dpo_preference_tuple must be defined and callable"
-              print("✓ All validation test assertions passed successfully!")
-          except Exception as err:
-              print(f"❌ Test verification error: {err}")
-              raise
+      loss = compute_dpo_loss(-1.2, -3.5, -1.5, -3.2, beta=0.1)
+      assert loss > 0
+      print("DPO Loss:", loss)
     solution_lang: python
   - title: 'Task 2: Implement DPO, ORPO & GRPO'
     badge: MEDIUM
@@ -1777,104 +1488,46 @@ days:
               raise
     solution_lang: python
   quizzes:
-  - num_str: Question 1
+  - qid: q154_1
+    num_str: Question 1
     question: How does Direct Preference Optimization (DPO) eliminate the need for a separate reward model during LLM alignment?
-    qid: q154_1
     options:
-    - letter: A
-      text: A fast small draft model generates $K$ candidate tokens speculatively, and the large target model verifies all
-        $K$ to...
-      is_correct: true
-      id: a
-    - letter: B
-      text: It skips 50% of the layers in the neural network.
-      is_correct: false
-      id: b
-    - letter: C
-      text: It rounds all floating point numbers to integers.
-      is_correct: false
-      id: c
-    - letter: D
-      text: It uses speculative stock market algorithms.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for DPO, ORPO & GRPO.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for DPO, ORPO & GRPO.
-    correct: a
-    explanation: ''
-  - num_str: Question 2
+    - A fast small draft model generates $K$ candidate tokens speculatively, and the large target model verifies all $K$ to...
+    - It skips 50% of the layers in the neural network.
+    - It rounds all floating point numbers to integers.
+    - It uses speculative stock market algorithms.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for DPO, ORPO & GRPO.
+  - qid: q154_2
+    num_str: Question 2
     question: What role does the reference model (pi_ref) play in the DPO loss formulation?
-    qid: q154_2
     options:
-    - letter: A
-      text: The acceptance rate $\alpha$ of draft tokens by the target model and the latency ratio between draft and target
-        forwar...
-      is_correct: true
-      id: a
-    - letter: B
-      text: The size of the hard drive on the server.
-      is_correct: false
-      id: b
-    - letter: C
-      text: The screen resolution of the user's monitor.
-      is_correct: false
-      id: c
-    - letter: D
-      text: The temperature of the server room.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for DPO, ORPO & GRPO.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for DPO, ORPO & GRPO.
-    correct: a
-    explanation: ''
-  - num_str: Question 3
+    - The acceptance rate $\alpha$ of draft tokens by the target model and the latency ratio between draft and target forwar...
+    - The size of the hard drive on the server.
+    - The screen resolution of the user's monitor.
+    - The temperature of the server room.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for DPO, ORPO & GRPO.
+  - qid: q154_3
+    num_str: Question 3
     question: How does Odds Ratio Preference Optimization (ORPO) simplify the alignment pipeline compared to standard DPO?
-    qid: q154_3
     options:
-    - letter: A
-      text: It adds multiple extra MLP heads to the target model's final hidden state to predict multiple future tokens simultane...
-      is_correct: true
-      id: a
-    - letter: B
-      text: It connects 10 separate GPUs in a ring topology.
-      is_correct: false
-      id: b
-    - letter: C
-      text: It converts text into Greek mythology stories.
-      is_correct: false
-      id: c
-    - letter: D
-      text: It trains 5 separate foundation models concurrently.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for DPO, ORPO & GRPO.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for DPO, ORPO & GRPO.
-    correct: a
-    explanation: ''
-  - num_str: Question 4
+    - It adds multiple extra MLP heads to the target model's final hidden state to predict multiple future tokens simultane...
+    - It connects 10 separate GPUs in a ring topology.
+    - It converts text into Greek mythology stories.
+    - It trains 5 separate foundation models concurrently.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for DPO, ORPO & GRPO.
+  - qid: q154_4
+    num_str: Question 4
     question: What is the primary risk of setting the DPO beta (KL penalty coefficient) too low during fine-tuning?
-    qid: q154_4
     options:
-    - letter: A
-      text: The first 2 accepted tokens and 1 target correction token are emitted, and the remaining 2 draft tokens are discarded.
-      is_correct: true
-      id: a
-    - letter: B
-      text: The server crashes and restarts.
-      is_correct: false
-      id: b
-    - letter: C
-      text: The entire conversation history is erased.
-      is_correct: false
-      id: c
-    - letter: D
-      text: The generation terminates immediately.
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for DPO, ORPO & GRPO.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for DPO, ORPO & GRPO.
-    correct: a
-    explanation: ''
+    - The first 2 accepted tokens and 1 target correction token are emitted, and the remaining 2 draft tokens are discarded.
+    - The server crashes and restarts.
+    - The entire conversation history is erased.
+    - The generation terminates immediately.
+    answer_idx: 0
+    explanation: This directly enforces production best practices and robustness for DPO, ORPO & GRPO.
   flashcards:
   - front: What is Direct Preference Optimization (DPO)?
     back: • DPO implicitly optimizes the policy model on human preference pairs (chosen vs rejected) using a closed-form substitution
@@ -2145,40 +1798,33 @@ days:
     sol_id: sol-w21d155t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
     solution_code: |
-      """
-      Production Implementation: Task 1: Magpie Approach
-      Module: Day 155 — Synthetic Data & Deduplication
-      """
+      # Day 155 Task 1: Synthetic Dataset Deduplication & Quality Filter
+      from typing import List, Dict
+      import hashlib
 
-      # Solution for Task: Magpie Approach
-      from typing import Dict
+      def deduplicate_synthetic_samples(samples: List[Dict], min_length: int = 20) -> List[Dict]:
+          """Filters low-quality and duplicate synthetic instruction pairs."""
+          seen_hashes = set()
+          clean_samples = []
+          for s in samples:
+              prompt = s.get("prompt", "").strip()
+              response = s.get("response", "").strip()
+              if len(prompt) < 5 or len(response) < min_length:
+                  continue
+              h = hashlib.sha256(f"{prompt.lower()}::{response.lower()}".encode()).hexdigest()
+              if h not in seen_hashes:
+                  seen_hashes.add(h)
+                  clean_samples.append(s)
+          return clean_samples
 
-      class MagpieSyntheticGenerator:
-          def __init__(self, template: str = "\n"):
-              self.template = template
-
-      def generate_instruction_pair(self) -> Dict[str, str]:
-              synthetic_instruction = "Design a Kubernetes HorizontalPodAutoscaler for a vLLM deployment."
-              synthetic_response = "Here is the HPA manifest with target CPU utilization set to 75%..."
-      return {"instruction": synthetic_instruction, "response": synthetic_response}
-
-      gen = MagpieSyntheticGenerator()
-      pair = gen.generate_instruction_pair()
-      print("=== Magpie Synthetic Instruction Pair ===")
-      print("Generated Instruction:", pair["instruction"])
-      print("Generated Response:   ", pair["response"][:50] + "...")
-
-      # ── Self-Verifying Unit Test & Execution Assertion Block ──
-      if __name__ == '__main__':
-          print(f"Executing self-test suite for: Task 1: Magpie Approach...")
-          try:
-              # Automated runtime integrity check
-              instance = MagpieSyntheticGenerator()
-              assert instance is not None, "MagpieSyntheticGenerator instantiation failed"
-              print("✓ All validation test assertions passed successfully!")
-          except Exception as err:
-              print(f"❌ Test verification error: {err}")
-              raise
+      data = [
+          {"prompt": "What is LoRA?", "response": "LoRA is Low-Rank Adaptation for parameter-efficient tuning."},
+          {"prompt": "What is LoRA?", "response": "LoRA is Low-Rank Adaptation for parameter-efficient tuning."},
+          {"prompt": "Bad", "response": "Short"}
+      ]
+      clean = deduplicate_synthetic_samples(data)
+      assert len(clean) == 1
+      print("Deduplicated Samples:", clean)
     solution_lang: python
   - title: 'Task 2: Implement Synthetic Data & Deduplication'
     badge: MEDIUM
@@ -2245,94 +1891,47 @@ days:
               raise
     solution_lang: python
   quizzes:
-  - question: Why is MinHash LSH widely used for deduplication in LLM pre-training and fine-tuning datasets?
-    options:
-    - letter: A
-      text: It provides exact cryptographic hash matching in O(N!) time
-      is_correct: false
-      id: a
-    - letter: B
-      text: It computes approximate Jaccard similarity between document n-gram shingles in near-linear O(N) time instead of
-        O(N^2...
-      is_correct: true
-      id: b
-    - letter: C
-      text: It tokenizes text into Byte-Pair Encodings
-      is_correct: false
-      id: c
-    - letter: D
-      text: It encrypts training data for privacy
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for Synthetic Data & Deduplication.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for Synthetic Data & Deduplication.
-    correct: b
-    qid: q155_1
+  - qid: q155_1
     num_str: Question 1
-    explanation: ''
-  - question: What is the primary danger of training an LLM on un-filtered synthetic data generated by other LLMs (Model Collapse)?
+    question: Why is MinHash LSH widely used for deduplication in LLM pre-training and fine-tuning datasets?
     options:
-    - letter: A
-      text: GPU hardware overheating
-      is_correct: false
-      id: a
-    - letter: B
-      text: Progressive degradation in output diversity and loss of the tails of the original data distribution
-      is_correct: true
-      id: b
-    - letter: C
-      text: Automatic deletion of model checkpoints
-      is_correct: false
-      id: c
-    - letter: D
-      text: Syntax errors in tokenizer vocabulary
-      is_correct: false
-      id: d
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for Synthetic Data & Deduplication.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for Synthetic Data & Deduplication.
-    correct: b
-    qid: q155_2
+    - It provides exact cryptographic hash matching in O(N!) time
+    - It computes approximate Jaccard similarity between document n-gram shingles in near-linear O(N) time instead of O(N^2...
+    - It tokenizes text into Byte-Pair Encodings
+    - It encrypts training data for privacy
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for Synthetic Data & Deduplication.
+  - qid: q155_2
     num_str: Question 2
-    explanation: ''
-  - num_str: Question 3
-    qid: q155_3
+    question: What is the primary danger of training an LLM on un-filtered synthetic data generated by other LLMs (Model Collapse)?
+    options:
+    - GPU hardware overheating
+    - Progressive degradation in output diversity and loss of the tails of the original data distribution
+    - Automatic deletion of model checkpoints
+    - Syntax errors in tokenizer vocabulary
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for Synthetic Data & Deduplication.
+  - qid: q155_3
+    num_str: Question 3
     question: What is the primary risk of fine-tuning language models on un-deduplicated synthetic data corpora?
     options:
-    - letter: A
-      text: Synthetic data increases model inference latency
-      is_correct: false
-    - letter: B
-      text: Near-duplicate reasoning traces cause catastrophic overfitting, memorization, and loss of output diversity
-      is_correct: true
-    - letter: C
-      text: The model will forget its tokenizer vocabulary
-      is_correct: false
-    - letter: D
-      text: The model file size on disk doubles
-      is_correct: false
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for Synthetic Data & Deduplication.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for Synthetic Data & Deduplication.
-    explanation: ''
-  - num_str: Question 4
-    qid: q155_4
+    - Synthetic data increases model inference latency
+    - Near-duplicate reasoning traces cause catastrophic overfitting, memorization, and loss of output diversity
+    - The model will forget its tokenizer vocabulary
+    - The model file size on disk doubles
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for Synthetic Data & Deduplication.
+  - qid: q155_4
+    num_str: Question 4
     question: How does MinHash with Locality-Sensitive Hashing (LSH) achieve scalable deduplication across millions of text
       documents?
     options:
-    - letter: A
-      text: By performing $O(N^2)$ pairwise string edit distance comparisons
-      is_correct: false
-    - letter: B
-      text: By approximating Jaccard similarity between document n-gram sets in near $O(N)$ linear time
-      is_correct: true
-    - letter: C
-      text: By training a deep neural network on document embeddings
-      is_correct: false
-    - letter: D
-      text: By sorting documents by character length
-      is_correct: false
-    correct_fb: ✅ Correct! This directly enforces production best practices and robustness for Synthetic Data & Deduplication.
-    wrong_fb: ❌ Incorrect. Selecting this option violates core architecture principles for Synthetic Data & Deduplication.
-    explanation: ''
+    - By performing $O(N^2)$ pairwise string edit distance comparisons
+    - By approximating Jaccard similarity between document n-gram sets in near $O(N)$ linear time
+    - By training a deep neural network on document embeddings
+    - By sorting documents by character length
+    answer_idx: 1
+    explanation: This directly enforces production best practices and robustness for Synthetic Data & Deduplication.
   flashcards:
   - front: 'Core concept: What is the significance of MinHash in Synthetic Data & Deduplication?'
     back: • A probabilistic data structure used to quickly estimate the Jaccard similarity between two sets.
@@ -2340,11 +1939,6 @@ days:
     back: • Data generated by a larger, smarter LLM (Teacher) to train a smaller LLM (Student).
   - front: 'Core concept: What is the significance of Evol-Instruct in Synthetic Data & Deduplication?'
     back: • A method to create complex training data by prompting GPT-4 to evolve simple instructions (make harder, add constraints).
-  - front: How is Synthetic Data & Deduplication tested and validated in industrial ML pipelines (Day 155)?
-    back: • Validated via automated unit and integration tests asserting contract compliance and error resilience for Synthetic
-      Data & Deduplication.
-  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Synthetic Data & Deduplication in distributed systems?'
-    back: • Trade-off balances resource consumption vs response latency and operational complexity in Synthetic Data & Deduplication.
   gotcha:
     title: '⚠️ Gotcha: Shingle Size Selection in MinHash LSH'
     description: Using character 3-grams for MinHash creates too many false-positive collisions across different technical
@@ -2631,111 +2225,50 @@ days:
               raise
     solution_lang: python
   quizzes:
-  - num_str: Question 1
+  - qid: q156_1
+    num_str: Question 1
     question: In production LLM serving, what does TTFT (Time to First Token) measure?
-    qid: q156_1
     options:
-    - letter: A
-      text: The latency from when a user request is received until the first generation token is emitted (dominated by prompt
-        pre...
-      is_correct: true
-      id: a
-    - letter: B
-      text: The time it takes to train the model from scratch.
-      is_correct: false
-      id: b
-    - letter: C
-      text: The time taken to download the model weights from the internet.
-      is_correct: false
-      id: c
-    - letter: D
-      text: The total duration of the entire user conversation.
-      is_correct: false
-      id: d
-    correct_fb: '✅ Correct! This directly enforces production best practices and robustness for Capstone: Deploying a Custom
-      Fine-Tuned Model.'
-    wrong_fb: '❌ Incorrect. Selecting this option violates core architecture principles for Capstone: Deploying a Custom Fine-Tuned
+    - The latency from when a user request is received until the first generation token is emitted (dominated by prompt pre...
+    - The time it takes to train the model from scratch.
+    - The time taken to download the model weights from the internet.
+    - The total duration of the entire user conversation.
+    answer_idx: 0
+    explanation: 'This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned
       Model.'
-    correct: a
-    explanation: ''
-  - num_str: Question 2
+  - qid: q156_2
+    num_str: Question 2
     question: What does ITL (Inter-Token Latency) or TPOT (Time Per Output Token) quantify in streaming applications?
-    qid: q156_2
     options:
-    - letter: A
-      text: The time elapsed between generating consecutive output tokens during the autoregressive decoding phase.
-      is_correct: true
-      id: a
-    - letter: B
-      text: The time taken to boot up the cloud server.
-      is_correct: false
-      id: b
-    - letter: C
-      text: The duration of network packet transmission over Wi-Fi.
-      is_correct: false
-      id: c
-    - letter: D
-      text: The time required to parse JSON outputs.
-      is_correct: false
-      id: d
-    correct_fb: '✅ Correct! This directly enforces production best practices and robustness for Capstone: Deploying a Custom
-      Fine-Tuned Model.'
-    wrong_fb: '❌ Incorrect. Selecting this option violates core architecture principles for Capstone: Deploying a Custom Fine-Tuned
+    - The time elapsed between generating consecutive output tokens during the autoregressive decoding phase.
+    - The time taken to boot up the cloud server.
+    - The duration of network packet transmission over Wi-Fi.
+    - The time required to parse JSON outputs.
+    answer_idx: 0
+    explanation: 'This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned
       Model.'
-    correct: a
-    explanation: ''
-  - num_str: Question 3
+  - qid: q156_3
+    num_str: Question 3
     question: Why does Prefix Caching (Prompt Caching) drastically improve throughput in multi-turn chatbot systems?
-    qid: q156_3
     options:
-    - letter: A
-      text: It reuses the precomputed KV-cache for shared system prompts and conversation history across turns, avoiding redundan...
-      is_correct: true
-      id: a
-    - letter: B
-      text: It deletes the user's past messages to save disk space.
-      is_correct: false
-      id: b
-    - letter: C
-      text: It converts conversation text into compressed MP3 audio.
-      is_correct: false
-      id: c
-    - letter: D
-      text: It disables attention mechanisms entirely.
-      is_correct: false
-      id: d
-    correct_fb: '✅ Correct! This directly enforces production best practices and robustness for Capstone: Deploying a Custom
-      Fine-Tuned Model.'
-    wrong_fb: '❌ Incorrect. Selecting this option violates core architecture principles for Capstone: Deploying a Custom Fine-Tuned
+    - It reuses the precomputed KV-cache for shared system prompts and conversation history across turns, avoiding redundan...
+    - It deletes the user's past messages to save disk space.
+    - It converts conversation text into compressed MP3 audio.
+    - It disables attention mechanisms entirely.
+    answer_idx: 0
+    explanation: 'This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned
       Model.'
-    correct: a
-    explanation: ''
-  - num_str: Question 4
+  - qid: q156_4
+    num_str: Question 4
     question: When designing an autoscaling policy for high-concurrency LLM inference clusters, what metric is most effective?
-    qid: q156_4
     options:
-    - letter: A
-      text: vLLM waiting queue length (`num_requests_waiting`) and GPU KV-cache usage percentage.
-      is_correct: true
-      id: a
-    - letter: B
-      text: CPU core utilization only.
-      is_correct: false
-      id: b
-    - letter: C
-      text: Hard drive read/write speed.
-      is_correct: false
-      id: c
-    - letter: D
-      text: Number of open browser tabs.
-      is_correct: false
-      id: d
-    correct_fb: '✅ Correct! This directly enforces production best practices and robustness for Capstone: Deploying a Custom
-      Fine-Tuned Model.'
-    wrong_fb: '❌ Incorrect. Selecting this option violates core architecture principles for Capstone: Deploying a Custom Fine-Tuned
+    - vLLM waiting queue length (`num_requests_waiting`) and GPU KV-cache usage percentage.
+    - CPU core utilization only.
+    - Hard drive read/write speed.
+    - Number of open browser tabs.
+    answer_idx: 0
+    explanation: 'This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned
       Model.'
-    correct: a
-    explanation: ''
   flashcards:
   - front: 'Core concept: What is the significance of ChatML in Capstone: Deploying a Custom Fine-Tuned Model?'
     back: • A standard chat template structure ensuring the model knows exactly when a system, user, or assistant is speaking.
@@ -2744,13 +2277,6 @@ days:
   - front: 'Core concept: What is the significance of Chat Template in Capstone: Deploying a Custom Fine-Tuned Model?'
     back: • A Jinja2 template (tokenizer.<br/>• chat_template) that formats messages into the exact string the model was trained
       on.
-  - front: 'How is Capstone: Deploying a Custom Fine-Tuned Model tested and validated in industrial ML pipelines (Day 156)?'
-    back: '• Validated via automated unit and integration tests asserting contract compliance and error resilience for Capstone:
-      Deploying a Custom Fine-Tuned Model.'
-  - front: 'Senior Interview Deep Dive: What trade-off occurs when scaling Capstone: Deploying a Custom Fine-Tuned Model in
-      distributed systems?'
-    back: '• Trade-off balances resource consumption vs response latency and operational complexity in Capstone: Deploying
-      a Custom Fine-Tuned Model.'
   gotcha:
     title: '⚠️ Gotcha: Merging Adapter Weights in Wrong Precision'
     description: Merging a FP16 LoRA adapter directly into a 4-bit quantized base model destroys weight precision. Always

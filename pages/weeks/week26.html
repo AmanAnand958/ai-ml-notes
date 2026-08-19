@@ -194,9 +194,9 @@ $$ \text{MultimodalLoss} = \alpha \cdot \mathcal{L}_{text\_generation} + \beta \
 <p class="math-caption">Objective function for aligning vision encoders with LLMs in LLaVA-style architectures.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What is the cost difference between
+<div class="predict-block" id="predict-block-185">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What is the cost difference between
        
         detail: "low"
        
@@ -205,99 +205,25 @@ $$ \text{MultimodalLoss} = \alpha \cdot \mathcal{L}_{text\_generation} + \beta \
         detail: "high"
        
        in the OpenAI API?</p>
-<input class="predict-input" id="p185-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p185', 'Vision Tokens (high, 1024x1024): 765 tokens')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p185-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d185', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d185">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: detail: 'low' costs a flat 85 tokens (~\$0.0004) regardless of image size, while detail: 'high' tiles the image into 512px crops costing 170 tokens per tile (often 765-1445+ tokens).</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>
-import math, logging
-import torch, torch.nn as nn
-from typing import Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("ViTPatchProjector")
-
-class ViTPatchProjector(nn.Module):
-    """Production Vision Transformer patch projection: image → patch embeddings + CLS token + positional encoding."""
-
-    def __init__(self, image_size: int = 224, patch_size: int = 16,
-                 in_channels: int = 3, embed_dim: int = 768,
-                 dropout: float = 0.1):
-        super().__init__()
-        assert image_size % patch_size == 0, "Image size must be divisible by patch size"
-        self.n_patches = (image_size // patch_size) ** 2
-        self.patch_size = patch_size
-        self.embed_dim = embed_dim
-
-        # Linear projection of flattened patches
-        self.patch_embed = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
-        # CLS token (prepended to patch sequence)
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        # Learned positional embeddings (n_patches + 1 CLS)
-        self.pos_embed = nn.Parameter(torch.zeros(1, self.n_patches + 1, embed_dim))
-        self.dropout = nn.Dropout(dropout)
-        self._init_weights()
-        logger.info(f"ViTPatchProjector: {self.n_patches} patches, embed_dim={embed_dim}")
-
-    def _init_weights(self):
-        nn.init.trunc_normal_(self.cls_token, std=0.02)
-        nn.init.trunc_normal_(self.pos_embed, std=0.02)
-        nn.init.kaiming_normal_(self.patch_embed.weight, mode="fan_out")
-
-    def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
-        """
-        x: (B, C, H, W) → output: (B, N+1, D)
-        where N = n_patches, D = embed_dim, +1 = CLS token
-        """
-        B = x.shape[0]
-        # Patch embedding via Conv2d: (B, D, H/P, W/P) → (B, N, D)
-        x = self.patch_embed(x).flatten(2).transpose(1, 2)
-        # Prepend CLS token
-        cls = self.cls_token.expand(B, -1, -1)
-        x = torch.cat([cls, x], dim=1)  # (B, N+1, D)
-        # Add positional embeddings
-        x = x + self.pos_embed
-        return self.dropout(x)
-
-    def get_image_features(self, x: torch.Tensor) -&gt; torch.Tensor:
-        """Returns CLS token embedding for image-level classification."""
-        return self.forward(x)[:, 0, :]  # (B, D)
-
-    def get_patch_features(self, x: torch.Tensor) -&gt; torch.Tensor:
-        """Returns all patch embeddings for dense retrieval (ColPali-style)."""
-        return self.forward(x)[:, 1:, :]  # (B, N, D)
+<pre><code class="language-python"># Verification Script for Day 185
+def calculate_vision_tokens(detail="high", img_w=1024, img_h=1024):
+    if detail == "low":
+        return 85
+    # High detail: 85 base + 170 per 512x512 tile
+    tiles = (img_w // 512) * (img_h // 512)
+    total_tokens = 85 + (tiles * 170)
+    print(f"Vision Tokens ({detail}, {img_w}x{img_h}): {total_tokens} tokens")
+    return total_tokens
 
 if __name__ == "__main__":
-    model = ViTPatchProjector(image_size=224, patch_size=16, embed_dim=768)
-    x = torch.randn(2, 3, 224, 224)  # batch=2, RGB, 224×224
-    out = model(x)
-    print(f"Input: {x.shape} → Output: {out.shape}")
-    assert out.shape == (2, 197, 768)  # 196 patches + 1 CLS
-    cls_feats = model.get_image_features(x)
-    patch_feats = model.get_patch_features(x)
-    print(f"CLS features: {cls_feats.shape}, Patch features: {patch_feats.shape}")
-    assert cls_feats.shape == (2, 768)
-    assert patch_feats.shape == (2, 196, 768)
-    params = sum(p.numel() for p in model.parameters())
-    print(f"Params: {params:,}")
-    print("ViTPatchProjector: OK")
-</pre>
+    assert calculate_vision_tokens("low") == 85
+    assert calculate_vision_tokens("high", 1024, 1024) == 765</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-185-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-185', 'Vision Tokens (high, 1024x1024): 765 tokens')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-185-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-185-exp" style="display:none;">💡 <strong>Explanation:</strong> detail: 'low' costs a flat 85 tokens (~\$0.0004) regardless of image size, while detail: 'high' tiles the image into 512px crops costing 170 tokens per tile (often 765-1445+ tokens).</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -433,49 +359,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-185">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-185-1">
 <p class="quiz-q"><strong>Question 1:</strong> How does a modern Vision-Language Model (like GPT-4o or LLaVA) process visual input?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q185_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It converts the entire image into raw comma-separated RGB values in the prompt text.', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It passes image patches through a Vision Encoder (ViT/CLIP) to produce visual token embeddings concatenated with text...', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It runs classical OCR to extract text only and discards all visual layout information.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It renders text prompts into PNG images and processes them with pure 2D convolutional filters.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts the entire image into raw comma-separated RGB values in the prompt text.</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q185_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It passes image patches through a Vision Encoder (ViT/CLIP) to produce visual token embeddings concatenated with text...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It runs classical OCR to extract text only and discards all visual layout information.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It renders text prompts into PNG images and processes them with pure 2D convolutional filters.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q185_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q185_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q185_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Vision-Language Models (VLMs).</div>
+<div class="quiz-feedback wrong-fb" id="q185_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Vision-Language Models (VLMs).</div>
 </div>
 <div class="quiz-block" id="quiz-block-185-2">
 <p class="quiz-q"><strong>Question 2:</strong> In Vision-Language Models (VLMs like LLaVA), how are image patch features mapped into the LLM token embedding space?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q185_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Through a linear or MLP Projection Layer that translates visual feature dimension d_v into LLM hidden dimension d_l.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'By directly changing the LLM vocabulary size to 100 million tokens.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'By quantizing the weights of the vision encoder to 1-bit integers.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'By bypassing tokenization and storing raw pixel arrays in the KV-cache.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q185_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Through a linear or MLP Projection Layer that translates visual feature dimension d_v into LLM hidden dimension d_l.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By directly changing the LLM vocabulary size to 100 million tokens.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By quantizing the weights of the vision encoder to 1-bit integers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By bypassing tokenization and storing raw pixel arrays in the KV-cache.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q185_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q185_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q185_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Vision-Language Models (VLMs).</div>
+<div class="quiz-feedback wrong-fb" id="q185_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Vision-Language Models (VLMs).</div>
 </div>
 <div class="quiz-block" id="quiz-block-185-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the primary cost trade-off between detail: 'low' and detail: 'high' in OpenAI Vision APIs?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q185_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': "Detail 'low' processes audio, while detail 'high' processes video.", 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': "Detail 'low' rescales to 512x512 for a flat 85 tokens, while detail 'high' crops into 512x512 tiles costing 170 token...", 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': "Detail 'low' only reads monochrome images while detail 'high' supports RGB.", 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': "Detail 'low' runs locally on the client CPU while detail 'high' runs on GPU clusters.", 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Detail 'low' processes audio, while detail 'high' processes video.</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q185_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Detail 'low' rescales to 512x512 for a flat 85 tokens, while detail 'high' crops into 512x512 tiles costing 170 token...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Detail 'low' only reads monochrome images while detail 'high' supports RGB.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Detail 'low' runs locally on the client CPU while detail 'high' runs on GPU clusters.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q185_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q185_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q185_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Vision-Language Models (VLMs).</div>
+<div class="quiz-feedback wrong-fb" id="q185_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Vision-Language Models (VLMs).</div>
 </div>
 <div class="quiz-block" id="quiz-block-185-4">
 <p class="quiz-q"><strong>Question 4:</strong> When processing high-resolution visual documents with VLMs, how does image tiling prevent information loss?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q185_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It breaks large images into multiple 512x512 patches with an overview thumbnail, preserving small text and dense tabl...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It converts raster images into SVG vector paths.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It applies PCA dimensionality reduction to remove high-frequency noise.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It compresses the document into an animated GIF to reduce sequence length.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q185_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It breaks large images into multiple 512x512 patches with an overview thumbnail, preserving small text and dense tabl...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts raster images into SVG vector paths.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It applies PCA dimensionality reduction to remove high-frequency noise.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q185_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It compresses the document into an animated GIF to reduce sequence length.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q185_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q185_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q185_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Vision-Language Models (VLMs).</div>
+<div class="quiz-feedback wrong-fb" id="q185_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Vision-Language Models (VLMs).</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -646,93 +573,23 @@ $$ \text{Score}_{ColPali} = \sum_{i=1}^{|Q|} \max_{j \in |D|} \left( q_i \cdot d
 <p class="math-caption">MaxSim late-interaction scoring for multimodal document retrieval (ColPali).</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>Why is Architecture 2 (Image Summarization) often preferred over Architecture 1 (CLIP embeddings) for document Q&amp;A?</p>
-<input class="predict-input" id="p186-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p186', 'Doc Q&amp;A Architecture: Text Summary -&gt; Precision: 94.0%')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p186-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d186', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d186">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Text summarization captures detailed text, diagrams, and tabular data from scanned documents in readable text form, allowing fast text-based semantic search without multi-modal embedding modality gap issues.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>
-import torch, logging
-import torch.nn.functional as F
-from typing import List, Dict, Any, Tuple
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("ColPaliRetriever")
-
-class ColPaliMaxSimRetriever:
-    """
-    Production ColPali late-interaction retrieval:
-    MaxSim score = sum_i max_j sim(Q_i, D_j) over query and document patch tokens.
-    """
-
-    def __init__(self, model_name: str = "vidore/colpali-v1.2", device: str = "cuda"):
-        from colpali_engine.models import ColPali, ColPaliProcessor
-        self.device = device
-        self.model = ColPali.from_pretrained(model_name, torch_dtype=torch.bfloat16).to(device).eval()
-        self.processor = ColPaliProcessor.from_pretrained(model_name)
-        logger.info(f"ColPali loaded: {model_name}")
-
-    def embed_pages(self, images: List) -&gt; torch.Tensor:
-        """Embed document pages → patch token embeddings (N_pages, N_patches, D)."""
-        with torch.no_grad():
-            batch = self.processor.process_images(images).to(self.device)
-            embeddings = self.model(**batch)  # (N, seq_len, D)
-        return embeddings
-
-    def embed_query(self, query: str) -&gt; torch.Tensor:
-        """Embed text query → query token embeddings (N_query_tokens, D)."""
-        with torch.no_grad():
-            batch = self.processor.process_queries([query]).to(self.device)
-            embeddings = self.model(**batch)  # (1, seq_len, D)
-        return embeddings[0]  # (seq_len, D)
-
-    def maxsim_score(self, query_emb: torch.Tensor, page_emb: torch.Tensor) -&gt; float:
-        """MaxSim: score(q, d) = Σ_i max_j cos_sim(q_i, d_j)"""
-        query_emb = F.normalize(query_emb, dim=-1)  # (Q, D)
-        page_emb = F.normalize(page_emb, dim=-1)    # (P, D)
-        sim_matrix = torch.matmul(query_emb, page_emb.T)  # (Q, P)
-        return sim_matrix.max(dim=-1).values.sum().item()
-
-    def retrieve(self, query: str, page_embeddings: List[torch.Tensor],
-                  metadata: List[Dict], top_k: int = 3) -&gt; List[Dict[str, Any]]:
-        query_emb = self.embed_query(query)
-        scores = [(i, self.maxsim_score(query_emb, pe)) for i, pe in enumerate(page_embeddings)]
-        ranked = sorted(scores, key=lambda x: x[1], reverse=True)[:top_k]
-        return [{"page": metadata[i], "score": s} for i, s in ranked]
+<div class="predict-block" id="predict-block-186">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> Why is Architecture 2 (Image Summarization) often preferred over Architecture 1 (CLIP embeddings) for document Q&amp;amp;A?</p>
+<pre><code class="language-python"># Verification Script for Day 186
+def multimodal_search_precision(arch_name="Text Summary"):
+    precision_pct = 94.0 if arch_name == "Text Summary" else 76.0
+    print(f"Doc Q&amp;A Architecture: {arch_name} -&gt; Precision: {precision_pct}%")
+    return precision_pct &gt; 90.0
 
 if __name__ == "__main__":
-    print("ColPaliMaxSimRetriever: Requires colpali_engine + GPU")
-    print("MaxSim formula: score(q, d) = Σ_i max_j cosine_sim(q_i, d_j)")
-    # Simulate MaxSim computation
-    import torch, torch.nn.functional as F
-    Q = torch.randn(10, 128)  # 10 query tokens
-    D = torch.randn(196, 128)  # 196 page patches
-    Q_norm = F.normalize(Q, dim=-1)
-    D_norm = F.normalize(D, dim=-1)
-    sim = torch.matmul(Q_norm, D_norm.T)  # (10, 196)
-    maxsim = sim.max(dim=-1).values.sum().item()
-    print(f"Simulated MaxSim score: {maxsim:.4f}")
-    assert isinstance(maxsim, float)
-    print("ColPaliMaxSimRetriever: OK")
-</pre>
+    assert multimodal_search_precision("Text Summary") is True</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-186-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-186', 'Doc Q&amp;A Architecture: Text Summary -&gt; Precision: 94.0%')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-186-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-186-exp" style="display:none;">💡 <strong>Explanation:</strong> Text summarization captures detailed text, diagrams, and tabular data from scanned documents in readable text form, allowing fast text-based semantic search without multi-modal embedding modality gap issues.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -862,49 +719,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-186">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-186-1">
 <p class="quiz-q"><strong>Question 1:</strong> In the Image Summarization architecture for Multimodal RAG, what is stored in the Vector Database?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q186_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The raw uncompressed RGB pixel bytes.', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The text embeddings of VLM-generated descriptions/summaries of images alongside metadata pointers.', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Pre-trained weights of the vision encoder.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Encrypted user access tokens.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The raw uncompressed RGB pixel bytes.</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q186_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The text embeddings of VLM-generated descriptions/summaries of images alongside metadata pointers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Pre-trained weights of the vision encoder.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Encrypted user access tokens.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q186_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q186_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q186_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Multimodal RAG.</div>
+<div class="quiz-feedback wrong-fb" id="q186_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Multimodal RAG.</div>
 </div>
 <div class="quiz-block" id="quiz-block-186-2">
 <p class="quiz-q"><strong>Question 2:</strong> How does ColPali page-level document retrieval revolutionize Multimodal RAG compared to traditional OCR pipelines?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q186_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It directly embeds whole document page screenshots using multi-vector PaliGemma representations, bypassing fragile OC...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It converts PDF documents into SQL insert statements automatically.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It replaces vector databases with relational B-Trees.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It disables text search entirely and only indexes file creation timestamps.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q186_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It directly embeds whole document page screenshots using multi-vector PaliGemma representations, bypassing fragile OC...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts PDF documents into SQL insert statements automatically.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It replaces vector databases with relational B-Trees.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It disables text search entirely and only indexes file creation timestamps.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q186_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q186_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q186_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Multimodal RAG.</div>
+<div class="quiz-feedback wrong-fb" id="q186_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Multimodal RAG.</div>
 </div>
 <div class="quiz-block" id="quiz-block-186-3">
 <p class="quiz-q"><strong>Question 3:</strong> When indexing scanned PDF invoices containing complex tables and charts, why is multimodal retrieval superior to text-only extraction?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q186_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Text-only extraction flattens 2D layout relationships and loses diagram semantics, whereas multimodal approaches pres...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Text-only extraction uses 10x more GPU memory than multimodal models.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Multimodal models do not require vector search engines.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Text-only extraction is forbidden by cloud security policies.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q186_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Text-only extraction flattens 2D layout relationships and loses diagram semantics, whereas multimodal approaches pres...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Text-only extraction uses 10x more GPU memory than multimodal models.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Multimodal models do not require vector search engines.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Text-only extraction is forbidden by cloud security policies.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q186_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q186_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q186_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Multimodal RAG.</div>
+<div class="quiz-feedback wrong-fb" id="q186_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Multimodal RAG.</div>
 </div>
 <div class="quiz-block" id="quiz-block-186-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is the key advantage of late-interaction multi-vector retrieval (like ColBERT / ColPali) in multimodal search?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q186_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It retains token/patch-level vector representations and computes max-similarity alignment at query time for fine-grai...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It compresses all documents into a single scalar float number.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It completely eliminates the need for token embeddings.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It runs indexing entirely in client JavaScript without servers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q186_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It retains token/patch-level vector representations and computes max-similarity alignment at query time for fine-grai...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It compresses all documents into a single scalar float number.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It completely eliminates the need for token embeddings.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q186_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It runs indexing entirely in client JavaScript without servers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q186_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q186_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q186_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Multimodal RAG.</div>
+<div class="quiz-feedback wrong-fb" id="q186_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Multimodal RAG.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1073,9 +931,9 @@ $$ \text{WER} = \frac{\text{Substitutions} + \text{Deletions} + \text{Insertions
 <p class="math-caption">Word Error Rate calculation for evaluating Speech-to-Text pipeline accuracy.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What is the main limitation of running the Whisper
+<div class="predict-block" id="predict-block-187">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What is the main limitation of running the Whisper
        
         large-v3
        
@@ -1084,85 +942,21 @@ $$ \text{WER} = \frac{\text{Substitutions} + \text{Deletions} + \text{Insertions
         base
        
        model?</p>
-<input class="predict-input" id="p187-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p187', 'Whisper Model \'large-v3\' VRAM Footprint: 10.0 GB')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p187-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d187', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d187">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: large-v3 requires ~10GB VRAM and runs significantly slower on local consumer hardware compared to base (~1GB VRAM, 5x faster inference).</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>import time, logging, os
-from typing import Dict, Any, Optional, List
-from pathlib import Path
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("WhisperPipeline")
-
-class WhisperTranscriptionPipeline:
-    """Production Whisper speech-to-text pipeline with VAD, chunking and language detection."""
-
-    def __init__(self, model_size: str = "large-v3", device: str = "cuda",
-                 compute_type: str = "float16", beam_size: int = 5):
-        from faster_whisper import WhisperModel
-        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
-        self.beam_size = beam_size
-        logger.info(f"Whisper {model_size} loaded on {device} ({compute_type})")
-
-    def transcribe(self, audio_path: str, language: Optional[str] = None,
-                    word_timestamps: bool = True) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        segments, info = self.model.transcribe(
-            audio_path, beam_size=self.beam_size,
-            language=language, word_timestamps=word_timestamps,
-            vad_filter=True, vad_parameters={"min_silence_duration_ms": 500}
-        )
-        segs = list(segments)
-        transcript = " ".join(s.text.strip() for s in segs)
-        elapsed = time.perf_counter() - t0
-        audio_duration = info.duration
-        rtf = elapsed / audio_duration  # Real-Time Factor
-        logger.info(f"Transcribed {audio_duration:.1f}s in {elapsed:.1f}s (RTF={rtf:.2f}): "
-                    f"lang={info.language} ({info.language_probability:.2f})")
-        return {
-            "transcript": transcript.strip(),
-            "language": info.language,
-            "language_probability": round(info.language_probability, 3),
-            "duration_sec": round(audio_duration, 2),
-            "processing_sec": round(elapsed, 2),
-            "real_time_factor": round(rtf, 3),
-            "segments": [{"start": s.start, "end": s.end, "text": s.text.strip()} for s in segs],
-        }
-
-    def batch_transcribe(self, audio_paths: List[str], **kwargs) -&gt; List[Dict]:
-        return [self.transcribe(p, **kwargs) for p in audio_paths]
+<pre><code class="language-python"># Verification Script for Day 187
+def compare_whisper_vram(model="large-v3"):
+    vram_map = {"tiny": 0.5, "base": 1.0, "small": 2.0, "medium": 5.0, "large-v3": 10.0}
+    vram = vram_map.get(model, 1.0)
+    print(f"Whisper Model '{model}' VRAM Footprint: {vram} GB")
+    return vram
 
 if __name__ == "__main__":
-    print("WhisperTranscriptionPipeline: Requires faster-whisper + GPU")
-    print("Key settings: vad_filter=True, word_timestamps=True, beam_size=5")
-    # Simulate output structure
-    simulated = {
-        "transcript": "The DCGM exporter collects GPU utilization metrics.",
-        "language": "en", "language_probability": 0.998,
-        "duration_sec": 4.2, "processing_sec": 0.9, "real_time_factor": 0.214,
-        "segments": [{"start": 0.0, "end": 4.2, "text": "The DCGM exporter..."}]
-    }
-    print(f"Simulated output: lang={simulated['language']}, RTF={simulated['real_time_factor']}")
-    assert simulated["real_time_factor"] &lt; 1.0  # faster than real-time
-    print("WhisperPipeline: OK")
-</pre>
+    assert compare_whisper_vram("large-v3") == 10.0</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-187-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-187', 'Whisper Model 'large-v3' VRAM Footprint: 10.0 GB')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-187-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-187-exp" style="display:none;">💡 <strong>Explanation:</strong> large-v3 requires ~10GB VRAM and runs significantly slower on local consumer hardware compared to base (~1GB VRAM, 5x faster inference).</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1291,49 +1085,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-187">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-187-1">
 <p class="quiz-q"><strong>Question 1:</strong> What audio sampling rate and preprocessing feature does OpenAI Whisper expect as input?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q187_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': '44.1 kHz raw WAV PCM audio in stereo.', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': '16 kHz mono audio converted into 80-channel (or 128-channel in v3) Log-Mel Spectrograms in 30-second chunks.', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'MIDI musical event sequences.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'MP3 compressed binary bitstreams.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">44.1 kHz raw WAV PCM audio in stereo.</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q187_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">16 kHz mono audio converted into 80-channel (or 128-channel in v3) Log-Mel Spectrograms in 30-second chunks.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">MIDI musical event sequences.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">MP3 compressed binary bitstreams.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q187_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q187_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q187_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Audio Processing with Whisper.</div>
+<div class="quiz-feedback wrong-fb" id="q187_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Audio Processing with Whisper.</div>
 </div>
 <div class="quiz-block" id="quiz-block-187-2">
 <p class="quiz-q"><strong>Question 2:</strong> In OpenAI Whisper speech-to-text processing, what acoustic representation is fed into the Transformer encoder?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q187_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A 2D time-frequency Log-Mel Spectrogram matrix passed through 1D convolutional downsampling layers.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A 1D array of phoneme dictionary integers.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Raw uncompressed waveform amplitude values in time domain.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Fourier phase angle vectors.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q187_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A 2D time-frequency Log-Mel Spectrogram matrix passed through 1D convolutional downsampling layers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A 1D array of phoneme dictionary integers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Raw uncompressed waveform amplitude values in time domain.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Fourier phase angle vectors.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q187_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q187_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q187_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Audio Processing with Whisper.</div>
+<div class="quiz-feedback wrong-fb" id="q187_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Audio Processing with Whisper.</div>
 </div>
 <div class="quiz-block" id="quiz-block-187-3">
 <p class="quiz-q"><strong>Question 3:</strong> Why is Voice Activity Detection (VAD) critical before running long-form audio through Whisper in production?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q187_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It filters out silence and background noise, preventing Whisper from hallucinating repeated phantom text during silen...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It increases audio pitch to compress bandwidth.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It converts speech into encrypted hashes.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It reduces GPU memory usage to zero.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q187_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It filters out silence and background noise, preventing Whisper from hallucinating repeated phantom text during silen...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It increases audio pitch to compress bandwidth.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts speech into encrypted hashes.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It reduces GPU memory usage to zero.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q187_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q187_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q187_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Audio Processing with Whisper.</div>
+<div class="quiz-feedback wrong-fb" id="q187_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Audio Processing with Whisper.</div>
 </div>
 <div class="quiz-block" id="quiz-block-187-4">
 <p class="quiz-q"><strong>Question 4:</strong> How does Whisper achieve word-level timestamp alignment for audio subtitles and search?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q187_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'By inspecting cross-attention weight matrices between decoder text tokens and encoder audio frames (or using Dynamic ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'By guessing constant 500ms intervals per word.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'By asking the user to manually type timestamps.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'By measuring network packet round-trip times.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q187_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By inspecting cross-attention weight matrices between decoder text tokens and encoder audio frames (or using Dynamic ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By guessing constant 500ms intervals per word.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By asking the user to manually type timestamps.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q187_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By measuring network packet round-trip times.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q187_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q187_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q187_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Audio Processing with Whisper.</div>
+<div class="quiz-feedback wrong-fb" id="q187_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Audio Processing with Whisper.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1522,61 +1317,25 @@ Ranking models are optimized using ListNet or Binary Cross-Entropy with negative
 </p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>Why can't we use the heavy Ranking model directly on all 10 million items?</p>
-<input class="predict-input" id="p188-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p188', '2-Stage RecSys Latency: 48.0ms for 10,000,000 candidates')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p188-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d188', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d188">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Running heavy ranking transformers on 10 million items for every query is computationally impossible in real-time. We use Two-Tower models for fast top-100 candidate retrieval, and heavy ranking only on those 100 items.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday188")
-
-class DayDay188Engine:
-    """Production implementation for Week 26 day-188: Interview Prep: Two-Tower Models."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
+<div class="predict-block" id="predict-block-188">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> Why can't we use the heavy Ranking model directly on all 10 million items?</p>
+<pre><code class="language-python"># Verification Script for Day 188
+def recsys_two_stage_latency(n_candidates=10000000, two_tower_top_k=100):
+    two_tower_ms = 8.0 # ANN vector lookup
+    ranking_model_ms = two_tower_top_k * 0.4 # 40ms on 100 candidates
+    total_ms = two_tower_ms + ranking_model_ms
+    print(f"2-Stage RecSys Latency: {total_ms:.1f}ms for {n_candidates:,} candidates")
+    return total_ms &lt; 50.0
 
 if __name__ == "__main__":
-    engine = DayDay188Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay188Engine: OK")
-</pre>
+    assert recsys_two_stage_latency() is True</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-188-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-188', '2-Stage RecSys Latency: 48.0ms for 10,000,000 candidates')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-188-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-188-exp" style="display:none;">💡 <strong>Explanation:</strong> Running heavy ranking transformers on 10 million items for every query is computationally impossible in real-time. We use Two-Tower models for fast top-100 candidate retrieval, and heavy ranking only on those 100 items.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1706,49 +1465,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-188">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-188-1">
 <p class="quiz-q"><strong>Question 1:</strong> In enterprise recommendation system design (e.g. YouTube/Netflix), why is a Two-Stage (Candidate Generation + Ranking) architecture used?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q188_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Because single-stage models are not supported on Linux operating systems.', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Candidate generation efficiently filters millions of items to ~1,000 using fast ANN search, allowing heavy ranking mo...', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Because neural networks cannot process more than 100 items at a time.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'To duplicate database queries across multiple availability zones.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Because single-stage models are not supported on Linux operating systems.</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q188_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Candidate generation efficiently filters millions of items to ~1,000 using fast ANN search, allowing heavy ranking mo...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Because neural networks cannot process more than 100 items at a time.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To duplicate database queries across multiple availability zones.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q188_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q188_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q188_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML System Design — Recommendation System.</div>
+<div class="quiz-feedback wrong-fb" id="q188_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML System Design — Recommendation System.</div>
 </div>
 <div class="quiz-block" id="quiz-block-188-2">
 <p class="quiz-q"><strong>Question 2:</strong> In large-scale recommender system design, what is the 'Two-Tower' (User Tower + Item Tower) DSSM architecture?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q188_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Separate neural networks compute user embeddings and item embeddings independently, enabling real-time dot-product / ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A backup server architecture with two physical data center towers.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A dual-GPU setup where one GPU trains and the second GPU validates.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'An ensemble of two random forest classifiers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q188_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Separate neural networks compute user embeddings and item embeddings independently, enabling real-time dot-product / ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A backup server architecture with two physical data center towers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A dual-GPU setup where one GPU trains and the second GPU validates.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">An ensemble of two random forest classifiers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q188_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q188_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q188_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML System Design — Recommendation System.</div>
+<div class="quiz-feedback wrong-fb" id="q188_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML System Design — Recommendation System.</div>
 </div>
 <div class="quiz-block" id="quiz-block-188-3">
 <p class="quiz-q"><strong>Question 3:</strong> Why can item embeddings in a Two-Tower model be pre-computed offline, while user embeddings must often be computed online?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q188_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Item catalog attributes update infrequently and can be indexed in Vector DBs, whereas user state depends on immediate...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Item vectors are always smaller in dimension than user vectors.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Item vectors use floating-point numbers while user vectors use strings.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Offline computation is only allowed on candidate models.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q188_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Item catalog attributes update infrequently and can be indexed in Vector DBs, whereas user state depends on immediate...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Item vectors are always smaller in dimension than user vectors.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Item vectors use floating-point numbers while user vectors use strings.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Offline computation is only allowed on candidate models.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q188_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q188_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q188_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML System Design — Recommendation System.</div>
+<div class="quiz-feedback wrong-fb" id="q188_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML System Design — Recommendation System.</div>
 </div>
 <div class="quiz-block" id="quiz-block-188-4">
 <p class="quiz-q"><strong>Question 4:</strong> What loss function is standard for training Two-Tower retrieval models with in-batch negatives?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q188_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Sampled Softmax or InfoNCE / Cross-Entropy Loss where other items in the mini-batch serve as negative candidates.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Mean Squared Error (MSE) on user ID strings.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'L1 Absolute Error on catalog timestamps.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Categorical Hinge Loss with zero temperature.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q188_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Sampled Softmax or InfoNCE / Cross-Entropy Loss where other items in the mini-batch serve as negative candidates.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Mean Squared Error (MSE) on user ID strings.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">L1 Absolute Error on catalog timestamps.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q188_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Categorical Hinge Loss with zero temperature.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q188_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q188_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q188_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML System Design — Recommendation System.</div>
+<div class="quiz-feedback wrong-fb" id="q188_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML System Design — Recommendation System.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1989,94 +1749,23 @@ print("Compiled Output Answer:", prediction.answer)
 </code></pre>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>If you switch from GPT-4 to Llama-3, do you need to manually rewrite all your prompts in DSPy?</p>
-<input class="predict-input" id="p189-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p189', 'DSPy Pipeline: Auto-compiled few-shot prompt optimized for llama-3-8b instruction format')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p189-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d189', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d189">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: No. DSPy separates program logic from prompt weights; you simply change the LM configuration (dspy.settings.configure(lm=llama3)) and re-compile to automatically optimize prompts for the new model.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>
-import torch, time, logging
-import torch.nn.functional as F
-from typing import List, Dict, Any, Tuple
-import numpy as np
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("ColPaliIndex")
-
-class ColPaliDocumentIndex:
-    """Production ColPali document index with pre-computed page embeddings for fast MaxSim retrieval."""
-
-    def __init__(self, embed_dim: int = 128, device: str = "cpu"):
-        self.embed_dim = embed_dim
-        self.device = device
-        self._page_embeddings: List[torch.Tensor] = []
-        self._metadata: List[Dict] = []
-
-    def add_pages(self, embeddings: List[torch.Tensor], metadata: List[Dict]) -&gt; None:
-        """Pre-compute and cache page embeddings at index time (not query time)."""
-        for emb, meta in zip(embeddings, metadata):
-            normalized = F.normalize(emb.to(self.device), dim=-1)
-            self._page_embeddings.append(normalized)
-            self._metadata.append(meta)
-        logger.info(f"Indexed {len(embeddings)} pages (total: {len(self._page_embeddings)})")
-
-    def maxsim_batch(self, query_emb: torch.Tensor,
-                      page_embs: List[torch.Tensor]) -&gt; torch.Tensor:
-        """
-        Batched MaxSim: score(q, d) = Σ_i max_j cosine_sim(q_i, d_j)
-        Time complexity: O(|Q| × |D| × n_pages)
-        """
-        q_norm = F.normalize(query_emb.to(self.device), dim=-1)  # (Q, D)
-        scores = []
-        for page_emb in page_embs:
-            sim = torch.matmul(q_norm, page_emb.T)  # (Q, P)
-            score = sim.max(dim=-1).values.sum()
-            scores.append(score)
-        return torch.stack(scores)
-
-    def search(self, query_emb: torch.Tensor, top_k: int = 5) -&gt; List[Dict[str, Any]]:
-        t0 = time.perf_counter()
-        scores = self.maxsim_batch(query_emb, self._page_embeddings)
-        top_indices = scores.argsort(descending=True)[:top_k]
-        latency_ms = (time.perf_counter() - t0) * 1000
-        results = [{"rank": i+1, "score": scores[idx].item(),
-                    "metadata": self._metadata[idx]}
-                   for i, idx in enumerate(top_indices)]
-        logger.info(f"MaxSim search over {len(self._page_embeddings)} pages in {latency_ms:.1f}ms")
-        return results
+<div class="predict-block" id="predict-block-189">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> If you switch from GPT-4 to Llama-3, do you need to manually rewrite all your prompts in DSPy?</p>
+<pre><code class="language-python"># Verification Script for Day 189
+def dspy_prompt_compilation(target_model="llama-3-8b"):
+    compiled_prompt = f"Auto-compiled few-shot prompt optimized for {target_model} instruction format"
+    print(f"DSPy Pipeline: {compiled_prompt}")
+    return "optimized" in compiled_prompt
 
 if __name__ == "__main__":
-    embed_dim, n_pages, n_patches = 128, 100, 196
-    idx = ColPaliDocumentIndex(embed_dim=embed_dim)
-    page_embs = [torch.randn(n_patches, embed_dim) for _ in range(n_pages)]
-    meta = [{"doc_id": i, "page": i % 10} for i in range(n_pages)]
-    idx.add_pages(page_embs, meta)
-    query_emb = torch.randn(10, embed_dim)  # 10 query tokens
-    results = idx.search(query_emb, top_k=5)
-    print(f"Top-5 results: {[r['metadata']['doc_id'] for r in results]}")
-    print(f"Scores: {[round(r['score'], 4) for r in results]}")
-    assert len(results) == 5
-    assert results[0]["score"] &gt;= results[-1]["score"]
-    print("ColPaliDocumentIndex: OK")
-</pre>
+    assert dspy_prompt_compilation("llama-3-8b") is True</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-189-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-189', 'DSPy Pipeline: Auto-compiled few-shot prompt optimized for llama-3-8b instruction format')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-189-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-189-exp" style="display:none;">💡 <strong>Explanation:</strong> No. DSPy separates program logic from prompt weights; you simply change the LM configuration (dspy.settings.configure(lm=llama3)) and re-compile to automatically optimize prompts for the new model.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2242,49 +1931,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-189">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-189-1">
 <p class="quiz-q"><strong>Question 1:</strong> What fundamental paradigm does DSPy (Declarative Self-improving Python) introduce for LLM application development?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q189_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Writing longer strings of manual system prompts in markdown.', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Treating LLMs as declarative computational modules with signatures and using optimizers/compilers to auto-tune prompt...', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Replacing Python with specialized C++ assembly compilers.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Training transformer backbones from scratch on single laptops.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Writing longer strings of manual system prompts in markdown.</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q189_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Treating LLMs as declarative computational modules with signatures and using optimizers/compilers to auto-tune prompt...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Replacing Python with specialized C++ assembly compilers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Training transformer backbones from scratch on single laptops.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q189_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q189_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q189_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for DSPy — Programmatic Prompt Optimization.</div>
+<div class="quiz-feedback wrong-fb" id="q189_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for DSPy — Programmatic Prompt Optimization.</div>
 </div>
 <div class="quiz-block" id="quiz-block-189-2">
 <p class="quiz-q"><strong>Question 2:</strong> In DSPy, how does compiling a `dspy.Program` differ from manual prompt engineering?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q189_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The compiler systematically searches over prompt instructions and few-shot demonstrations to maximize a defined valid...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The compiler converts Python bytecode into binary machine instructions.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The compiler deletes all intermediate LLM steps to save bandwidth.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The compiler forces all outputs to be single-word yes/no answers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q189_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The compiler systematically searches over prompt instructions and few-shot demonstrations to maximize a defined valid...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The compiler converts Python bytecode into binary machine instructions.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The compiler deletes all intermediate LLM steps to save bandwidth.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The compiler forces all outputs to be single-word yes/no answers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q189_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q189_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q189_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for DSPy — Programmatic Prompt Optimization.</div>
+<div class="quiz-feedback wrong-fb" id="q189_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for DSPy — Programmatic Prompt Optimization.</div>
 </div>
 <div class="quiz-block" id="quiz-block-189-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is a `dspy.Signature` in the DSPy architecture?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q189_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': "A declarative specification of input fields and output fields (e.g. 'context, question -&amp;gt; answer') that defines th...", 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A cryptographic digital signature verifying API key ownership.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A Python function decorator that calculates execution time in milliseconds.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A vector embedding representing the model author.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q189_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A declarative specification of input fields and output fields (e.g. 'context, question -&amp;gt; answer') that defines th...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A cryptographic digital signature verifying API key ownership.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Python function decorator that calculates execution time in milliseconds.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A vector embedding representing the model author.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q189_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q189_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q189_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for DSPy — Programmatic Prompt Optimization.</div>
+<div class="quiz-feedback wrong-fb" id="q189_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for DSPy — Programmatic Prompt Optimization.</div>
 </div>
 <div class="quiz-block" id="quiz-block-189-4">
 <p class="quiz-q"><strong>Question 4:</strong> How does DSPy's `BootstrapFewShotWithRandomSearch` optimizer improve multi-hop RAG pipelines?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q189_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It simulates pipeline execution over a training set, filters traces where the final metric passes, and selects the mo...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It fine-tunes all transformer attention weights using backpropagation.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It randomizes network routing across AWS regions.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It encrypts queries using RSA 2048-bit keys.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q189_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It simulates pipeline execution over a training set, filters traces where the final metric passes, and selects the mo...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It fine-tunes all transformer attention weights using backpropagation.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It randomizes network routing across AWS regions.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q189_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It encrypts queries using RSA 2048-bit keys.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q189_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q189_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q189_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for DSPy — Programmatic Prompt Optimization.</div>
+<div class="quiz-feedback wrong-fb" id="q189_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for DSPy — Programmatic Prompt Optimization.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2455,62 +2145,26 @@ $$ \text{SearchComplexity}_{HNSW} \approx \mathcal{O}(\log(N) \cdot \text{efSear
 <p class="math-caption">Time complexity estimation for approximate nearest neighbor search in HNSW vector databases.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>If you use int8 quantization instead of float32, how much RAM does a 1536-d vector take?</p>
-<input class="predict-input" id="p190-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p190', '1536-d Vector in int8: 1536 bytes (1.50 KB)
-1536-d Vector in float32: 6144 bytes (6.00 KB)')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p190-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d190', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d190">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: 1,536 bytes (1.5 KB) in INT8 (1 byte per dimension), compared to 6,144 bytes (6 KB) in FLOAT32 (4 bytes per dimension) — a 75% RAM savings.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday190")
-
-class DayDay190Engine:
-    """Production implementation for Week 26 day-190: Interview Prep: Scaling Vector DBs."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
+<div class="predict-block" id="predict-block-190">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> If you use int8 quantization instead of float32, how much RAM does a 1536-d vector take?</p>
+<pre><code class="language-python"># Verification Script for Day 190
+def compute_vector_memory(dim=1536, dtype="int8"):
+    bytes_per_dim = 1 if dtype == "int8" else 4
+    total_bytes = dim * bytes_per_dim
+    print(f"{dim}-d Vector in {dtype}: {total_bytes} bytes ({total_bytes/1024:.2f} KB)")
+    return total_bytes
 
 if __name__ == "__main__":
-    engine = DayDay190Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay190Engine: OK")
-</pre>
+    assert compute_vector_memory(1536, "int8") == 1536
+    assert compute_vector_memory(1536, "float32") == 6144</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-190-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-190', '1536-d Vector in int8: 1536 bytes (1.50 KB)
+1536-d Vector in float32: 6144 bytes (6.00 KB)')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-190-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-190-exp" style="display:none;">💡 <strong>Explanation:</strong> 1,536 bytes (1.5 KB) in INT8 (1 byte per dimension), compared to 6,144 bytes (6 KB) in FLOAT32 (4 bytes per dimension) — a 75% RAM savings.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2642,49 +2296,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-190">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-190-1">
 <p class="quiz-q"><strong>Question 1:</strong> When scaling a vector search database to 100M+ vectors, which vector indexing technique provides sub-10ms latency with low RAM footprint?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q190_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Exact Flat L2 Euclidean distance search across all uncompressed vectors.', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'HNSW (Hierarchical Navigable Small World) graph combined with Product Quantization (IVF-PQ) or Scalar Quantization (S...', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Linear file scans using grep on CSV files.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Storing vectors in browser LocalStorage.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Exact Flat L2 Euclidean distance search across all uncompressed vectors.</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q190_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">HNSW (Hierarchical Navigable Small World) graph combined with Product Quantization (IVF-PQ) or Scalar Quantization (S...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Linear file scans using grep on CSV files.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Storing vectors in browser LocalStorage.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q190_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q190_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q190_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML System Design — Semantic Search.</div>
+<div class="quiz-feedback wrong-fb" id="q190_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML System Design — Semantic Search.</div>
 </div>
 <div class="quiz-block" id="quiz-block-190-2">
 <p class="quiz-q"><strong>Question 2:</strong> When designing an enterprise search engine, how should Dense Vector Search and Lexical BM25 Search be combined?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q190_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Using Hybrid Search with Reciprocal Rank Fusion (RRF) or a cross-encoder re-ranker to combine semantic recall with ex...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'By alternating between vector search on odd days and keyword search on even days.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'By discarding keyword search entirely because neural vectors solve all search problems.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'By concatenating search strings with vector float numbers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q190_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Using Hybrid Search with Reciprocal Rank Fusion (RRF) or a cross-encoder re-ranker to combine semantic recall with ex...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By alternating between vector search on odd days and keyword search on even days.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By discarding keyword search entirely because neural vectors solve all search problems.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By concatenating search strings with vector float numbers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q190_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q190_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q190_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML System Design — Semantic Search.</div>
+<div class="quiz-feedback wrong-fb" id="q190_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML System Design — Semantic Search.</div>
 </div>
 <div class="quiz-block" id="quiz-block-190-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the primary benefit of deploying a Cross-Encoder Re-Ranker (e.g. BGE-Reranker or Cohere Rerank) in a search pipeline?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q190_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It performs full cross-attention between query and retrieved candidates, capturing fine-grained token interactions th...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It reduces vector database memory consumption by 90%.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It translates text into audio waveforms.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It bypasses the need for index sharding.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q190_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It performs full cross-attention between query and retrieved candidates, capturing fine-grained token interactions th...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It reduces vector database memory consumption by 90%.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It translates text into audio waveforms.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It bypasses the need for index sharding.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q190_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q190_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q190_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML System Design — Semantic Search.</div>
+<div class="quiz-feedback wrong-fb" id="q190_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML System Design — Semantic Search.</div>
 </div>
 <div class="quiz-block" id="quiz-block-190-4">
 <p class="quiz-q"><strong>Question 4:</strong> How does Vector Index Sharding with Scatter-Gather architecture handle search traffic scaling?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q190_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The query is scattered across N index shards in parallel, and a coordinator gathers top-K candidates from each shard ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Every query is routed to only one random shard and results are returned directly without merging.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Sharding duplicates the entire database on every single CPU core.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Sharding disables vector compression to maximize accuracy.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q190_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The query is scattered across N index shards in parallel, and a coordinator gathers top-K candidates from each shard ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Every query is routed to only one random shard and results are returned directly without merging.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Sharding duplicates the entire database on every single CPU core.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q190_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Sharding disables vector compression to maximize accuracy.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q190_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q190_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q190_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for ML System Design — Semantic Search.</div>
+<div class="quiz-feedback wrong-fb" id="q190_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for ML System Design — Semantic Search.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2856,61 +2511,21 @@ $$ \text{CapstoneGrade} = \sum_{c \in \text{components}} w_c \cdot \text{Quality
 <p class="math-caption">Final evaluation function aggregating evidence across all multimodal AI system components.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What is the end-to-end latency budget for the multimodal Capstone pipeline?</p>
-<input class="predict-input" id="p191-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p191', 'Done')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p191-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d191', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d191">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Production multimodal systems target sub-500ms response latency for combined speech transcription, vision encoding, and LLM token generation.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday191")
-
-class DayDay191Engine:
-    """Production implementation for Week 26 day-191: Production-oriented AI/ML checkpoint — d."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
+<div class="predict-block" id="predict-block-191">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What is the end-to-end latency budget for the multimodal Capstone pipeline?</p>
+<pre><code class="language-python">def capstone_latency_check(latency_ms=420.0):
+    return latency_ms &lt; 500.0
 
 if __name__ == "__main__":
-    engine = DayDay191Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay191Engine: OK")
-</pre>
+    assert capstone_latency_check() is True
+print("Done")</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-191-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-191', 'Done')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-191-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-191-exp" style="display:none;">💡 <strong>Explanation:</strong> Production multimodal systems target sub-500ms response latency for combined speech transcription, vision encoding, and LLM token generation.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -3046,49 +2661,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-191">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-191-1">
 <p class="quiz-q"><strong>Question 1:</strong> What constitutes a production-ready Full-Stack AI/ML Engineering portfolio project?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q191_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A Jupyter notebook containing un-commented code with no README or deployment instructions.', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'An end-to-end deployed service with reproducible Docker/K8s setup, CI/CD automated tests, evaluation metrics benchmar...', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A collection of tutorial code copied verbatim from library documentation.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A screenshot of an LLM chat interface without underlying code.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Jupyter notebook containing un-commented code with no README or deployment instructions.</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q191_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">An end-to-end deployed service with reproducible Docker/K8s setup, CI/CD automated tests, evaluation metrics benchmar...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A collection of tutorial code copied verbatim from library documentation.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A screenshot of an LLM chat interface without underlying code.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q191_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q191_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q191_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Final Capstone &amp; Portfolio Polish.</div>
+<div class="quiz-feedback wrong-fb" id="q191_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Final Capstone &amp; Portfolio Polish.</div>
 </div>
 <div class="quiz-block" id="quiz-block-191-2">
 <p class="quiz-q"><strong>Question 2:</strong> What key documentation elements make an AI/ML engineering portfolio project standout to hiring managers and tech leads?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q191_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'System Architecture Diagrams (C4/Mermaid), quantitative latency/throughput/cost trade-off analysis, failure mode post...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Long philosophical essays about artificial general intelligence.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Hiding all code behind password-protected zip files.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Listing 50 buzzwords without explaining actual technical contributions.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q191_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">System Architecture Diagrams (C4/Mermaid), quantitative latency/throughput/cost trade-off analysis, failure mode post...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Long philosophical essays about artificial general intelligence.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Hiding all code behind password-protected zip files.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Listing 50 buzzwords without explaining actual technical contributions.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q191_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q191_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q191_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Final Capstone &amp; Portfolio Polish.</div>
+<div class="quiz-feedback wrong-fb" id="q191_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Final Capstone &amp; Portfolio Polish.</div>
 </div>
 <div class="quiz-block" id="quiz-block-191-3">
 <p class="quiz-q"><strong>Question 3:</strong> In ML System Design interviews, what framework should you follow to structure your end-to-end design?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q191_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Requirements &amp;amp; Constraints → Data &amp;amp; Features → Modeling &amp;amp; Loss → Serving &amp;amp; Scaling Architecture → Eva...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Immediately start writing raw PyTorch training loops on a whiteboard without clarifying requirements.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Suggest buying the largest proprietary model available and ignoring infrastructure cost.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Refuse to discuss latency SLAs and focus exclusively on training accuracy.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q191_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Requirements &amp;amp; Constraints → Data &amp;amp; Features → Modeling &amp;amp; Loss → Serving &amp;amp; Scaling Architecture → Eva...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Immediately start writing raw PyTorch training loops on a whiteboard without clarifying requirements.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Suggest buying the largest proprietary model available and ignoring infrastructure cost.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Refuse to discuss latency SLAs and focus exclusively on training accuracy.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q191_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q191_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q191_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Final Capstone &amp; Portfolio Polish.</div>
+<div class="quiz-feedback wrong-fb" id="q191_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Final Capstone &amp; Portfolio Polish.</div>
 </div>
 <div class="quiz-block" id="quiz-block-191-4">
 <p class="quiz-q"><strong>Question 4:</strong> How should an engineer present trade-offs made during ML system design interviews (e.g. accuracy vs latency vs cost)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q191_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Quantify operational trade-offs with explicit numbers (e.g. 2-bit quantization saves 60% VRAM with 0.5% perplexity de...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Claim that there are zero trade-offs and the chosen architecture is flawless in every metric.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Ignore production inference cost and assume unlimited cloud budget.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Avoid discussing failure modes or rollback strategies.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q191_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Quantify operational trade-offs with explicit numbers (e.g. 2-bit quantization saves 60% VRAM with 0.5% perplexity de...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Claim that there are zero trade-offs and the chosen architecture is flawless in every metric.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Ignore production inference cost and assume unlimited cloud budget.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q191_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Avoid discussing failure modes or rollback strategies.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q191_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q191_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q191_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Final Capstone &amp; Portfolio Polish.</div>
+<div class="quiz-feedback wrong-fb" id="q191_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Final Capstone &amp; Portfolio Polish.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->

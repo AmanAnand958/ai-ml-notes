@@ -195,120 +195,17 @@ $$ \text{NodeCapacity} = \text{CPU}_{allocatable} - \sum \text{PodRequests}_{cpu
 <p class="math-caption">Kubernetes node capacity constraint ensuring ML pods have sufficient guaranteed resources.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What is the standard Kubernetes resource key used to request 1 NVIDIA GPU in a Pod manifest?</p>
-<input class="predict-input" id="p178-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p178', 'nvidia.com/gpu')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p178-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d178', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d178">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Kubernetes GPU Operator exposes GPUs under the resource limit key 'nvidia.com/gpu'.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-178">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What is the standard Kubernetes resource key used to request 1 NVIDIA GPU in a Pod manifest?</p>
+<pre><code class="language-python">res_key = "nvidia.com/gpu"
+print(res_key)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-178-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-178', 'nvidia.com/gpu')">Check Answer</button>
 </div>
-</div>
-<pre>import subprocess, json, logging, time
-from typing import Dict, Any, List
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("K8sGPUScheduler")
-
-GPU_POD_SPEC = """apiVersion: v1
-kind: Pod
-metadata:
-  name: {pod_name}
-  labels:
-    app: gpu-workload
-spec:
-  nodeSelector:
-    nvidia.com/gpu.product: {gpu_model}
-  tolerations:
-  - key: nvidia.com/gpu
-    operator: Exists
-    effect: NoSchedule
-  containers:
-  - name: trainer
-    image: {image}
-    resources:
-      limits:
-        nvidia.com/gpu: "{gpu_count}"
-        memory: {memory}
-      requests:
-        nvidia.com/gpu: "{gpu_count}"
-        memory: {memory}
-    env:
-    - name: NCCL_DEBUG
-      value: INFO
-"""
-
-class K8sGPUScheduler:
-    """Production Kubernetes GPU workload scheduler with node affinity and resource validation."""
-
-    def __init__(self, namespace: str = "ml-training"):
-        self.namespace = namespace
-
-    def validate_gpu_request(self, gpu_count: int, memory_gb: int,
-                              available_gpus: Dict[str, int]) -&gt; bool:
-        total_available = sum(available_gpus.values())
-        if gpu_count &gt; total_available:
-            logger.error(f"Requested {gpu_count} GPUs but only {total_available} available")
-            return False
-        if gpu_count &amp; (gpu_count - 1) != 0:
-            logger.warning(f"GPU count {gpu_count} is not a power of 2 — may cause NCCL topology issues")
-        return True
-
-    def submit_training_job(self, pod_name: str, image: str, gpu_count: int,
-                             memory_gb: int = 64, gpu_model: str = "A100-SXM4-80GB") -&gt; str:
-        spec = GPU_POD_SPEC.format(
-            pod_name=pod_name, gpu_model=gpu_model, image=image,
-            gpu_count=gpu_count, memory=f"{memory_gb}Gi"
-        )
-        cmd = ["kubectl", "apply", "-n", self.namespace, "-f", "-"]
-        result = subprocess.run(cmd, input=spec, capture_output=True, text=True, timeout=30)
-        if result.returncode != 0:
-            raise RuntimeError(f"kubectl apply failed: {result.stderr}")
-        logger.info(f"Submitted GPU job: {pod_name} ({gpu_count}×{gpu_model})")
-        return pod_name
-
-    def get_gpu_utilization(self) -&gt; List[Dict]:
-        cmd = ["kubectl", "get", "nodes", "-o", "json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        if result.returncode != 0:
-            return []
-        nodes = json.loads(result.stdout).get("items", [])
-        gpu_nodes = []
-        for node in nodes:
-            allocatable = node["status"].get("allocatable", {})
-            capacity = node["status"].get("capacity", {})
-            if "nvidia.com/gpu" in capacity:
-                gpu_nodes.append({
-                    "name": node["metadata"]["name"],
-                    "gpu_capacity": int(capacity["nvidia.com/gpu"]),
-                    "gpu_allocatable": int(allocatable.get("nvidia.com/gpu", 0)),
-                })
-        return gpu_nodes
-
-if __name__ == "__main__":
-    scheduler = K8sGPUScheduler()
-    available = {"node-gpu-1": 8, "node-gpu-2": 8}
-    ok = scheduler.validate_gpu_request(gpu_count=4, memory_gb=64, available_gpus=available)
-    print(f"GPU request validation (4 GPUs): {ok}")
-    spec_preview = GPU_POD_SPEC.format(pod_name="test-job", gpu_model="A100-SXM4-80GB",
-                                        image="pytorch/pytorch:2.3.0-cuda12.1", gpu_count=1, memory="64Gi")
-    print(f"Pod spec preview (first 200 chars):\n{spec_preview[:200]}")
-    print("K8sGPUScheduler: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-178-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-178-exp" style="display:none;">💡 <strong>Explanation:</strong> Kubernetes GPU Operator exposes GPUs under the resource limit key 'nvidia.com/gpu'.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -561,49 +458,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-178">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-178-1">
 <p class="quiz-q"><strong>Question 1:</strong> In Kubernetes architecture, what is a Pod?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q178_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The smallest deployable computing unit in Kubernetes, encapsulating one or more co-located containers sharing network...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A physical server in a data center.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A Python package for numerical computing.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A brand of computer monitors.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q178_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The smallest deployable computing unit in Kubernetes, encapsulating one or more co-located containers sharing network...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A physical server in a data center.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Python package for numerical computing.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A brand of computer monitors.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q178_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q178_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q178_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Kubernetes Core Concepts.</div>
+<div class="quiz-feedback wrong-fb" id="q178_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Kubernetes Core Concepts.</div>
 </div>
 <div class="quiz-block" id="quiz-block-178-2">
 <p class="quiz-q"><strong>Question 2:</strong> What is the role of the Kubernetes Control Plane (kube-apiserver, etcd, kube-scheduler)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q178_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Maintaining the desired state of the cluster, scheduling workloads to nodes, storing configuration, and handling clus...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Rendering CSS web pages.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Executing deep learning matrix multiplications directly.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Providing public Wi-Fi access.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q178_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Maintaining the desired state of the cluster, scheduling workloads to nodes, storing configuration, and handling clus...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Rendering CSS web pages.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Executing deep learning matrix multiplications directly.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Providing public Wi-Fi access.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q178_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q178_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q178_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Kubernetes Core Concepts.</div>
+<div class="quiz-feedback wrong-fb" id="q178_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Kubernetes Core Concepts.</div>
 </div>
 <div class="quiz-block" id="quiz-block-178-3">
 <p class="quiz-q"><strong>Question 3:</strong> Why is setting both `requests` and `limits` for CPU/Memory critical in Kubernetes AI pod manifests?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q178_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Requests guarantee minimum reserved compute for scheduling; limits prevent rogue workloads from consuming all host no...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Setting limits makes pods execute 10x faster.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Requests are required for git commits.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Limits delete pods every 5 minutes.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q178_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Requests guarantee minimum reserved compute for scheduling; limits prevent rogue workloads from consuming all host no...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Setting limits makes pods execute 10x faster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Requests are required for git commits.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Limits delete pods every 5 minutes.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q178_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q178_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q178_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Kubernetes Core Concepts.</div>
+<div class="quiz-feedback wrong-fb" id="q178_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Kubernetes Core Concepts.</div>
 </div>
 <div class="quiz-block" id="quiz-block-178-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is a Kubernetes Namespace?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q178_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A mechanism for isolating groups of resources and access controls within a single physical Kubernetes cluster (e.g. d...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A domain name registered on the internet.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A Python variable name.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A physical room in an office.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q178_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A mechanism for isolating groups of resources and access controls within a single physical Kubernetes cluster (e.g. d...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A domain name registered on the internet.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Python variable name.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q178_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A physical room in an office.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q178_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q178_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q178_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Kubernetes Core Concepts.</div>
+<div class="quiz-feedback wrong-fb" id="q178_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Kubernetes Core Concepts.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -770,112 +668,17 @@ $$ \text{BatchEfficiency} = \frac{\text{TokensPerSecond}_{batched}}{\text{Tokens
 <p class="math-caption">Throughput improvement via continuous batching and PagedAttention in vLLM.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What volume medium is configured in Kubernetes for /dev/shm to prevent PyTorch DataLoader IPC deadlocks?</p>
-<input class="predict-input" id="p179-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p179', 'Memory')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p179-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d179', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d179">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: emptyDir with medium: Memory creates a RAM-backed shared memory partition for high-speed tensor IPC.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-179">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What volume medium is configured in Kubernetes for /dev/shm to prevent PyTorch DataLoader IPC deadlocks?</p>
+<pre><code class="language-python">medium = "Memory"
+print(medium)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-179-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-179', 'Memory')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import List, Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("DCGMExporter")
-
-class DCGMMetricsCollector:
-    """Production NVIDIA DCGM Prometheus metrics collector for GPU observability."""
-
-    METRICS = [
-        "DCGM_FI_DEV_GPU_UTIL",        # GPU utilisation %
-        "DCGM_FI_DEV_MEM_COPY_UTIL",   # Memory bandwidth %
-        "DCGM_FI_DEV_FB_USED",         # Framebuffer memory used (bytes)
-        "DCGM_FI_DEV_FB_FREE",         # Framebuffer memory free (bytes)
-        "DCGM_FI_DEV_POWER_USAGE",     # Power draw (watts)
-        "DCGM_FI_DEV_GPU_TEMP",        # GPU temperature (°C)
-        "DCGM_FI_DEV_SM_CLOCK",        # SM clock (MHz)
-        "DCGM_FI_DEV_NVLINK_BANDWIDTH_TOTAL",  # NVLink bandwidth
-    ]
-
-    def __init__(self, dcgm_exporter_url: str = "http://localhost:9400/metrics",
-                 scrape_interval_sec: float = 15.0):
-        self.url = dcgm_exporter_url
-        self.interval = scrape_interval_sec
-        self._last_scrape: Dict[str, Any] = {}
-
-    def scrape(self) -&gt; Dict[str, Any]:
-        import requests
-        t0 = time.perf_counter()
-        resp = requests.get(self.url, timeout=5)
-        resp.raise_for_status()
-        metrics = self._parse_prometheus(resp.text)
-        elapsed = (time.perf_counter() - t0) * 1000
-        logger.info(f"Scraped {len(metrics)} metrics in {elapsed:.1f}ms")
-        self._last_scrape = metrics
-        return metrics
-
-    def _parse_prometheus(self, text: str) -&gt; Dict[str, Any]:
-        result = {}
-        for line in text.splitlines():
-            if line.startswith("#") or not line.strip():
-                continue
-            if "{" in line:
-                metric_name = line.split("{")[0]
-                labels_str = line.split("{")[1].split("}")[0]
-                labels = dict(kv.split("=") for kv in labels_str.split(",") if "=" in kv)
-                value_str = line.split("}")[-1].strip()
-            else:
-                parts = line.split()
-                if len(parts) &lt; 2: continue
-                metric_name, value_str = parts[0], parts[1]
-                labels = {}
-            try:
-                result[metric_name] = {"value": float(value_str), "labels": labels}
-            except ValueError:
-                pass
-        return result
-
-    def get_utilization_summary(self) -&gt; Dict[str, float]:
-        m = self._last_scrape
-        return {
-            "gpu_util_pct": m.get("DCGM_FI_DEV_GPU_UTIL", {}).get("value", 0),
-            "mem_used_gb": m.get("DCGM_FI_DEV_FB_USED", {}).get("value", 0) / 1e9,
-            "power_watts": m.get("DCGM_FI_DEV_POWER_USAGE", {}).get("value", 0),
-            "temp_celsius": m.get("DCGM_FI_DEV_GPU_TEMP", {}).get("value", 0),
-        }
-
-if __name__ == "__main__":
-    print("DCGMMetricsCollector: Requires DCGM Exporter DaemonSet in cluster")
-    # Simulate parsed metrics
-    simulated = {
-        "DCGM_FI_DEV_GPU_UTIL": {"value": 84.5, "labels": {"gpu": "0"}},
-        "DCGM_FI_DEV_FB_USED": {"value": 68719476736, "labels": {"gpu": "0"}},
-        "DCGM_FI_DEV_POWER_USAGE": {"value": 312.4, "labels": {"gpu": "0"}},
-        "DCGM_FI_DEV_GPU_TEMP": {"value": 72.0, "labels": {"gpu": "0"}},
-    }
-    collector = DCGMMetricsCollector()
-    collector._last_scrape = simulated
-    summary = collector.get_utilization_summary()
-    print(f"GPU summary: {summary}")
-    assert summary["gpu_util_pct"] == 84.5
-    print("DCGMMetricsCollector: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-179-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-179-exp" style="display:none;">💡 <strong>Explanation:</strong> emptyDir with medium: Memory creates a RAM-backed shared memory partition for high-speed tensor IPC.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1081,49 +884,50 @@ print("✅ vLLM K8s deployment spec assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-179">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-179-1">
 <p class="quiz-q"><strong>Question 1:</strong> How does the NVIDIA GPU Operator simplify GPU lifecycle management on Kubernetes?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q179_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It automatically provisions NVIDIA container runtimes, GPU drivers, CUDA libraries, and monitoring daemons on worker ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It builds custom GPU chips.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It makes GPUs run without electricity.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It replaces Kubernetes with Docker.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q179_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It automatically provisions NVIDIA container runtimes, GPU drivers, CUDA libraries, and monitoring daemons on worker ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It builds custom GPU chips.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It makes GPUs run without electricity.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It replaces Kubernetes with Docker.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q179_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q179_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q179_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Deploying vLLM on Kubernetes.</div>
+<div class="quiz-feedback wrong-fb" id="q179_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Deploying vLLM on Kubernetes.</div>
 </div>
 <div class="quiz-block" id="quiz-block-179-2">
 <p class="quiz-q"><strong>Question 2:</strong> What is a Kubernetes Node Toleration and how does it interact with GPU Node Taints?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q179_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Taints repel pods from scheduling on specialized GPU nodes; Tolerations allow specific GPU pods to schedule on those ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Tolerations delete all pods on the cluster.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Taints are hardware defects on memory chips.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'They are used to format hard drives.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q179_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Taints repel pods from scheduling on specialized GPU nodes; Tolerations allow specific GPU pods to schedule on those ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Tolerations delete all pods on the cluster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Taints are hardware defects on memory chips.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They are used to format hard drives.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q179_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q179_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q179_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Deploying vLLM on Kubernetes.</div>
+<div class="quiz-feedback wrong-fb" id="q179_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Deploying vLLM on Kubernetes.</div>
 </div>
 <div class="quiz-block" id="quiz-block-179-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is Kubernetes Node Affinity in GPU workload scheduling?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q179_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A set of rules specifying matching node labels (e.g. `accelerator: nvidia-h100`) required for a pod to schedule on a ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A method to connect pods using Bluetooth.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A tool that changes node passwords.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A Python function that calculates averages.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q179_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A set of rules specifying matching node labels (e.g. `accelerator: nvidia-h100`) required for a pod to schedule on a ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A method to connect pods using Bluetooth.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A tool that changes node passwords.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Python function that calculates averages.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q179_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q179_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q179_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Deploying vLLM on Kubernetes.</div>
+<div class="quiz-feedback wrong-fb" id="q179_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Deploying vLLM on Kubernetes.</div>
 </div>
 <div class="quiz-block" id="quiz-block-179-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is MIG (Multi-Instance GPU) partitioning on NVIDIA A100/H100 GPUs in Kubernetes?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q179_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Partitioning a single physical GPU into up to 7 isolated GPU instances with dedicated compute, memory, and cross-work...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Connecting 7 GPUs together with tape.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A tool to play video games in containers.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'An algorithm that compresses text.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q179_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Partitioning a single physical GPU into up to 7 isolated GPU instances with dedicated compute, memory, and cross-work...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Connecting 7 GPUs together with tape.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A tool to play video games in containers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q179_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">An algorithm that compresses text.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q179_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q179_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q179_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Deploying vLLM on Kubernetes.</div>
+<div class="quiz-feedback wrong-fb" id="q179_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Deploying vLLM on Kubernetes.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1287,66 +1091,29 @@ $$ \text{DesiredReplicas} = \left\lceil \text{CurrentReplicas} \cdot \frac{\text
 <p class="math-caption">Standard Kubernetes Horizontal Pod Autoscaler (HPA) algorithm for scaling ML services.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>Why is
+<div class="predict-block" id="predict-block-180">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> Why is
        
         stabilizationWindowSeconds
        
        for scaleDown useful for LLM services?</p>
-<input class="predict-input" id="p180-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p180', 'QPS=5, Cooldown=True - Scale Down Permitted: False
-QPS=5, Cooldown=False - Scale Down Permitted: True')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p180-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d180', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d180">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: It prevents HPA flapping (rapid scaling up and down) caused by temporary dips in traffic, avoiding the severe overhead of killing and spinning up heavy LLM containers repeatedly.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday180")
-
-class DayDay180Engine:
-    """Production implementation for Week 25 day-180: Scaling ML Services with Traffic."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
+<pre><code class="language-python"># Verification Script for Day 180
+def hpa_cooldown_check(current_qps: int, cooldown_active: bool):
+    scale_down = (current_qps &lt; 10) and (not cooldown_active)
+    print(f"QPS={current_qps}, Cooldown={cooldown_active} - Scale Down Permitted: {scale_down}")
+    return scale_down
 
 if __name__ == "__main__":
-    engine = DayDay180Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay180Engine: OK")
-</pre>
+    assert hpa_cooldown_check(5, True) is False
+    assert hpa_cooldown_check(5, False) is True</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-180-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-180', 'QPS=5, Cooldown=True - Scale Down Permitted: False
+QPS=5, Cooldown=False - Scale Down Permitted: True')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-180-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-180-exp" style="display:none;">💡 <strong>Explanation:</strong> It prevents HPA flapping (rapid scaling up and down) caused by temporary dips in traffic, avoiding the severe overhead of killing and spinning up heavy LLM containers repeatedly.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1562,49 +1329,50 @@ print("✅ HPA assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-180">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-180-1">
 <p class="quiz-q"><strong>Question 1:</strong> How does KEDA (Kubernetes Event-driven Autoscaling) differ from standard Kubernetes HPA (Horizontal Pod Autoscaler)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q180_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'KEDA can scale pods based on custom external event metrics (e.g. vLLM queue length, Kafka lag, RabbitMQ depth) includ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'KEDA only scales pods based on CPU percentage.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'KEDA is a programming language.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'KEDA deletes pods permanently when traffic spikes.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q180_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">KEDA can scale pods based on custom external event metrics (e.g. vLLM queue length, Kafka lag, RabbitMQ depth) includ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">KEDA only scales pods based on CPU percentage.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">KEDA is a programming language.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">KEDA deletes pods permanently when traffic spikes.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q180_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q180_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q180_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Horizontal Pod Autoscaling.</div>
+<div class="quiz-feedback wrong-fb" id="q180_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Horizontal Pod Autoscaling.</div>
 </div>
 <div class="quiz-block" id="quiz-block-180-2">
 <p class="quiz-q"><strong>Question 2:</strong> Why is scaling LLM serving pods based on queue length (`num_requests_waiting`) superior to CPU utilization?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q180_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'LLM decoding is GPU-bound; CPU utilization remains low even when GPU request queues are heavily saturated and latency...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'CPU metrics cannot be measured in Kubernetes.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Queue length is measured in megabytes.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'GPU servers do not possess CPUs.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q180_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">LLM decoding is GPU-bound; CPU utilization remains low even when GPU request queues are heavily saturated and latency...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">CPU metrics cannot be measured in Kubernetes.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Queue length is measured in megabytes.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">GPU servers do not possess CPUs.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q180_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q180_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q180_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Horizontal Pod Autoscaling.</div>
+<div class="quiz-feedback wrong-fb" id="q180_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Horizontal Pod Autoscaling.</div>
 </div>
 <div class="quiz-block" id="quiz-block-180-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is 'Scale-to-Zero' in serverless Kubernetes inference and why is it valuable for development environments?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q180_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Terminating all replica pods when no requests are received, reducing cloud infrastructure idle costs to zero.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Deleting the entire Kubernetes cluster.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Running pods with zero memory.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Shutting down the company website.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q180_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Terminating all replica pods when no requests are received, reducing cloud infrastructure idle costs to zero.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Deleting the entire Kubernetes cluster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Running pods with zero memory.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Shutting down the company website.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q180_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q180_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q180_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Horizontal Pod Autoscaling.</div>
+<div class="quiz-feedback wrong-fb" id="q180_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Horizontal Pod Autoscaling.</div>
 </div>
 <div class="quiz-block" id="quiz-block-180-4">
 <p class="quiz-q"><strong>Question 4:</strong> What setting in Kubernetes HPA prevents rapid flapping (thrashing) between scale-up and scale-down events?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q180_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The `stabilizationWindowSeconds` behavior configuration, which delays scaling down until a cooldown window has elapsed.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Setting minimum replicas to 100.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Disabling all network connections.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Restarting the cluster hourly.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q180_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The `stabilizationWindowSeconds` behavior configuration, which delays scaling down until a cooldown window has elapsed.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Setting minimum replicas to 100.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Disabling all network connections.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q180_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Restarting the cluster hourly.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q180_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q180_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q180_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Horizontal Pod Autoscaling.</div>
+<div class="quiz-feedback wrong-fb" id="q180_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Horizontal Pod Autoscaling.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1770,61 +1538,17 @@ $$ \text{ReleaseStability} = 1 - \frac{\text{Rollbacks}}{\text{TotalHelmUpgrades
 <p class="math-caption">Measurement of deployment stability using Helm atomic upgrades and rollbacks.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What default file in a Helm chart contains user-configurable deployment parameters?</p>
-<input class="predict-input" id="p181-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p181', 'values.yaml')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p181-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d181', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d181">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: values.yaml defines parameterized values injected into Helm template manifests.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-181">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What default file in a Helm chart contains user-configurable deployment parameters?</p>
+<pre><code class="language-python">fname = "values.yaml"
+print(fname)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-181-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-181', 'values.yaml')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday181")
-
-class DayDay181Engine:
-    """Production implementation for Week 25 day-181: Packaging K8s Applications."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay181Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay181Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-181-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-181-exp" style="display:none;">💡 <strong>Explanation:</strong> values.yaml defines parameterized values injected into Helm template manifests.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2023,49 +1747,50 @@ print("✅ Helm chart assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-181">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-181-1">
 <p class="quiz-q"><strong>Question 1:</strong> In Helm package management for Kubernetes, what is the relationship between `Chart.yaml`, `values.yaml`, and `templates/`?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q181_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': '`Chart.yaml` contains metadata; `values.yaml` provides configurable parameters; `templates/` contains parameterized Y...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'They are three names for the same text file.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': '`values.yaml` is only used for CSS styling.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': '`Chart.yaml` is a graphical chart image.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q181_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">`Chart.yaml` contains metadata; `values.yaml` provides configurable parameters; `templates/` contains parameterized Y...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">They are three names for the same text file.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">`values.yaml` is only used for CSS styling.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">`Chart.yaml` is a graphical chart image.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q181_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q181_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q181_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Helm Charts for ML Stacks.</div>
+<div class="quiz-feedback wrong-fb" id="q181_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Helm Charts for ML Stacks.</div>
 </div>
 <div class="quiz-block" id="quiz-block-181-2">
 <p class="quiz-q"><strong>Question 2:</strong> Why is Helm essential for deploying complex distributed AI systems (e.g. Ray, Triton, vLLM) on Kubernetes?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q181_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It bundles dozens of interrelated manifests (Deployments, Services, ConfigMaps, RBAC) into versioned, atomic, rollbac...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It eliminates the need for Kubernetes.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It makes containers run 100x faster.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It converts Python code to HTML.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q181_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It bundles dozens of interrelated manifests (Deployments, Services, ConfigMaps, RBAC) into versioned, atomic, rollbac...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It eliminates the need for Kubernetes.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It makes containers run 100x faster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts Python code to HTML.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q181_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q181_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q181_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Helm Charts for ML Stacks.</div>
+<div class="quiz-feedback wrong-fb" id="q181_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Helm Charts for ML Stacks.</div>
 </div>
 <div class="quiz-block" id="quiz-block-181-3">
 <p class="quiz-q"><strong>Question 3:</strong> What does the `helm rollback &amp;lt;release &amp;lt;revision` command do?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q181_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Reverts the deployed Kubernetes application immediately to a specific previous release revision.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Deletes the entire cluster.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': "Restarts the developer's laptop.", 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Compiles the code from scratch.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q181_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Reverts the deployed Kubernetes application immediately to a specific previous release revision.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Deletes the entire cluster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Restarts the developer's laptop.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Compiles the code from scratch.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q181_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q181_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q181_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Helm Charts for ML Stacks.</div>
+<div class="quiz-feedback wrong-fb" id="q181_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Helm Charts for ML Stacks.</div>
 </div>
 <div class="quiz-block" id="quiz-block-181-4">
 <p class="quiz-q"><strong>Question 4:</strong> How does Helm support multi-environment configurations (dev vs staging vs prod)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q181_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'By overriding default values with environment-specific values files (e.g. `helm install -f values-prod.yaml`).', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'By requiring separate copies of all template files.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'By renaming the Kubernetes cluster.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'By editing code directly on production nodes.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q181_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By overriding default values with environment-specific values files (e.g. `helm install -f values-prod.yaml`).</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By requiring separate copies of all template files.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By renaming the Kubernetes cluster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q181_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By editing code directly on production nodes.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q181_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q181_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q181_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Helm Charts for ML Stacks.</div>
+<div class="quiz-feedback wrong-fb" id="q181_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Helm Charts for ML Stacks.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2238,61 +1963,17 @@ GitHub Actions allows running matrix builds across multiple Python versions and 
 </p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What GitHub Actions event triggers the automated CI/CD model testing pipeline?</p>
-<input class="predict-input" id="p182-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p182', 'push')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p182-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d182', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d182">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: The 'on: push' event triggers GitHub Actions runner workflows on code commits.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-182">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What GitHub Actions event triggers the automated CI/CD model testing pipeline?</p>
+<pre><code class="language-python">trigger = "push"
+print(trigger)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-182-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-182', 'push')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday182")
-
-class DayDay182Engine:
-    """Production implementation for Week 25 day-182: Automating Test, Build, and Deploy."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay182Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay182Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-182-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-182-exp" style="display:none;">💡 <strong>Explanation:</strong> The 'on: push' event triggers GitHub Actions runner workflows on code commits.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2462,49 +2143,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-182">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-182-1">
 <p class="quiz-q"><strong>Question 1:</strong> What is KServe (formerly KFServing) and what advantages does it offer over naive Kubernetes Deployments for ML serving?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q182_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A standardized model serving platform providing serverless autoscaling, model mesh routing, multi-model caching, and ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A Python web browser.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A physical server rack.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'An operating system for mobile phones.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q182_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A standardized model serving platform providing serverless autoscaling, model mesh routing, multi-model caching, and ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Python web browser.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A physical server rack.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">An operating system for mobile phones.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q182_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q182_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q182_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for GitHub Actions CI/CD for ML.</div>
+<div class="quiz-feedback wrong-fb" id="q182_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for GitHub Actions CI/CD for ML.</div>
 </div>
 <div class="quiz-block" id="quiz-block-182-2">
 <p class="quiz-q"><strong>Question 2:</strong> What is the KServe v2 Data Plane (Open Inference Protocol)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q182_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A standardized REST and gRPC API specification for sending tensor inputs and receiving model predictions across diver...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A private fiber optic network.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A file compression algorithm.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A database table schema.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q182_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A standardized REST and gRPC API specification for sending tensor inputs and receiving model predictions across diver...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A private fiber optic network.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A file compression algorithm.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A database table schema.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q182_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q182_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q182_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for GitHub Actions CI/CD for ML.</div>
+<div class="quiz-feedback wrong-fb" id="q182_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for GitHub Actions CI/CD for ML.</div>
 </div>
 <div class="quiz-block" id="quiz-block-182-3">
 <p class="quiz-q"><strong>Question 3:</strong> In KServe architecture, what is the role of the Transformer component in an InferenceService?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q182_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Performing custom pre-processing (tokenization, image resizing) and post-processing on payloads before passing tensor...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Generating electric power for the cluster.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A deep learning attention layer.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Compressing model weights onto disk.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q182_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Performing custom pre-processing (tokenization, image resizing) and post-processing on payloads before passing tensor...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Generating electric power for the cluster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A deep learning attention layer.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Compressing model weights onto disk.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q182_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q182_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q182_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for GitHub Actions CI/CD for ML.</div>
+<div class="quiz-feedback wrong-fb" id="q182_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for GitHub Actions CI/CD for ML.</div>
 </div>
 <div class="quiz-block" id="quiz-block-182-4">
 <p class="quiz-q"><strong>Question 4:</strong> How does KServe implement Canary Traffic Splitting during model updates?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q182_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'By configuring percentage-based traffic splits at the Ingress/Service mesh layer between default and canary predictor...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'By deleting 50% of incoming user requests.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'By running models on alternate days.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'By requiring users to manually select a model.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q182_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By configuring percentage-based traffic splits at the Ingress/Service mesh layer between default and canary predictor...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By deleting 50% of incoming user requests.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By running models on alternate days.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q182_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By requiring users to manually select a model.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q182_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q182_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q182_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for GitHub Actions CI/CD for ML.</div>
+<div class="quiz-feedback wrong-fb" id="q182_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for GitHub Actions CI/CD for ML.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2686,61 +2368,19 @@ Silent ML failures occur when a model predicts valid output floats that are math
 </p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What boolean result is returned when a new model's latency exceeds the SLA regression threshold of 100ms?</p>
-<input class="predict-input" id="p183-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p183', 'False')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p183-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d183', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d183">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: The regression test assertion fails (returns False), blocking deployment to production.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-183">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What boolean result is returned when a new model's latency exceeds the SLA regression threshold of 100ms?</p>
+<pre><code class="language-python">latency = 120
+sla = 100
+passed = latency &lt;= sla
+print(passed)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-183-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-183', 'False')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday183")
-
-class DayDay183Engine:
-    """Production implementation for Week 25 day-183: Preventing Silent Quality Degradation."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay183Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay183Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-183-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-183-exp" style="display:none;">💡 <strong>Explanation:</strong> The regression test assertion fails (returns False), blocking deployment to production.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2870,49 +2510,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-183">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-183-1">
 <p class="quiz-q"><strong>Question 1:</strong> What is Triton Inference Server and why is it widely deployed in enterprise production?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q183_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'An open-source, high-performance inference engine by NVIDIA that serves models from multiple frameworks (PyTorch, Ten...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A database for storing user photos.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A cloud provider competing with AWS.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A text editor for writing Python code.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q183_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">An open-source, high-performance inference engine by NVIDIA that serves models from multiple frameworks (PyTorch, Ten...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A database for storing user photos.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A cloud provider competing with AWS.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A text editor for writing Python code.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q183_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q183_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q183_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Model Performance Regression Tests.</div>
+<div class="quiz-feedback wrong-fb" id="q183_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Model Performance Regression Tests.</div>
 </div>
 <div class="quiz-block" id="quiz-block-183-2">
 <p class="quiz-q"><strong>Question 2:</strong> How does Dynamic Batching in Triton Inference Server boost GPU throughput?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q183_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It aggregates individual incoming requests arriving within a configurable latency window (e.g. max_queue_delay_micros...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It delays all requests by 10 minutes.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It deletes duplicate requests.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It processes all requests sequentially on CPU.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q183_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It aggregates individual incoming requests arriving within a configurable latency window (e.g. max_queue_delay_micros...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It delays all requests by 10 minutes.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It deletes duplicate requests.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It processes all requests sequentially on CPU.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q183_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q183_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q183_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Model Performance Regression Tests.</div>
+<div class="quiz-feedback wrong-fb" id="q183_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Model Performance Regression Tests.</div>
 </div>
 <div class="quiz-block" id="quiz-block-183-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is Model Pipelining (Ensemble Models) in Triton Inference Server?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q183_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Chaining multiple models together (e.g. Preprocessing - Feature Extraction - Classifier - Postprocessing) entirely in...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Connecting multiple servers with physical cables.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Writing code in multiple programming languages.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Running models on different cloud providers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q183_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Chaining multiple models together (e.g. Preprocessing - Feature Extraction - Classifier - Postprocessing) entirely in...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Connecting multiple servers with physical cables.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Writing code in multiple programming languages.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Running models on different cloud providers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q183_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q183_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q183_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Model Performance Regression Tests.</div>
+<div class="quiz-feedback wrong-fb" id="q183_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Model Performance Regression Tests.</div>
 </div>
 <div class="quiz-block" id="quiz-block-183-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is Concurrent Model Execution in Triton Inference Server?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q183_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Running multiple instances of the same model or different models simultaneously on the same GPU to maximize compute c...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Running models on two different laptops.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Executing code in reverse order.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Training two models at the same time.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q183_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Running multiple instances of the same model or different models simultaneously on the same GPU to maximize compute c...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Running models on two different laptops.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Executing code in reverse order.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q183_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Training two models at the same time.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q183_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q183_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q183_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Model Performance Regression Tests.</div>
+<div class="quiz-feedback wrong-fb" id="q183_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Model Performance Regression Tests.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -3079,144 +2720,27 @@ $$ \text{MTTR} = \frac{\sum \text{DowntimeDuration}}{\text{IncidentCount}} \down
 <p class="math-caption">Mean Time To Recovery optimization through full CI/CD monitoring loops.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What does
+<div class="predict-block" id="predict-block-184">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What does
        
         --wait --timeout 10m
        
        do in the helm upgrade command?</p>
-<input class="predict-input" id="p184-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p184', 'Calculated Desired Pod Replicas: 5')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p184-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d184', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d184">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: It instructs Helm to wait until all Pods, Deployments, and Services are fully in the 'Ready' state before marking the release as successful, failing if it exceeds 10 minutes.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<pre><code class="language-python"># KEDA Autoscaling Calculation
+queue_length = 45
+target_per_pod = 10
+min_replicas = 2
+max_replicas = 10
+
+desired_replicas = max(min_replicas, min(max_replicas, -(-queue_length // target_per_pod)))
+print(f"Calculated Desired Pod Replicas: {desired_replicas}")</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-184-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-184', 'Calculated Desired Pod Replicas: 5')">Check Answer</button>
 </div>
-</div>
-<pre>import subprocess, json, logging, time
-from typing import Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("KubeRayManager")
-
-RAYCLUSTER_MANIFEST = """apiVersion: ray.io/v1
-kind: RayCluster
-metadata:
-  name: {cluster_name}
-  namespace: {namespace}
-spec:
-  rayVersion: '2.9.0'
-  headGroupSpec:
-    replicas: 1
-    rayStartParams:
-      dashboard-host: '0.0.0.0'
-      num-cpus: '0'
-    template:
-      spec:
-        containers:
-        - name: ray-head
-          image: rayproject/ray:{ray_version}-gpu
-          resources:
-            limits:
-              cpu: "{head_cpu}"
-              memory: {head_memory}
-            requests:
-              cpu: "{head_cpu}"
-              memory: {head_memory}
-  workerGroupSpecs:
-  - groupName: gpu-workers
-    replicas: {num_workers}
-    minReplicas: 1
-    maxReplicas: {max_workers}
-    rayStartParams: {{}}
-    template:
-      spec:
-        containers:
-        - name: ray-worker
-          image: rayproject/ray:{ray_version}-gpu
-          resources:
-            limits:
-              cpu: "{worker_cpu}"
-              memory: {worker_memory}
-              nvidia.com/gpu: "{gpu_per_worker}"
-            requests:
-              cpu: "{worker_cpu}"
-              memory: {worker_memory}
-              nvidia.com/gpu: "{gpu_per_worker}"
-"""
-
-class KubeRayClusterManager:
-    """Production KubeRay cluster lifecycle manager with autoscaling and health monitoring."""
-
-    def __init__(self, namespace: str = "ray-system"):
-        self.namespace = namespace
-
-    def deploy_cluster(self, cluster_name: str, num_workers: int = 2, max_workers: int = 8,
-                        gpu_per_worker: int = 1, ray_version: str = "2.9.0") -&gt; str:
-        manifest = RAYCLUSTER_MANIFEST.format(
-            cluster_name=cluster_name, namespace=self.namespace,
-            ray_version=ray_version, head_cpu=4, head_memory="8Gi",
-            num_workers=num_workers, max_workers=max_workers,
-            worker_cpu=8, worker_memory="32Gi", gpu_per_worker=gpu_per_worker
-        )
-        cmd = ["kubectl", "apply", "-f", "-", "-n", self.namespace]
-        result = subprocess.run(cmd, input=manifest, capture_output=True, text=True, timeout=30)
-        if result.returncode != 0:
-            raise RuntimeError(f"Deploy failed: {result.stderr}")
-        logger.info(f"RayCluster '{cluster_name}' deployed: {num_workers} workers, {gpu_per_worker} GPU each")
-        return cluster_name
-
-    def wait_ready(self, cluster_name: str, timeout_sec: int = 300) -&gt; bool:
-        deadline = time.time() + timeout_sec
-        while time.time() &lt; deadline:
-            cmd = ["kubectl", "get", "raycluster", cluster_name, "-n", self.namespace, "-o", "json"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            if result.returncode != 0:
-                time.sleep(5)
-                continue
-            status = json.loads(result.stdout).get("status", {})
-            if status.get("state") == "ready":
-                logger.info(f"RayCluster '{cluster_name}' ready")
-                return True
-            time.sleep(10)
-        logger.error(f"RayCluster '{cluster_name}' not ready after {timeout_sec}s")
-        return False
-
-    def validate_resources(self, ray_spec: dict) -&gt; bool:
-        head = ray_spec.get("headGroupSpec", {})
-        workers = ray_spec.get("workerGroupSpecs", [{}])[0]
-        head_limits = head.get("template", {}).get("spec", {}).get("containers", [{}])[0].get("resources", {}).get("limits", {})
-        worker_limits = workers.get("template", {}).get("spec", {}).get("containers", [{}])[0].get("resources", {}).get("limits", {})
-        head_cpu = int(head_limits.get("cpu", "0"))
-        worker_gpu = int(worker_limits.get("nvidia.com/gpu", "0"))
-        valid = head_cpu &gt;= 4 and worker_gpu &gt;= 1
-        logger.info(f"Resource validation: head_cpu={head_cpu}, worker_gpu={worker_gpu}, valid={valid}")
-        return valid
-
-if __name__ == "__main__":
-    mgr = KubeRayClusterManager()
-    print("KubeRayClusterManager: Requires KubeRay operator installed")
-    # Validate the spec
-    spec = {"headGroupSpec": {"template": {"spec": {"containers": [{"resources": {"limits": {"cpu": "4", "memory": "8Gi"}}}]}}},
-            "workerGroupSpecs": [{"template": {"spec": {"containers": [{"resources": {"limits": {"nvidia.com/gpu": "1", "cpu": "8"}}}]}}}]}
-    valid = mgr.validate_resources(spec)
-    print(f"Spec validation: {valid}")
-    assert valid
-    print("KubeRayClusterManager: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-184-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-184-exp" style="display:none;">💡 <strong>Explanation:</strong> It instructs Helm to wait until all Pods, Deployments, and Services are fully in the 'Ready' state before marking the release as successful, failing if it exceeds 10 minutes.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -3463,49 +2987,50 @@ print("✅ Load test assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-184">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-184-1">
 <p class="quiz-q"><strong>Question 1:</strong> What is the primary network bottleneck when running Distributed Training across multiple multi-GPU Kubernetes nodes?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q184_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Inter-node All-Reduce communication bandwidth during gradient synchronization, requiring high-speed RDMA / InfiniBand...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Hard drive read speed on worker nodes.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The speed of the keyboard typing.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The internet download speed of the client browser.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q184_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Inter-node All-Reduce communication bandwidth during gradient synchronization, requiring high-speed RDMA / InfiniBand...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Hard drive read speed on worker nodes.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The speed of the keyboard typing.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The internet download speed of the client browser.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q184_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q184_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q184_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Production K8s LLM Deployment.</div>
+<div class="quiz-feedback wrong-fb" id="q184_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Production K8s LLM Deployment.</div>
 </div>
 <div class="quiz-block" id="quiz-block-184-2">
 <p class="quiz-q"><strong>Question 2:</strong> In Distributed ML on Kubernetes, what role does PyTorch Distributed Elastic (TorchElastic / Torchrun) perform?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q184_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Managing distributed process rendezvous, rank assignment, and handling node failure fault tolerance by dynamically re...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Compressing model weights into ZIP files.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Formatting database tables.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Generating synthetic training data.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q184_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Managing distributed process rendezvous, rank assignment, and handling node failure fault tolerance by dynamically re...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Compressing model weights into ZIP files.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Formatting database tables.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Generating synthetic training data.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q184_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q184_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q184_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Production K8s LLM Deployment.</div>
+<div class="quiz-feedback wrong-fb" id="q184_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Production K8s LLM Deployment.</div>
 </div>
 <div class="quiz-block" id="quiz-block-184-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the Kubeflow Training Operator (TFJob / PyTorchJob) on Kubernetes?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q184_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A Kubernetes Custom Resource Definition (CRD) controller that automates the orchestration of distributed training mas...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'A human who monitors server screens.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'A Python package for drawing plots.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'A brand of server rack cables.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q184_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Kubernetes Custom Resource Definition (CRD) controller that automates the orchestration of distributed training mas...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A human who monitors server screens.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A Python package for drawing plots.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A brand of server rack cables.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q184_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q184_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q184_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Production K8s LLM Deployment.</div>
+<div class="quiz-feedback wrong-fb" id="q184_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Production K8s LLM Deployment.</div>
 </div>
 <div class="quiz-block" id="quiz-block-184-4">
 <p class="quiz-q"><strong>Question 4:</strong> Why is shared high-throughput storage (e.g. Lustre, GPFS, Amazon FSx) essential for large-scale distributed training on Kubernetes?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q184_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'To provide simultaneous, multi-gigabyte-per-second parallel read access to training dataset shards across hundreds of...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'To store user login passwords.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Because local SSDs cannot store images.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'To make files publicly readable on the internet.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q184_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To provide simultaneous, multi-gigabyte-per-second parallel read access to training dataset shards across hundreds of...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To store user login passwords.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Because local SSDs cannot store images.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q184_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To make files publicly readable on the internet.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q184_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q184_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q184_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Production K8s LLM Deployment.</div>
+<div class="quiz-feedback wrong-fb" id="q184_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Production K8s LLM Deployment.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->

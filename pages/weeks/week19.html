@@ -204,104 +204,24 @@ score = sum( 1 / (60 + rank_i) )"]
     Reranker --&gt; FinalContext["Final Top-5 Grounded Contexts -&gt; LLM Context Window"]
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What is the top-ranked document ID returned by this Reciprocal Rank Fusion calculation with k=60?</p>
-<input class="predict-input" id="p136-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p136', 'doc_B')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p136-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d136', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d136">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: doc_B has dense rank 1 (1/61=0.01639) + sparse rank 1 (1/61=0.01639) = 0.03278 total RRF score, exceeding all other candidates.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-136">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What is the top-ranked document ID returned by this Reciprocal Rank Fusion calculation with k=60?</p>
+<pre><code class="language-python">def rrf(d_ranks, s_ranks, k=60):
+    scores = {}
+    for r, d in enumerate(d_ranks, 1): scores[d] = scores.get(d, 0) + 1.0/(k+r)
+    for r, d in enumerate(s_ranks, 1): scores[d] = scores.get(d, 0) + 1.0/(k+r)
+    return sorted(scores.items(), key=lambda x: x[1], reverse=True)[0][0]
+
+dense = ['doc_B', 'doc_A', 'doc_C']
+sparse = ['doc_B', 'doc_C', 'doc_A']
+print(rrf(dense, sparse))</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-136-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-136', 'doc_B')">Check Answer</button>
 </div>
-</div>
-<pre>import math, time, logging
-from typing import List, Dict, Any, Tuple
-from collections import defaultdict
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("HybridSearchRRF")
-
-class HybridSearchEngine:
-    """Production Hybrid Search: Dense vector (cosine) + BM25 sparse + Reciprocal Rank Fusion."""
-
-    def __init__(self, k_rrf: int = 60, top_k_dense: int = 50, top_k_sparse: int = 50):
-        self.k_rrf = k_rrf
-        self.top_k_dense = top_k_dense
-        self.top_k_sparse = top_k_sparse
-        self._corpus: List[Dict] = []
-        self._bm25 = None
-        self._embeddings = None
-
-    def index(self, documents: List[Dict[str, Any]]) -&gt; None:
-        """Index documents for both BM25 and dense retrieval."""
-        from rank_bm25 import BM25Okapi
-        import numpy as np
-        self._corpus = documents
-        tokenized = [doc["text"].lower().split() for doc in documents]
-        self._bm25 = BM25Okapi(tokenized, k1=1.5, b=0.75)
-        logger.info(f"Indexed {len(documents)} documents")
-
-    def _dense_retrieve(self, query_vec: List[float], doc_vecs: List[List[float]]) -&gt; List[Tuple[int, float]]:
-        import numpy as np
-        q = np.array(query_vec)
-        q /= np.linalg.norm(q) + 1e-9
-        scores = []
-        for i, dv in enumerate(doc_vecs):
-            d = np.array(dv)
-            d /= np.linalg.norm(d) + 1e-9
-            scores.append((i, float(np.dot(q, d))))
-        return sorted(scores, key=lambda x: x[1], reverse=True)[:self.top_k_dense]
-
-    def _sparse_retrieve(self, query: str) -&gt; List[Tuple[int, float]]:
-        scores = self._bm25.get_scores(query.lower().split())
-        ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
-        return ranked[:self.top_k_sparse]
-
-    def reciprocal_rank_fusion(self, ranked_lists: List[List[Tuple[int, float]]]) -&gt; List[Tuple[int, float]]:
-        rrf_scores: Dict[int, float] = defaultdict(float)
-        for ranked in ranked_lists:
-            for rank, (doc_id, _) in enumerate(ranked, start=1):
-                rrf_scores[doc_id] += 1.0 / (self.k_rrf + rank)
-        return sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
-
-    def search(self, query: str, query_vec: List[float], doc_vecs: List[List[float]], top_n: int = 5) -&gt; List[Dict]:
-        t0 = time.perf_counter()
-        dense_ranked = self._dense_retrieve(query_vec, doc_vecs)
-        sparse_ranked = self._sparse_retrieve(query)
-        fused = self.reciprocal_rank_fusion([dense_ranked, sparse_ranked])
-        results = [{"doc": self._corpus[i], "rrf_score": s} for i, s in fused[:top_n]]
-        logger.info(f"Hybrid search in {(time.perf_counter()-t0)*1000:.1f}ms, top-{top_n} returned")
-        return results
-
-if __name__ == "__main__":
-    import numpy as np
-    docs = [
-        {"id": 1, "text": "Azure VM error 0x80070005 access denied fix"},
-        {"id": 2, "text": "BM25 retrieval formula k1 parameter tuning"},
-        {"id": 3, "text": "Cosine similarity vector embedding search"},
-    ]
-    engine = HybridSearchEngine()
-    engine.index(docs)
-    doc_vecs = [np.random.randn(128).tolist() for _ in docs]
-    query_vec = np.random.randn(128).tolist()
-    results = engine.search("Azure VM access error", query_vec, doc_vecs, top_n=2)
-    print(f"Top results: {[r['doc']['id'] for r in results]}")
-    assert len(results) == 2
-    print("HybridSearchEngine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-136-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-136-exp" style="display:none;">💡 <strong>Explanation:</strong> doc_B has dense rank 1 (1/61=0.01639) + sparse rank 1 (1/61=0.01639) = 0.03278 total RRF score, exceeding all other candidates.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -475,49 +395,50 @@ print("✓ Hybrid search pipeline verified.")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-136">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-136-1">
 <p class="quiz-q"><strong>Question 1:</strong> Why is k typically set to 60 in Reciprocal Rank Fusion (RRF)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q136_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It balances high-ranked and low-ranked items effectively, preventing the top item from dominating.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It maximizes sparse keyword impact while ignoring dense embeddings.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It is the maximum 64-bit integer limit in search databases.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It restricts the search engine to returning exactly 60 documents.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q136_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It balances high-ranked and low-ranked items effectively, preventing the top item from dominating.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It maximizes sparse keyword impact while ignoring dense embeddings.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It is the maximum 64-bit integer limit in search databases.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It restricts the search engine to returning exactly 60 documents.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q136_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q136_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q136_1-correct">✅ <strong>Correct!</strong> In RRF, $k=60$ (introduced by Cormack et al.) acts as a smoothing factor that prevents top-ranked documents from completely eclipsing items ranked slightly lower by another retriever.</div>
+<div class="quiz-feedback wrong-fb" id="q136_1-wrong">❌ <strong>Incorrect.</strong> In RRF, $k=60$ (introduced by Cormack et al.) acts as a smoothing factor that prevents top-ranked documents from completely eclipsing items ranked slightly lower by another retriever.</div>
 </div>
 <div class="quiz-block" id="quiz-block-136-2">
 <p class="quiz-q"><strong>Question 2:</strong> Why is Reciprocal Rank Fusion (RRF) preferred over raw score combination when merging BM25 and vector search results?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q136_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'BM25 scores are unbounded [0, ∞) while cosine vector similarities are bounded [-1, 1], making raw addition scale-inco...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': "Vector search doesn't generate numerical scores.", 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'BM25 is an AI neural network that requires backpropagation.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Raw score addition is computationally impossible on modern CPUs.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q136_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">BM25 scores are unbounded [0, ∞) while cosine vector similarities are bounded [-1, 1], making raw addition scale-inco...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Vector search doesn't generate numerical scores.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">BM25 is an AI neural network that requires backpropagation.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Raw score addition is computationally impossible on modern CPUs.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q136_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q136_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q136_2-correct">✅ <strong>Correct!</strong> BM25 and dense cosine distances exist on fundamentally different, incompatible mathematical scales. RRF converts both to ordinal rank positions ($1, 2, 3...$), achieving scale-invariant fusion.</div>
+<div class="quiz-feedback wrong-fb" id="q136_2-wrong">❌ <strong>Incorrect.</strong> BM25 and dense cosine distances exist on fundamentally different, incompatible mathematical scales. RRF converts both to ordinal rank positions ($1, 2, 3...$), achieving scale-invariant fusion.</div>
 </div>
 <div class="quiz-block" id="quiz-block-136-3">
 <p class="quiz-q"><strong>Question 3:</strong> When hybrid search returns irrelevant results despite high dense similarity scores, what is the primary diagnosis?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q136_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Dense embedding models suffer from semantic drift on domain-specific acronyms and part numbers that sparse BM25 handl...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The vector database index has corrupted all embeddings.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Cosine similarity cannot be computed on floating point numbers.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The LLM prompt temperature is set too low.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q136_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Dense embedding models suffer from semantic drift on domain-specific acronyms and part numbers that sparse BM25 handl...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The vector database index has corrupted all embeddings.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cosine similarity cannot be computed on floating point numbers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The LLM prompt temperature is set too low.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q136_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q136_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q136_3-correct">✅ <strong>Correct!</strong> Dense vector models project inputs into smooth semantic spaces where rare alphanumeric IDs (e.g., error codes or serial numbers) get mapped to noisy neighbors. BM25 solves this via exact token matching.</div>
+<div class="quiz-feedback wrong-fb" id="q136_3-wrong">❌ <strong>Incorrect.</strong> Dense vector models project inputs into smooth semantic spaces where rare alphanumeric IDs (e.g., error codes or serial numbers) get mapped to noisy neighbors. BM25 solves this via exact token matching.</div>
 </div>
 <div class="quiz-block" id="quiz-block-136-4">
 <p class="quiz-q"><strong>Question 4:</strong> In Pinecone Hybrid Search, what does setting the alpha parameter to 0.0 represent?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q136_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Pure sparse (BM25) keyword search with zero dense vector weight.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Pure dense vector search with zero sparse weight.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Equal 50/50 balance between dense and sparse search.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'An invalid configuration that throws an API exception.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q136_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Pure sparse (BM25) keyword search with zero dense vector weight.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Pure dense vector search with zero sparse weight.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Equal 50/50 balance between dense and sparse search.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q136_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">An invalid configuration that throws an API exception.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q136_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q136_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q136_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Hybrid Search &amp; RRF.</div>
+<div class="quiz-feedback wrong-fb" id="q136_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Hybrid Search &amp; RRF.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -690,66 +611,18 @@ Latency: 35ms"]
     CrossEncoder --&gt;|Top 3-5 Relevant Chunks| ContextWindow["LLM Prompt Context Window"]
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What integer number of candidate documents remain after the two-stage retrieve-and-rerank filter?</p>
-<input class="predict-input" id="p137-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p137', '3')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p137-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d137', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d137">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: The retrieve stage fetches top 10 candidates; the Cross-Encoder re-ranker selects the top 3 items exceeding relevance threshold 0.75.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-137">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What integer number of candidate documents remain after the two-stage retrieve-and-rerank filter?</p>
+<pre><code class="language-python">candidates = [{'id': f'doc_{i}', 'score': 0.1 * i} for i in range(1, 11)]
+top_k = [c for c in candidates if c['score'] &gt;= 0.8]
+print(len(top_k))</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-137-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-137', '3')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import List, Dict, Tuple
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("CrossEncoderReranker")
-
-class CrossEncoderReranker:
-    """Production cross-encoder reranker using sentence-transformers BGE-Reranker-Large."""
-
-    def __init__(self, model_name: str = "BAAI/bge-reranker-large", batch_size: int = 32):
-        from sentence_transformers import CrossEncoder
-        self.model = CrossEncoder(model_name, max_length=512)
-        self.batch_size = batch_size
-        logger.info(f"Loaded reranker: {model_name}")
-
-    def rerank(self, query: str, candidates: List[Dict], top_n: int = 5) -&gt; List[Dict]:
-        """Rerank candidate documents using cross-encoder relevance scores."""
-        t0 = time.perf_counter()
-        pairs = [(query, c["text"]) for c in candidates]
-        scores = self.model.predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
-        ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
-        results = [{"doc": doc, "cross_encoder_score": float(score)} for doc, score in ranked[:top_n]]
-        latency_ms = (time.perf_counter() - t0) * 1000
-        logger.info(f"Reranked {len(candidates)} candidates → top-{top_n} in {latency_ms:.1f}ms")
-        return results
-
-if __name__ == "__main__":
-    print("CrossEncoderReranker: Requires sentence-transformers + BAAI/bge-reranker-large")
-    print("Usage: reranker.rerank(query, candidates, top_n=5)")
-    # Simulate without model download
-    import random
-    candidates = [{"text": f"Document {i} about LLM retrieval"} for i in range(20)]
-    scores = [random.random() for _ in candidates]
-    ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)[:5]
-    print(f"Simulated top-5 reranked: {[r[0]['text'][:30] for r in ranked]}")
-    print("CrossEncoderReranker: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-137-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-137-exp" style="display:none;">💡 <strong>Explanation:</strong> The retrieve stage fetches top 10 candidates; the Cross-Encoder re-ranker selects the top 3 items exceeding relevance threshold 0.75.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -930,49 +803,50 @@ print("✓ Cross-encoder reranker verified.")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-137">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-137-1">
 <p class="quiz-q"><strong>Question 1:</strong> What is the architectural difference between Bi-Encoders and Cross-Encoders in RAG?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q137_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Bi-Encoders encode query and document independently (fast O(N+M)); Cross-Encoders pass query and document jointly int...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Bi-Encoders use two LLMs, while Cross-Encoders use zero neural networks.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Bi-Encoders can only run on GPUs; Cross-Encoders only run on CPUs.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Cross-Encoders pre-compute vectors and store them in vector databases.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q137_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Bi-Encoders encode query and document independently (fast O(N+M)); Cross-Encoders pass query and document jointly int...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Bi-Encoders use two LLMs, while Cross-Encoders use zero neural networks.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Bi-Encoders can only run on GPUs; Cross-Encoders only run on CPUs.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cross-Encoders pre-compute vectors and store them in vector databases.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q137_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q137_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q137_1-correct">✅ <strong>Correct!</strong> Bi-Encoders compute query and document embeddings in isolation, allowing instant vector search. Cross-Encoders allow every query token to attend to every document token via full cross-attention for maximum precision.</div>
+<div class="quiz-feedback wrong-fb" id="q137_1-wrong">❌ <strong>Incorrect.</strong> Bi-Encoders compute query and document embeddings in isolation, allowing instant vector search. Cross-Encoders allow every query token to attend to every document token via full cross-attention for maximum precision.</div>
 </div>
 <div class="quiz-block" id="quiz-block-137-2">
 <p class="quiz-q"><strong>Question 2:</strong> Why don't production search engines use Cross-Encoders for initial billion-document retrieval?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q137_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Joint cross-attention is computationally expensive and cannot be pre-indexed into approximate nearest neighbor (ANN) ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Cross-Encoders have lower accuracy than BM25.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Cross-Encoders can only process single words.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Vector databases do not support Cross-Encoder licenses.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q137_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Joint cross-attention is computationally expensive and cannot be pre-indexed into approximate nearest neighbor (ANN) ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cross-Encoders have lower accuracy than BM25.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cross-Encoders can only process single words.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Vector databases do not support Cross-Encoder licenses.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q137_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q137_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q137_2-correct">✅ <strong>Correct!</strong> Evaluating 1,000,000 documents with a Cross-Encoder would require 1,000,000 transformer forward passes per query. Two-stage retrieval (Bi-Encoder top-50 - Cross-Encoder rerank) is the industry standard.</div>
+<div class="quiz-feedback wrong-fb" id="q137_2-wrong">❌ <strong>Incorrect.</strong> Evaluating 1,000,000 documents with a Cross-Encoder would require 1,000,000 transformer forward passes per query. Two-stage retrieval (Bi-Encoder top-50 - Cross-Encoder rerank) is the industry standard.</div>
 </div>
 <div class="quiz-block" id="quiz-block-137-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the recommended number of candidate documents to send to a Cross-Encoder (e.g. BGE-Reranker-Large)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q137_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Top 25 to 100 candidate documents.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Top 10,000 to 50,000 documents.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Only 1 document.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'All documents in the corpus.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q137_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Top 25 to 100 candidate documents.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Top 10,000 to 50,000 documents.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Only 1 document.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">All documents in the corpus.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q137_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q137_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q137_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Cross-Encoders &amp; Re-ranking.</div>
+<div class="quiz-feedback wrong-fb" id="q137_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Cross-Encoders &amp; Re-ranking.</div>
 </div>
 <div class="quiz-block" id="quiz-block-137-4">
 <p class="quiz-q"><strong>Question 4:</strong> Which loss function is standard when training a Cross-Encoder reranker?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q137_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Binary Cross-Entropy (BCE) Loss on positive/negative passage pairs or Margin Mean Squared Error.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Mean Squared Error on raw document lengths.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Cosine Proximity on independent embedding vectors.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Poisson Regression Loss.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q137_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Binary Cross-Entropy (BCE) Loss on positive/negative passage pairs or Margin Mean Squared Error.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Mean Squared Error on raw document lengths.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cosine Proximity on independent embedding vectors.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q137_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Poisson Regression Loss.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q137_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q137_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q137_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Cross-Encoders &amp; Re-ranking.</div>
+<div class="quiz-feedback wrong-fb" id="q137_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Cross-Encoders &amp; Re-ranking.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1149,88 +1023,19 @@ between consecutive sentences)"]
 (Split strictly on #, ##, ### headers, tables, code blocks)"]
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What integer number of chunks are created by this recursive boundary chunker on a 300-character string with chunk_size=100 and overlap=20?</p>
-<input class="predict-input" id="p138-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p138', '3')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p138-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d138', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d138">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: The 300-char string is split across 2 paragraph boundaries into exactly 3 chunks.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-138">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What integer number of chunks are created by this recursive boundary chunker on a 300-character string with chunk_size=100 and overlap=20?</p>
+<pre><code class="language-python">paragraphs = ["A" * 90, "B" * 90, "C" * 90]
+text = "\n\n".join(paragraphs)
+chunks = [p for p in text.split("\n\n") if p]
+print(len(chunks))</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-138-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-138', '3')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import List, Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("SemanticChunker")
-
-class SemanticChunker:
-    """Production semantic chunker using sentence embedding cosine distance breakpoints."""
-
-    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-                 breakpoint_threshold: float = 0.35, max_chunk_tokens: int = 512):
-        from sentence_transformers import SentenceTransformer
-        self.model = SentenceTransformer(model_name)
-        self.threshold = breakpoint_threshold
-        self.max_tokens = max_chunk_tokens
-        logger.info(f"SemanticChunker initialized: threshold={breakpoint_threshold}")
-
-    def _cosine_distance(self, a, b) -&gt; float:
-        import numpy as np
-        a, b = np.array(a), np.array(b)
-        return 1.0 - float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
-
-    def chunk(self, text: str) -&gt; List[Dict[str, Any]]:
-        import re, numpy as np
-        sentences = re.split(r'(?&lt;=[.!?])\s+', text.strip())
-        if len(sentences) &lt;= 1:
-            return [{"chunk": text, "sentences": sentences}]
-        embeddings = self.model.encode(sentences, show_progress_bar=False)
-        distances = [self._cosine_distance(embeddings[i], embeddings[i+1])
-                     for i in range(len(embeddings)-1)]
-        chunks, current = [], [sentences[0]]
-        for i, dist in enumerate(distances):
-            if dist &gt; self.threshold:
-                chunks.append({"chunk": " ".join(current), "sentences": list(current)})
-                current = []
-            current.append(sentences[i+1])
-        if current:
-            chunks.append({"chunk": " ".join(current), "sentences": list(current)})
-        logger.info(f"Chunked {len(sentences)} sentences → {len(chunks)} semantic chunks")
-        return chunks
-
-if __name__ == "__main__":
-    text = ("The BM25 algorithm ranks documents by term frequency. "
-            "It uses an inverse document frequency component. "
-            "Meanwhile, neural embeddings capture semantic meaning. "
-            "Transformers use self-attention for contextualization. "
-            "Cosine similarity measures vector angle proximity.")
-    print("SemanticChunker: Simulating without model (demo mode)")
-    # Simulate chunking
-    import re
-    sentences = re.split(r'(?&lt;=[.!?])\s+', text)
-    print(f"Input: {len(sentences)} sentences")
-    # Mock distance-based split at middle
-    mid = len(sentences) // 2
-    chunks = [{"chunk": " ".join(sentences[:mid])}, {"chunk": " ".join(sentences[mid:])}]
-    print(f"Output: {len(chunks)} chunks")
-    assert len(chunks) &gt; 0
-    print("SemanticChunker: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-138-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-138-exp" style="display:none;">💡 <strong>Explanation:</strong> The 300-char string is split across 2 paragraph boundaries into exactly 3 chunks.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1384,49 +1189,50 @@ print("✓ Semantic boundary chunking verified.")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-138">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-138-1">
 <p class="quiz-q"><strong>Question 1:</strong> What is the 'Lost in the Middle' phenomenon in LLM retrieval contexts?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q138_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'LLMs attend heavily to tokens at the beginning and end of long prompts, but frequently overlook key facts placed in t...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Vector databases lose vector coordinates near the center of the index.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Cross-Encoders drop middle tokens due to context window limits.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'BM25 algorithms fail on documents with odd word counts.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q138_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">LLMs attend heavily to tokens at the beginning and end of long prompts, but frequently overlook key facts placed in t...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Vector databases lose vector coordinates near the center of the index.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cross-Encoders drop middle tokens due to context window limits.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">BM25 algorithms fail on documents with odd word counts.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q138_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q138_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q138_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Advanced Chunking Strategies.</div>
+<div class="quiz-feedback wrong-fb" id="q138_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Advanced Chunking Strategies.</div>
 </div>
 <div class="quiz-block" id="quiz-block-138-2">
 <p class="quiz-q"><strong>Question 2:</strong> How does Semantic Chunking differ from Fixed-Size Token Chunking?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q138_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Semantic Chunking splits text based on cosine distance spikes between adjacent sentences, preserving complete thoughts.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Semantic Chunking cuts every document at exactly 512 tokens.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Semantic Chunking uses regular expression whitespace splitting only.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Semantic Chunking converts text to audio waveforms before splitting.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q138_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Semantic Chunking splits text based on cosine distance spikes between adjacent sentences, preserving complete thoughts.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Semantic Chunking cuts every document at exactly 512 tokens.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Semantic Chunking uses regular expression whitespace splitting only.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Semantic Chunking converts text to audio waveforms before splitting.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q138_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q138_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q138_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Advanced Chunking Strategies.</div>
+<div class="quiz-feedback wrong-fb" id="q138_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Advanced Chunking Strategies.</div>
 </div>
 <div class="quiz-block" id="quiz-block-138-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the purpose of chunk overlap (e.g., 500-token chunk with 50-token overlap)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q138_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'To prevent semantic context and entity relationships from being severed at chunk boundaries.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'To double the total storage size in the database.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'To slow down the embedding model.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'To satisfy vector index token limits.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q138_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To prevent semantic context and entity relationships from being severed at chunk boundaries.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To double the total storage size in the database.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To slow down the embedding model.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To satisfy vector index token limits.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q138_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q138_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q138_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Advanced Chunking Strategies.</div>
+<div class="quiz-feedback wrong-fb" id="q138_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Advanced Chunking Strategies.</div>
 </div>
 <div class="quiz-block" id="quiz-block-138-4">
 <p class="quiz-q"><strong>Question 4:</strong> When chunking structured Markdown tables for RAG, what is the best practice?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q138_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Preserve table row headers or convert rows into key-value JSON strings rather than splitting raw Markdown lines arbit...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Split the table strictly at 256 tokens regardless of row boundaries.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Delete all tables because LLMs cannot understand tabular data.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Replace all table numbers with random placeholders.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q138_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Preserve table row headers or convert rows into key-value JSON strings rather than splitting raw Markdown lines arbit...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Split the table strictly at 256 tokens regardless of row boundaries.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Delete all tables because LLMs cannot understand tabular data.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q138_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Replace all table numbers with random placeholders.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q138_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q138_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q138_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Advanced Chunking Strategies.</div>
+<div class="quiz-feedback wrong-fb" id="q138_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Advanced Chunking Strategies.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1649,89 +1455,18 @@ Production vector databases (Qdrant, Pinecone, Milvus) employ <strong>Approximat
 </tbody>
 </table>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What is the theoretical search time complexity exponent factor for HNSW graph queries over N vectors?</p>
-<input class="predict-input" id="p139-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p139', 'O(log N)')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p139-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d139', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d139">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: HNSW constructs hierarchical skip layers reducing search complexity from linear O(N) to logarithmic O(log N).</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-139">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What is the theoretical search time complexity exponent factor for HNSW graph queries over N vectors?</p>
+<pre><code class="language-python"># HNSW search complexity query
+complexity = "O(log N)"
+print(complexity)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-139-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-139', 'O(log N)')">Check Answer</button>
 </div>
-</div>
-<pre>
-import time, logging
-import numpy as np
-from typing import List, Tuple, Dict
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("FAISSHNSWIndex")
-
-class FAISSHNSWVectorIndex:
-    """Production FAISS HNSW vector index with IVF-PQ compression for billion-scale retrieval."""
-
-    def __init__(self, dim: int = 1536, M: int = 32, ef_construction: int = 200,
-                 use_ivf_pq: bool = False, n_cells: int = 1024, n_subvectors: int = 64):
-        import faiss
-        self.dim = dim
-        if use_ivf_pq:
-            quantizer = faiss.IndexHNSWFlat(dim, M)
-            self.index = faiss.IndexIVFPQ(quantizer, dim, n_cells, n_subvectors, 8)
-            self.needs_train = True
-        else:
-            self.index = faiss.IndexHNSWFlat(dim, M, faiss.METRIC_INNER_PRODUCT)
-            self.index.hnsw.efConstruction = ef_construction
-            self.needs_train = False
-        self.metadata: List[Dict] = []
-        logger.info(f"FAISS HNSW index: dim={dim}, M={M}, ivf_pq={use_ivf_pq}")
-
-    def build(self, vectors: np.ndarray, metadata: List[Dict]) -&gt; None:
-        faiss.normalize_L2(vectors)
-        if self.needs_train:
-            self.index.train(vectors)
-        self.index.add(vectors)
-        self.metadata = metadata
-        logger.info(f"Indexed {len(vectors)} vectors")
-
-    def search(self, query: np.ndarray, top_k: int = 10) -&gt; List[Dict]:
-        import faiss
-        t0 = time.perf_counter()
-        faiss.normalize_L2(query.reshape(1, -1))
-        self.index.hnsw.efSearch = top_k * 4
-        scores, indices = self.index.search(query.reshape(1, -1), top_k)
-        latency = (time.perf_counter() - t0) * 1000
-        results = [{"score": float(scores[0][i]), "metadata": self.metadata[int(indices[0][i])]}
-                   for i in range(top_k) if indices[0][i] &gt;= 0]
-        logger.info(f"HNSW search: {latency:.2f}ms, {len(results)} results")
-        return results
-
-if __name__ == "__main__":
-    import numpy as np
-    dim = 128
-    n = 1000
-    vecs = np.random.randn(n, dim).astype("float32")
-    meta = [{"id": i, "text": f"doc_{i}"} for i in range(n)]
-    idx = FAISSHNSWVectorIndex(dim=dim, M=16)
-    idx.build(vecs, meta)
-    query = np.random.randn(dim).astype("float32")
-    results = idx.search(query, top_k=5)
-    print(f"Top-5 results: {[r['metadata']['id'] for r in results]}")
-    assert len(results) == 5
-    print("FAISSHNSWVectorIndex: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-139-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-139-exp" style="display:none;">💡 <strong>Explanation:</strong> HNSW constructs hierarchical skip layers reducing search complexity from linear O(N) to logarithmic O(log N).</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1912,49 +1647,50 @@ print("✅ Vector indexing assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-139">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-139-1">
 <p class="quiz-q"><strong>Question 1:</strong> How does Hierarchical Navigable Small World (HNSW) indexing achieve sub-linear O(log N) vector search?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q139_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'By organizing vectors into multi-layer proximity graphs with long-range skip connections at top layers and dense loca...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'By computing exact brute-force Euclidean distance across every vector.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'By converting vectors into SQLite tables with B-Tree indexes.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'By sorting vectors in alphabetical order.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q139_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By organizing vectors into multi-layer proximity graphs with long-range skip connections at top layers and dense loca...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By computing exact brute-force Euclidean distance across every vector.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By converting vectors into SQLite tables with B-Tree indexes.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By sorting vectors in alphabetical order.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q139_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q139_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q139_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Vector Indexing Deep Dive.</div>
+<div class="quiz-feedback wrong-fb" id="q139_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Vector Indexing Deep Dive.</div>
 </div>
 <div class="quiz-block" id="quiz-block-139-2">
 <p class="quiz-q"><strong>Question 2:</strong> What is the trade-off of Product Quantization (IVFPQ) compared to Flat HNSW?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q139_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'IVFPQ drastically reduces RAM consumption (by 80-95%) but suffers a slight loss in recall accuracy and higher latency...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'IVFPQ uses 10x more memory than Flat indices.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'IVFPQ guarantees 100% exact mathematical nearest neighbors with zero loss.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'IVFPQ is only compatible with keyword search.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q139_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">IVFPQ drastically reduces RAM consumption (by 80-95%) but suffers a slight loss in recall accuracy and higher latency...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">IVFPQ uses 10x more memory than Flat indices.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">IVFPQ guarantees 100% exact mathematical nearest neighbors with zero loss.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">IVFPQ is only compatible with keyword search.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q139_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q139_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q139_2-correct">✅ <strong>Correct!</strong> Product Quantization compresses high-dimensional vectors (e.g. 1536 floats - 64 bytes) by clustering subspaces into codebooks, saving massive RAM at the cost of slight recall degradation.</div>
+<div class="quiz-feedback wrong-fb" id="q139_2-wrong">❌ <strong>Incorrect.</strong> Product Quantization compresses high-dimensional vectors (e.g. 1536 floats - 64 bytes) by clustering subspaces into codebooks, saving massive RAM at the cost of slight recall degradation.</div>
 </div>
 <div class="quiz-block" id="quiz-block-139-3">
 <p class="quiz-q"><strong>Question 3:</strong> In HNSW, what does the parameter ef_search control?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q139_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The size of the dynamic candidate list evaluated during query time (higher ef = higher recall, higher latency).', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The number of CPU threads used during index creation.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The maximum dimensionality of the vector embeddings.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The number of GPUs required for training.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q139_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The size of the dynamic candidate list evaluated during query time (higher ef = higher recall, higher latency).</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The number of CPU threads used during index creation.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The maximum dimensionality of the vector embeddings.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The number of GPUs required for training.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q139_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q139_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q139_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Vector Indexing Deep Dive.</div>
+<div class="quiz-feedback wrong-fb" id="q139_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Vector Indexing Deep Dive.</div>
 </div>
 <div class="quiz-block" id="quiz-block-139-4">
 <p class="quiz-q"><strong>Question 4:</strong> When should you use cosine similarity versus dot product (Inner Product) in vector databases?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q139_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Dot product is mathematically identical to cosine similarity when embeddings are unit-normalized (length=1), but comp...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Cosine similarity only works for 2D vectors.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Dot product cannot handle negative numbers.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Cosine similarity requires no mathematical calculations.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q139_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Dot product is mathematically identical to cosine similarity when embeddings are unit-normalized (length=1), but comp...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cosine similarity only works for 2D vectors.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Dot product cannot handle negative numbers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q139_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cosine similarity requires no mathematical calculations.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q139_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q139_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q139_4-correct">✅ <strong>Correct!</strong> When embeddings are L2 normalized to unit length ($\|v\|=1$), cosine distance is equivalent to inner product ($a \cdot b$), saving expensive square-root norm computations.</div>
+<div class="quiz-feedback wrong-fb" id="q139_4-wrong">❌ <strong>Incorrect.</strong> When embeddings are L2 normalized to unit length ($\|v\|=1$), cosine distance is equivalent to inner product ($a \cdot b$), saving expensive square-root norm computations.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2131,87 +1867,20 @@ Pre-summarize each cluster with an LLM"]
 Query mapped to community summaries -&gt; Map-Reduce Synthesis"]
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What integer number of 2-hop connected entities are discovered from 'Node_A' in this Knowledge Graph?</p>
-<input class="predict-input" id="p140-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p140', '2')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p140-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d140', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d140">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Node_A connects to Node_B (1-hop), which connects to Node_C and Node_D (2-hop). Total 2-hop entities = 2.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-140">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What integer number of 2-hop connected entities are discovered from 'Node_A' in this Knowledge Graph?</p>
+<pre><code class="language-python">kg = {'Node_A': ['Node_B'], 'Node_B': ['Node_C', 'Node_D']}
+two_hops = []
+for h1 in kg.get('Node_A', []):
+    two_hops.extend(kg.get(h1, []))
+print(len(two_hops))</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-140-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-140', '2')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging, json
-from typing import List, Dict, Tuple, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("KGExtractor")
-
-class KnowledgeGraphExtractor:
-    """Production LLM-backed knowledge graph triple extractor with Neo4j ingestion."""
-
-    SYSTEM_PROMPT = (
-        "Extract (subject, predicate, object) triples from the text. "
-        "Return a JSON array of objects with keys 'subject', 'predicate', 'object'. "
-        "Only extract factual relationships. Max 10 triples."
-    )
-
-    def __init__(self, llm_client, neo4j_driver=None):
-        self.llm = llm_client
-        self.driver = neo4j_driver
-
-    def extract_triples(self, text: str) -&gt; List[Dict[str, str]]:
-        t0 = time.perf_counter()
-        response = self.llm.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": self.SYSTEM_PROMPT},
-                      {"role": "user", "content": text}],
-            response_format={"type": "json_object"},
-            temperature=0.0
-        )
-        raw = json.loads(response.choices[0].message.content)
-        triples = raw if isinstance(raw, list) else raw.get("triples", [])
-        logger.info(f"Extracted {len(triples)} triples in {(time.perf_counter()-t0)*1000:.0f}ms")
-        return triples
-
-    def ingest_to_neo4j(self, triples: List[Dict[str, str]]) -&gt; int:
-        if not self.driver:
-            logger.warning("No Neo4j driver — skipping ingestion")
-            return 0
-        cypher = ("MERGE (s:Entity {name: $subject}) "
-                  "MERGE (o:Entity {name: $object}) "
-                  "MERGE (s)-[r:RELATES {predicate: $predicate}]-&gt;(o)")
-        with self.driver.session() as session:
-            for triple in triples:
-                session.run(cypher, **triple)
-        logger.info(f"Ingested {len(triples)} triples to Neo4j")
-        return len(triples)
-
-if __name__ == "__main__":
-    print("KnowledgeGraphExtractor: Simulation (requires OpenAI + Neo4j)")
-    # Simulate output
-    simulated_triples = [
-        {"subject": "FAISS", "predicate": "implements", "object": "HNSW"},
-        {"subject": "BM25", "predicate": "uses", "object": "term frequency"},
-        {"subject": "RRF", "predicate": "fuses", "object": "ranked lists"},
-    ]
-    print(f"Simulated triples: {json.dumps(simulated_triples, indent=2)}")
-    assert len(simulated_triples) == 3
-    print("KnowledgeGraphExtractor: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-140-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-140-exp" style="display:none;">💡 <strong>Explanation:</strong> Node_A connects to Node_B (1-hop), which connects to Node_C and Node_D (2-hop). Total 2-hop entities = 2.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2423,49 +2092,50 @@ print("✅ GraphRAG assertions passed")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-140">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-140-1">
 <p class="quiz-q"><strong>Question 1:</strong> What problem does GraphRAG solve that traditional vector RAG struggles with?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q140_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': "Global sensemaking questions (e.g. 'What are the main themes across all documents?') by aggregating community summari...", 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Looking up single exact facts in a short paragraph.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Reducing LLM API costs to absolute zero.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Replacing SQL databases completely.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q140_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Global sensemaking questions (e.g. 'What are the main themes across all documents?') by aggregating community summari...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Looking up single exact facts in a short paragraph.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Reducing LLM API costs to absolute zero.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Replacing SQL databases completely.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q140_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q140_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q140_1-correct">✅ <strong>Correct!</strong> Microsoft Research's GraphRAG builds entity-relation graphs and hierarchical Leiden community summaries, answering dataset-wide synthetic questions that vector search misses.</div>
+<div class="quiz-feedback wrong-fb" id="q140_1-wrong">❌ <strong>Incorrect.</strong> Microsoft Research's GraphRAG builds entity-relation graphs and hierarchical Leiden community summaries, answering dataset-wide synthetic questions that vector search misses.</div>
 </div>
 <div class="quiz-block" id="quiz-block-140-2">
 <p class="quiz-q"><strong>Question 2:</strong> What are the two core extraction primitives in GraphRAG pipelines?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q140_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Entities (Nodes with descriptions) and Relationships (Directed edges with weight and claim descriptions).', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'HTML tags and CSS selectors.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Image pixels and audio frequencies.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'IP addresses and port numbers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q140_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Entities (Nodes with descriptions) and Relationships (Directed edges with weight and claim descriptions).</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">HTML tags and CSS selectors.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Image pixels and audio frequencies.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">IP addresses and port numbers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q140_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q140_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q140_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for GraphRAG &amp; Knowledge Graphs.</div>
+<div class="quiz-feedback wrong-fb" id="q140_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for GraphRAG &amp; Knowledge Graphs.</div>
 </div>
 <div class="quiz-block" id="quiz-block-140-3">
 <p class="quiz-q"><strong>Question 3:</strong> In GraphRAG, what algorithm is commonly used for hierarchical community detection on the entity graph?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q140_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Leiden Algorithm (or Louvain modularity clustering).', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'K-Means with K=2.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Linear Regression.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Binary Search on entity names.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q140_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Leiden Algorithm (or Louvain modularity clustering).</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">K-Means with K=2.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Linear Regression.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Binary Search on entity names.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q140_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q140_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q140_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for GraphRAG &amp; Knowledge Graphs.</div>
+<div class="quiz-feedback wrong-fb" id="q140_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for GraphRAG &amp; Knowledge Graphs.</div>
 </div>
 <div class="quiz-block" id="quiz-block-140-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is the primary operational trade-off of GraphRAG compared to standard Vector RAG?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q140_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'High indexing cost and latency due to extensive LLM entity extraction and community summarization runs.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'GraphRAG can only run on Windows machines.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'GraphRAG cannot store text in English.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'GraphRAG has zero accuracy on medical documents.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q140_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">High indexing cost and latency due to extensive LLM entity extraction and community summarization runs.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">GraphRAG can only run on Windows machines.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">GraphRAG cannot store text in English.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q140_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">GraphRAG has zero accuracy on medical documents.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q140_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q140_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q140_4-correct">✅ <strong>Correct!</strong> Building a GraphRAG knowledge graph requires hundreds of LLM calls during indexing to extract entities and summarize communities, making indexing significantly more expensive than simple vector chunking.</div>
+<div class="quiz-feedback wrong-fb" id="q140_4-wrong">❌ <strong>Incorrect.</strong> Building a GraphRAG knowledge graph requires hundreds of LLM calls during indexing to extract entities and summarize communities, making indexing significantly more expensive than simple vector chunking.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2639,61 +2309,19 @@ Decompose complex multi-hop question into sub-queries;
 Execute in parallel and synthesize"]
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>How many total queries (original + expansions) are dispatched to the vector database by this Multi-Query generator?</p>
-<input class="predict-input" id="p141-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p141', '4')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p141-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d141', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d141">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: 1 original user query + 3 generated semantic variations = 4 total queries.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-141">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> How many total queries (original + expansions) are dispatched to the vector database by this Multi-Query generator?</p>
+<pre><code class="language-python">query = "vLLM memory tuning"
+variations = ["vLLM VRAM sizing", "vLLM latency optimization", "vLLM serving architecture"]
+total_queries = [query] + variations
+print(len(total_queries))</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-141-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-141', '4')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday141")
-
-class DayDay141Engine:
-    """Production implementation for Week 19 day-141: HyDE &amp; Step-Back Prompting."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay141Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay141Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-141-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-141-exp" style="display:none;">💡 <strong>Explanation:</strong> 1 original user query + 3 generated semantic variations = 4 total queries.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2809,49 +2437,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-141">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-141-1">
 <p class="quiz-q"><strong>Question 1:</strong> How does Hypothetical Document Embeddings (HyDE) work in query transformation?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q141_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': "An LLM generates a hypothetical answer to the user's query, and the embedding of that hypothetical text is used to se...", 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The user is required to write a 500-word answer before searching.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The database randomly deletes 50% of the documents.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It translates the query into binary machine code.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q141_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">An LLM generates a hypothetical answer to the user's query, and the embedding of that hypothetical text is used to se...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The user is required to write a 500-word answer before searching.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The database randomly deletes 50% of the documents.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It translates the query into binary machine code.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q141_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q141_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q141_1-correct">✅ <strong>Correct!</strong> HyDE leverages the fact that a generated hypothetical document (even with hallucinations) shares more vector space similarity with the real answer documents than a short, vague user query does.</div>
+<div class="quiz-feedback wrong-fb" id="q141_1-wrong">❌ <strong>Incorrect.</strong> HyDE leverages the fact that a generated hypothetical document (even with hallucinations) shares more vector space similarity with the real answer documents than a short, vague user query does.</div>
 </div>
 <div class="quiz-block" id="quiz-block-141-2">
 <p class="quiz-q"><strong>Question 2:</strong> What is Multi-Query Expansion in RAG pipelines?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q141_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Using an LLM to generate 3-5 alternative phrasings/sub-queries from different perspectives, retrieving documents for ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Querying 5 different vector databases with identical text.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Sending the query to 5 different human annotators.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Multiplying the query string length by 5.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q141_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Using an LLM to generate 3-5 alternative phrasings/sub-queries from different perspectives, retrieving documents for ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Querying 5 different vector databases with identical text.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Sending the query to 5 different human annotators.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Multiplying the query string length by 5.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q141_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q141_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q141_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Advanced Query Transformations.</div>
+<div class="quiz-feedback wrong-fb" id="q141_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Advanced Query Transformations.</div>
 </div>
 <div class="quiz-block" id="quiz-block-141-3">
 <p class="quiz-q"><strong>Question 3:</strong> When is Sub-Query Decomposition most beneficial in RAG?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q141_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': "For complex multi-part questions (e.g. 'Compare the revenue of Apple and Microsoft in 2023') that require retrieving ...", 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': "For simple single-fact lookups (e.g. 'What is the capital of France?').", 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'When the vector database is completely empty.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'When running on low-battery mobile devices.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q141_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">For complex multi-part questions (e.g. 'Compare the revenue of Apple and Microsoft in 2023') that require retrieving ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">For simple single-fact lookups (e.g. 'What is the capital of France?').</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">When the vector database is completely empty.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">When running on low-battery mobile devices.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q141_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q141_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q141_3-correct">✅ <strong>Correct!</strong> Sub-query decomposition splits compound questions into independent sub-tasks ('What was Apple 2023 revenue?' and 'What was Microsoft 2023 revenue?'), retrieving precise context for each.</div>
+<div class="quiz-feedback wrong-fb" id="q141_3-wrong">❌ <strong>Incorrect.</strong> Sub-query decomposition splits compound questions into independent sub-tasks ('What was Apple 2023 revenue?' and 'What was Microsoft 2023 revenue?'), retrieving precise context for each.</div>
 </div>
 <div class="quiz-block" id="quiz-block-141-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is Step-Back Prompting in RAG query transformation?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q141_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Abstracting the specific query into a broader, foundational concept question to retrieve high-level principles before...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Deleting the last word of the query.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Reversing the words in the query backwards.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Asking the user to repeat their question.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q141_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Abstracting the specific query into a broader, foundational concept question to retrieve high-level principles before...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Deleting the last word of the query.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Reversing the words in the query backwards.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q141_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Asking the user to repeat their question.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q141_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q141_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q141_4-correct">✅ <strong>Correct!</strong> Step-back prompting (developed by Google DeepMind) derives high-level concepts (e.g., 'What are the physics laws governing thermodynamics?') to ground detailed reasoning.</div>
+<div class="quiz-feedback wrong-fb" id="q141_4-wrong">❌ <strong>Incorrect.</strong> Step-back prompting (developed by Google DeepMind) derives high-level concepts (e.g., 'What are the physics laws governing thermodynamics?') to ground detailed reasoning.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -3020,61 +2649,19 @@ $$ \text{RRF}(d) = \sum_{r \in R} \frac{1}{k + \text{rank}_r(d)} $$
 <p class="math-caption">Reciprocal Rank Fusion score for document $d$ across multiple retrieval models $R$.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What string decision is output by the Self-Corrective RAG grader when retrieved document relevance score is 0.85 (threshold=0.70)?</p>
-<input class="predict-input" id="p142-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p142', 'GENERATE')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p142-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d142', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d142">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Because relevance score 0.85 &gt;= threshold 0.70, the document grader outputs GENERATE rather than triggering WEB_SEARCH.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-142">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What string decision is output by the Self-Corrective RAG grader when retrieved document relevance score is 0.85 (threshold=0.70)?</p>
+<pre><code class="language-python">score = 0.85
+threshold = 0.70
+decision = "GENERATE" if score &gt;= threshold else "WEB_SEARCH"
+print(decision)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-142-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-142', 'GENERATE')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday142")
-
-class DayDay142Engine:
-    """Production implementation for Week 19 day-142: Building a fully optimized RAG Pipeline."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay142Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay142Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-142-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-142-exp" style="display:none;">💡 <strong>Explanation:</strong> Because relevance score 0.85 &gt;= threshold 0.70, the document grader outputs GENERATE rather than triggering WEB_SEARCH.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -3288,49 +2875,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-142">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-142-1">
 <p class="quiz-q"><strong>Question 1:</strong> Which metric in the RAGAS evaluation framework measures whether the generated answer is strictly grounded in the retrieved context?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q142_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Faithfulness (Groundedness).', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Answer Relevance.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Context Precision.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Inference Latency.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q142_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Faithfulness (Groundedness).</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Answer Relevance.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Context Precision.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Inference Latency.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q142_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q142_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q142_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Production RAG.</div>
+<div class="quiz-feedback wrong-fb" id="q142_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Production RAG.</div>
 </div>
 <div class="quiz-block" id="quiz-block-142-2">
 <p class="quiz-q"><strong>Question 2:</strong> What does Context Precision evaluate in production RAG systems?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q142_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Whether the ground-truth relevant context chunks are ranked at the top of the retrieval list rather than buried at th...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The number of words in the retrieved chunk.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The floating-point precision of the vector embeddings (FP32 vs FP16).', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The memory bandwidth of the vector database cluster.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q142_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Whether the ground-truth relevant context chunks are ranked at the top of the retrieval list rather than buried at th...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The number of words in the retrieved chunk.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The floating-point precision of the vector embeddings (FP32 vs FP16).</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The memory bandwidth of the vector database cluster.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q142_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q142_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q142_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Production RAG.</div>
+<div class="quiz-feedback wrong-fb" id="q142_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Production RAG.</div>
 </div>
 <div class="quiz-block" id="quiz-block-142-3">
 <p class="quiz-q"><strong>Question 3:</strong> In a production multi-stage RAG architecture, what is the correct sequence of operations?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q142_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Query Transform - Hybrid Retrieval (BM25 + Dense) - RRF Fusion - Cross-Encoder Rerank - LLM Generation with Guardrails.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'LLM Generation - Vector Search - BM25 - Query Transform.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Cross-Encoder Rerank on billion docs - Vector Search - Query Transform.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Guardrails - LLM Generation - RRF Fusion - Retrieval.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q142_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Query Transform - Hybrid Retrieval (BM25 + Dense) - RRF Fusion - Cross-Encoder Rerank - LLM Generation with Guardrails.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">LLM Generation - Vector Search - BM25 - Query Transform.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Cross-Encoder Rerank on billion docs - Vector Search - Query Transform.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Guardrails - LLM Generation - RRF Fusion - Retrieval.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q142_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q142_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q142_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Production RAG.</div>
+<div class="quiz-feedback wrong-fb" id="q142_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Production RAG.</div>
 </div>
 <div class="quiz-block" id="quiz-block-142-4">
 <p class="quiz-q"><strong>Question 4:</strong> Why is caching frequent query embeddings and responses (Semantic Caching) critical in enterprise RAG?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q142_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It reduces p50 response latency from 1.5s to &amp;lt;20ms and cuts LLM API costs by up to 70% on recurring enterprise que...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It permanently disables the vector database.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It eliminates the need for any training datasets.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It automatically translates all text to French.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q142_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It reduces p50 response latency from 1.5s to &amp;lt;20ms and cuts LLM API costs by up to 70% on recurring enterprise que...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It permanently disables the vector database.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It eliminates the need for any training datasets.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q142_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It automatically translates all text to French.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q142_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q142_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q142_4-correct">✅ <strong>Correct!</strong> Semantic caching (using Redis or GPTCache) stores previous (query_vector, answer) pairs, serving instant responses when new queries fall within high cosine similarity thresholds (0.96).</div>
+<div class="quiz-feedback wrong-fb" id="q142_4-wrong">❌ <strong>Incorrect.</strong> Semantic caching (using Redis or GPTCache) stores previous (query_vector, answer) pairs, serving instant responses when new queries fall within high cosine similarity thresholds (0.96).</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->

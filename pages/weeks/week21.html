@@ -194,80 +194,24 @@
     $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{bytes} \times B \times S$$
     </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What integer gigabytes of VRAM are required for the KV cache of a batch size 16 request on LLaMA-3-8B (32 layers, 32 heads, dim 128, seq_len 4096, FP16)?</p>
-<input class="predict-input" id="p150-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p150', '32')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p150-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d150', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d150">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: 2 (K and V) * 2 bytes (FP16) * 32 layers * 32 heads * 128 head_dim * 16 batch * 4096 tokens = 34,359,738,368 bytes = 32.0 GB VRAM.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-150">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What integer gigabytes of VRAM are required for the KV cache of a batch size 16 request on LLaMA-3-8B (32 layers, 32 heads, dim 128, seq_len 4096, FP16)?</p>
+<pre><code class="language-python">dtype = 2 # FP16 bytes
+layers = 32
+heads = 32
+head_dim = 128
+batch = 16
+seq_len = 4096
+vram_bytes = 2 * dtype * layers * heads * head_dim * batch * seq_len
+vram_gb = vram_bytes / (1024 ** 3)
+print(int(vram_gb))</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-150-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-150', '32')">Check Answer</button>
 </div>
-</div>
-<pre>import asyncio, time, logging
-from typing import List, AsyncIterator, Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("vLLMAsyncEngine")
-
-class ProductionvLLMServer:
-    """Production vLLM AsyncLLMEngine wrapper with request queuing and streaming output."""
-
-    def __init__(self, model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
-                 gpu_memory_utilization: float = 0.90, max_num_seqs: int = 256,
-                 tensor_parallel_size: int = 1):
-        from vllm import AsyncLLMEngine, AsyncEngineArgs, SamplingParams
-        self.SamplingParams = SamplingParams
-        args = AsyncEngineArgs(
-            model=model,
-            gpu_memory_utilization=gpu_memory_utilization,
-            max_num_seqs=max_num_seqs,
-            tensor_parallel_size=tensor_parallel_size,
-            enable_prefix_caching=True,
-        )
-        self.engine = AsyncLLMEngine.from_engine_args(args)
-        logger.info(f"vLLM engine started: {model}")
-
-    async def generate_stream(self, prompt: str, max_tokens: int = 512,
-                               temperature: float = 0.8, request_id: str = "req-0") -&gt; AsyncIterator[str]:
-        params = self.SamplingParams(max_tokens=max_tokens, temperature=temperature,
-                                      repetition_penalty=1.1)
-        async for output in self.engine.generate(prompt, params, request_id=request_id):
-            delta = output.outputs[0].text
-            yield delta
-            if output.finished:
-                latency = output.metrics.finished_time - output.metrics.first_scheduled_time
-                logger.info(f"Request {request_id} finished: {len(delta)} tokens, {latency:.2f}s")
-
-    async def batch_generate(self, prompts: List[str], **kwargs) -&gt; List[str]:
-        tasks = [self._collect(p, i, **kwargs) for i, p in enumerate(prompts)]
-        return await asyncio.gather(*tasks)
-
-    async def _collect(self, prompt: str, idx: int, **kwargs) -&gt; str:
-        result = ""
-        async for chunk in self.generate_stream(prompt, request_id=f"req-{idx}", **kwargs):
-            result += chunk
-        return result
-
-if __name__ == "__main__":
-    print("ProductionvLLMServer: Requires GPU + vllm package")
-    print("Key config: gpu_memory_utilization=0.90, enable_prefix_caching=True, max_num_seqs=256")
-    print("API: engine.generate(prompt, SamplingParams(...), request_id=...)")
-    print("vLLMServer: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-150-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-150-exp" style="display:none;">💡 <strong>Explanation:</strong> 2 (K and V) * 2 bytes (FP16) * 32 layers * 32 heads * 128 head_dim * 16 batch * 4096 tokens = 34,359,738,368 bytes = 32.0 GB VRAM.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -587,49 +531,50 @@ print("✓ Continuous iteration-level batching verified.")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-150">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-150-1">
 <p class="quiz-q"><strong>Question 1:</strong> What core problem does vLLM PagedAttention solve in LLM serving?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q150_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It eliminates GPU memory fragmentation by dividing the Key-Value (KV) cache into non-contiguous virtual pages, boosti...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It converts Python code into CUDA kernels automatically.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It eliminates the need for GPUs during inference.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It shrinks foundation model weights by 99%.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q150_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It eliminates GPU memory fragmentation by dividing the Key-Value (KV) cache into non-contiguous virtual pages, boosti...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts Python code into CUDA kernels automatically.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It eliminates the need for GPUs during inference.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It shrinks foundation model weights by 99%.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q150_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q150_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q150_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for VLLM &amp; PagedAttention Serving Architecture.</div>
+<div class="quiz-feedback wrong-fb" id="q150_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for VLLM &amp; PagedAttention Serving Architecture.</div>
 </div>
 <div class="quiz-block" id="quiz-block-150-2">
 <p class="quiz-q"><strong>Question 2:</strong> How does Continuous (Iteration-Level) Batching differ from traditional Static Batching?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q150_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Continuous batching schedules new requests immediately at the token iteration level rather than waiting for an entire...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Continuous batching only allows 1 user request at a time.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Continuous batching requires stopping the server every 10 seconds.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Static batching is 10x faster than continuous batching.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q150_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Continuous batching schedules new requests immediately at the token iteration level rather than waiting for an entire...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Continuous batching only allows 1 user request at a time.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Continuous batching requires stopping the server every 10 seconds.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Static batching is 10x faster than continuous batching.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q150_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q150_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q150_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for VLLM &amp; PagedAttention Serving Architecture.</div>
+<div class="quiz-feedback wrong-fb" id="q150_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for VLLM &amp; PagedAttention Serving Architecture.</div>
 </div>
 <div class="quiz-block" id="quiz-block-150-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the consequence of setting vLLM max_model_len higher than necessary?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q150_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It reserves larger pre-allocated KV-cache slots per sequence, reducing the total number of concurrent requests the GP...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It causes the server to download additional weights from HuggingFace.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': "It changes the model's tokenizer vocab size.", 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It permanently damages GPU memory chips.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q150_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It reserves larger pre-allocated KV-cache slots per sequence, reducing the total number of concurrent requests the GP...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It causes the server to download additional weights from HuggingFace.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It changes the model's tokenizer vocab size.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It permanently damages GPU memory chips.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q150_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q150_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q150_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for VLLM &amp; PagedAttention Serving Architecture.</div>
+<div class="quiz-feedback wrong-fb" id="q150_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for VLLM &amp; PagedAttention Serving Architecture.</div>
 </div>
 <div class="quiz-block" id="quiz-block-150-4">
 <p class="quiz-q"><strong>Question 4:</strong> In vLLM multi-GPU serving, what parallelism strategy is typically used across GPUs on a single node?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q150_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Tensor Parallelism (TP) using NCCL All-Reduce to split matrix multiplications across GPU Tensor Cores.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Data Parallelism with CPU offloading.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Pipeline Parallelism with 10-second delays.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Zero parallelism, running identical copies.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q150_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Tensor Parallelism (TP) using NCCL All-Reduce to split matrix multiplications across GPU Tensor Cores.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Data Parallelism with CPU offloading.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Pipeline Parallelism with 10-second delays.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q150_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Zero parallelism, running identical copies.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q150_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q150_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q150_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for VLLM &amp; PagedAttention Serving Architecture.</div>
+<div class="quiz-feedback wrong-fb" id="q150_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for VLLM &amp; PagedAttention Serving Architecture.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -711,7 +656,6 @@ print("✓ Continuous iteration-level batching verified.")</pre>
 </div></div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
-
 <div class="day-switcher-bar" style="display:flex; justify-content:space-between; width:100%; max-width:700px; gap:12px; margin-top:0.5rem; flex-wrap:wrap;">
 <span></span>
 <button onclick="goDay('151')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">Next Day (Day 151) →</button>
@@ -868,61 +812,18 @@ if __name__ == "__main__":
 </pre>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What speedup factor is achieved when speculative decoding accepts 3 draft tokens per single target model forward pass?</p>
-<input class="predict-input" id="p151-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p151', '3')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p151-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d151', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d151">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Verifying 3 accepted tokens in parallel in a single forward pass yields a 3x generation speedup.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-151">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What speedup factor is achieved when speculative decoding accepts 3 draft tokens per single target model forward pass?</p>
+<pre><code class="language-python">draft_tokens = ['the', 'quick', 'brown']
+accepted = len(draft_tokens)
+print(accepted)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-151-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-151', '3')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday151")
-
-class DayDay151Engine:
-    """Production implementation for Week 21 day-151: Hardware-Aware Optimizations."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay151Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay151Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-151-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-151-exp" style="display:none;">💡 <strong>Explanation:</strong> Verifying 3 accepted tokens in parallel in a single forward pass yields a 3x generation speedup.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1238,49 +1139,50 @@ print("✓ Speculative decoding verification passed.")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-151">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-151-1">
 <p class="quiz-q"><strong>Question 1:</strong> How does FlashAttention-2 achieve a 2-4x speedup over standard multi-head attention?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q151_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'By quantizing attention weights to 1-bit', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'By tiling computation to minimize slow GPU High Bandwidth Memory (HBM) reads/writes and keeping intermediate matrices...', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'By skipping attention over half the tokens randomly', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'By calculating attention on CPU instead of GPU', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By quantizing attention weights to 1-bit</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q151_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By tiling computation to minimize slow GPU High Bandwidth Memory (HBM) reads/writes and keeping intermediate matrices...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By skipping attention over half the tokens randomly</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">By calculating attention on CPU instead of GPU</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q151_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q151_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q151_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for FlashAttention &amp; Speculative Decoding.</div>
+<div class="quiz-feedback wrong-fb" id="q151_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for FlashAttention &amp; Speculative Decoding.</div>
 </div>
 <div class="quiz-block" id="quiz-block-151-2">
 <p class="quiz-q"><strong>Question 2:</strong> What is Speculative Decoding in LLM acceleration?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q151_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Guessing model weights before training', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Using a fast draft model to generate candidate tokens in parallel, verified in a single forward pass by the target LLM', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Pruning 50% of the transformer layers', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Distilling the model into an SVM', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Guessing model weights before training</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q151_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Using a fast draft model to generate candidate tokens in parallel, verified in a single forward pass by the target LLM</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Pruning 50% of the transformer layers</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Distilling the model into an SVM</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q151_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q151_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q151_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for FlashAttention &amp; Speculative Decoding.</div>
+<div class="quiz-feedback wrong-fb" id="q151_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for FlashAttention &amp; Speculative Decoding.</div>
 </div>
 <div class="quiz-block" id="quiz-block-151-3">
 <p class="quiz-q"><strong>Question 3:</strong> Why does standard Self-Attention become memory-bandwidth bound on GPUs for long sequence lengths?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q151_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'GPUs do not support matrix multiplication for dimensions over 1024', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Writing and reading the $N \\\\times N$ attention matrix between slow GPU HBM and fast SRAM creates an IO bottleneck', 'is_correct': True}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Softmax requires exponential CPU operations', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'PyTorch tensors cannot exceed 1GB in size', 'is_correct': False}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">GPUs do not support matrix multiplication for dimensions over 1024</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q151_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Writing and reading the $N \\times N$ attention matrix between slow GPU HBM and fast SRAM creates an IO bottleneck</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Softmax requires exponential CPU operations</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">PyTorch tensors cannot exceed 1GB in size</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q151_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q151_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q151_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for FlashAttention &amp; Speculative Decoding.</div>
+<div class="quiz-feedback wrong-fb" id="q151_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for FlashAttention &amp; Speculative Decoding.</div>
 </div>
 <div class="quiz-block" id="quiz-block-151-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is the key theoretical guarantee of Speculative Decoding?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q151_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It guarantees 100% draft token acceptance on every forward pass', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It produces an output token distribution mathematically identical to sampling directly from the target model', 'is_correct': True}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It reduces model weight size by 8x', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It eliminates the need for GPU accelerators', 'is_correct': False}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It guarantees 100% draft token acceptance on every forward pass</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q151_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It produces an output token distribution mathematically identical to sampling directly from the target model</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It reduces model weight size by 8x</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q151_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It eliminates the need for GPU accelerators</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q151_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q151_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q151_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for FlashAttention &amp; Speculative Decoding.</div>
+<div class="quiz-feedback wrong-fb" id="q151_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for FlashAttention &amp; Speculative Decoding.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1369,7 +1271,6 @@ print("✓ Speculative decoding verification passed.")</pre>
 </div></div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
-
 <div class="day-switcher-bar" style="display:flex; justify-content:space-between; width:100%; max-width:700px; gap:12px; margin-top:0.5rem; flex-wrap:wrap;">
 <button onclick="goDay('150')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">← Previous Day (Day 150)</button>
 <button onclick="goDay('152')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">Next Day (Day 152) →</button>
@@ -1378,7 +1279,6 @@ print("✓ Speculative decoding verification passed.")</pre>
 <div class="completion-box">
 <button class="complete-btn" onclick="completeDay('151')">Mark Day 151 Complete ✓</button>
 </div></div>
-
 <div class="day-section" data-xp="200" id="day-152">
 <!-- OBJECTIVES -->
 <div class="objectives">
@@ -1453,61 +1353,27 @@ print("✓ Speculative decoding verification passed.")</pre>
 $$X_{\text{quant}} = \text{clip}\left( \left\lfloor \frac{X}{\text{Scale}} \right\rceil + Z, -2^{b-1}, 2^{b-1}-1 \right)$$
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much VRAM does it take in INT4?</p>
-<input class="predict-input" id="p152-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p152', '7.0B model at 4-bit: 4.76 GB VRAM required')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p152-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d152', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d152">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: Roughly 3.5GB to 4GB VRAM (each parameter takes 0.5 bytes in 4-bit quantization, plus ~0.5GB metadata/quantization scales).</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
-</div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday152")
-
-class DayDay152Engine:
-    """Production implementation for Week 21 day-152: AWQ, GPTQ, GGUF &amp; Llama.cpp."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
+<div class="predict-block" id="predict-block-152">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> A 7B parameter model in FP16 takes ~14GB VRAM. Roughly how much total VRAM does it require in INT4 including a 1.5GB KV cache?</p>
+<pre><code class="language-python"># Verification Script for Day 152
+def estimate_quantized_vram(params_billions=7.0, bit_width=4):
+    bytes_per_param = bit_width / 8.0
+    weights_gb = (params_billions * 10**9 * bytes_per_param) / (1024**3)
+    kv_cache_gb = 1.5
+    total_gb = weights_gb + kv_cache_gb
+    print(f"{params_billions}B model at {bit_width}-bit: {total_gb:.2f} GB VRAM required")
+    return total_gb
 
 if __name__ == "__main__":
-    engine = DayDay152Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay152Engine: OK")
-</pre>
+    vram = estimate_quantized_vram(7.0, 4)
+    assert 4.0 &lt;= vram &lt;= 6.0</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-152-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-152', '7.0B model at 4-bit: 4.76 GB VRAM required')">Check Answer</button>
 </div>
-</div>
+<div class="predict-result" id="predict-152-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-152-exp" style="display:none;">💡 <strong>Explanation:</strong> Roughly 4.76 GB total VRAM: 4-bit quantization reduces 7B weights to ~3.26 GB (7B × 0.5 bytes), plus 1.5 GB allocated for the KV cache and runtime scales.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -1679,49 +1545,50 @@ print("✓ INT8 uniform quantization verified.")</pre>
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-152">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-152-1">
 <p class="quiz-q"><strong>Question 1:</strong> What is the fundamental difference between Weight-Only Quantization (e.g. GPTQ/AWQ) and Weight-Activation Quantization (e.g. SmoothQuant)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q152_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Weight-only quantizes model weights to INT4/INT8 while keeping activations in FP16; weight-activation quantizes both ...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Weight-only runs on CPUs only; weight-activation runs on quantum computers.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Weight-only deletes all biases; weight-activation deletes all weights.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'There is no difference.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q152_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Weight-only quantizes model weights to INT4/INT8 while keeping activations in FP16; weight-activation quantizes both ...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Weight-only runs on CPUs only; weight-activation runs on quantum computers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Weight-only deletes all biases; weight-activation deletes all weights.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">There is no difference.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q152_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q152_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q152_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Quantization.</div>
+<div class="quiz-feedback wrong-fb" id="q152_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Quantization.</div>
 </div>
 <div class="quiz-block" id="quiz-block-152-2">
 <p class="quiz-q"><strong>Question 2:</strong> How does AWQ (Activation-aware Weight Quantization) protect model accuracy during 4-bit compression?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q152_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It identifies the 1% most salient weight channels based on activation magnitudes and protects them from aggressive qu...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It doubles the size of every layer in the model.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It removes all negative numbers from the tensor.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It replaces floating point weights with random integers.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q152_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It identifies the 1% most salient weight channels based on activation magnitudes and protects them from aggressive qu...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It doubles the size of every layer in the model.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It removes all negative numbers from the tensor.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It replaces floating point weights with random integers.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q152_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q152_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q152_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Quantization.</div>
+<div class="quiz-feedback wrong-fb" id="q152_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Quantization.</div>
 </div>
 <div class="quiz-block" id="quiz-block-152-3">
 <p class="quiz-q"><strong>Question 3:</strong> What file format is standard for local CPU/GPU LLM inference using llama.cpp?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q152_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'GGUF (GPT-Generated Unified Format), which bundles metadata, tokenizer specs, and quantized tensors into a single bin...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'CSV spreadsheet files.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Plain text JSON files.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'ZIP archives containing pickle files.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q152_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">GGUF (GPT-Generated Unified Format), which bundles metadata, tokenizer specs, and quantized tensors into a single bin...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">CSV spreadsheet files.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Plain text JSON files.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">ZIP archives containing pickle files.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q152_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q152_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q152_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Quantization.</div>
+<div class="quiz-feedback wrong-fb" id="q152_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Quantization.</div>
 </div>
 <div class="quiz-block" id="quiz-block-152-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is the primary degradation symptom when an LLM is over-quantized (e.g. 2-bit quantization)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q152_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'Severe perplexity spikes, repetitive text loops, and loss of complex multi-step reasoning capabilities.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The model generates text 100x faster.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The model switches its language to Latin.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The file size on disk expands.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q152_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Severe perplexity spikes, repetitive text loops, and loss of complex multi-step reasoning capabilities.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The model generates text 100x faster.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The model switches its language to Latin.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q152_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The file size on disk expands.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q152_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q152_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q152_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Quantization.</div>
+<div class="quiz-feedback wrong-fb" id="q152_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Quantization.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -1810,7 +1677,6 @@ print("✓ INT8 uniform quantization verified.")</pre>
 </div></div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
-
 <div class="day-switcher-bar" style="display:flex; justify-content:space-between; width:100%; max-width:700px; gap:12px; margin-top:0.5rem; flex-wrap:wrap;">
 <button onclick="goDay('151')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">← Previous Day (Day 151)</button>
 <button onclick="goDay('153')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">Next Day (Day 153) →</button>
@@ -1819,7 +1685,6 @@ print("✓ INT8 uniform quantization verified.")</pre>
 <div class="completion-box">
 <button class="complete-btn" onclick="completeDay('152')">Mark Day 152 Complete ✓</button>
 </div></div>
-
 <div class="day-section" data-xp="200" id="day-153">
 <!-- OBJECTIVES -->
 <div class="objectives">
@@ -1972,91 +1837,19 @@ if __name__ == "__main__":
 </code></pre>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What percentage of total model parameters are trainable in this LoRA adapter configuration with r=8 on a 100M parameter model?</p>
-<input class="predict-input" id="p153-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p153', '0.1')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p153-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d153', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d153">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: LoRA with rank 8 updates only ~100,000 parameters out of 100,000,000 (0.1%).</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-153">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What percentage of total model parameters are trainable in this LoRA adapter configuration with r=8 on a 100M parameter model?</p>
+<pre><code class="language-python">total_params = 100_000_000
+lora_params = 100_000
+pct = (lora_params / total_params) * 100
+print(f"{pct:.1f}")</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-153-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-153', '0.1')">Check Answer</button>
 </div>
-</div>
-<pre>
-import time, logging
-from typing import Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("QLoRATrainer")
-
-class QLoRAFinetuner:
-    """Production QLoRA fine-tuner using PEFT + BitsAndBytes 4-bit quantization."""
-
-    def __init__(self, base_model: str = "meta-llama/Meta-Llama-3-8B",
-                 lora_r: int = 16, lora_alpha: int = 32, lora_dropout: float = 0.05,
-                 target_modules: Optional[list] = None):
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-        from peft import get_peft_model, LoraConfig, TaskType
-
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True, bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained(base_model)
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model, quantization_config=bnb_config, device_map="auto"
-        )
-        model.enable_input_require_grads()
-        lora_config = LoraConfig(
-            r=lora_r, lora_alpha=lora_alpha, lora_dropout=lora_dropout,
-            target_modules=target_modules or ["q_proj", "v_proj", "k_proj", "o_proj"],
-            task_type=TaskType.CAUSAL_LM, bias="none"
-        )
-        self.model = get_peft_model(model, lora_config)
-        trainable, total = self.model.get_nb_trainable_parameters()
-        logger.info(f"QLoRA: {trainable:,} trainable / {total:,} total ({100*trainable/total:.2f}%)")
-
-    def train(self, dataset, output_dir: str = "./qlora_output", **training_kwargs) -&gt; Dict[str, Any]:
-        from transformers import TrainingArguments, Trainer, DataCollatorForSeq2Seq
-        args = TrainingArguments(
-            output_dir=output_dir,
-            per_device_train_batch_size=training_kwargs.get("batch_size", 2),
-            gradient_accumulation_steps=training_kwargs.get("grad_accum", 8),
-            learning_rate=training_kwargs.get("lr", 2e-4),
-            num_train_epochs=training_kwargs.get("epochs", 3),
-            bf16=True, gradient_checkpointing=True,
-            logging_steps=10, save_strategy="epoch",
-            optim="paged_adamw_32bit", lr_scheduler_type="cosine",
-        )
-        trainer = Trainer(model=self.model, args=args, train_dataset=dataset,
-                          data_collator=DataCollatorForSeq2Seq(self.tokenizer))
-        t0 = time.time()
-        result = trainer.train()
-        logger.info(f"Training complete in {time.time()-t0:.0f}s: {result.training_loss:.4f} loss")
-        return {"loss": result.training_loss, "steps": result.global_step}
-
-if __name__ == "__main__":
-    print("QLoRAFinetuner: Requires GPU + transformers + peft + bitsandbytes")
-    print("Config: 4-bit NF4 + double quantization, LoRA r=16 alpha=32")
-    print("Targets: q_proj, v_proj, k_proj, o_proj")
-    print("QLoRAFinetuner: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-153-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-153-exp" style="display:none;">💡 <strong>Explanation:</strong> LoRA with rank 8 updates only ~100,000 parameters out of 100,000,000 (0.1%).</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2256,49 +2049,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-153">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-153-1">
 <p class="quiz-q"><strong>Question 1:</strong> In LoRA (Low-Rank Adaptation), how is the weight update matrix ΔW represented for a base weight matrix W ∈ ℝ^(d×k)?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q153_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'As a full d×k dense matrix', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'As the product of two low-rank matrices B · A where B ∈ ℝ^(d×r) and A ∈ ℝ^(r×k) with rank r ≪ min(d, k)', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'As a 1-dimensional bias vector', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'As an orthogonal permutation matrix', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">As a full d×k dense matrix</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q153_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">As the product of two low-rank matrices B · A where B ∈ ℝ^(d×r) and A ∈ ℝ^(r×k) with rank r ≪ min(d, k)</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">As a 1-dimensional bias vector</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">As an orthogonal permutation matrix</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q153_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q153_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q153_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for QLoRA &amp; PEFT.</div>
+<div class="quiz-feedback wrong-fb" id="q153_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for QLoRA &amp; PEFT.</div>
 </div>
 <div class="quiz-block" id="quiz-block-153-2">
 <p class="quiz-q"><strong>Question 2:</strong> What are the two key innovations of QLoRA compared to standard LoRA?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q153_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': '8-bit quantization and CPU offloading', 'is_correct': False, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': '4-bit NormalFloat (NF4) quantization, Double Quantization, and Paged Optimizers', 'is_correct': True, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Pruning and knowledge distillation', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Skipping backpropagation entirely', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">8-bit quantization and CPU offloading</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q153_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">4-bit NormalFloat (NF4) quantization, Double Quantization, and Paged Optimizers</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Pruning and knowledge distillation</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Skipping backpropagation entirely</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q153_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q153_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q153_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for QLoRA &amp; PEFT.</div>
+<div class="quiz-feedback wrong-fb" id="q153_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for QLoRA &amp; PEFT.</div>
 </div>
 <div class="quiz-block" id="quiz-block-153-3">
 <p class="quiz-q"><strong>Question 3:</strong> What is the memory footprint advantage of QLoRA over standard LoRA during fine-tuning?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q153_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'QLoRA stores base model weights in 4-bit NormalFloat (NF4) while maintaining 16-bit LoRA adapter gradients', 'is_correct': True}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'QLoRA eliminates the need for backpropagation gradients', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'QLoRA runs exclusively on CPU RAM', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'QLoRA quantizes optimizer states to 1-bit', 'is_correct': False}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q153_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">QLoRA stores base model weights in 4-bit NormalFloat (NF4) while maintaining 16-bit LoRA adapter gradients</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">QLoRA eliminates the need for backpropagation gradients</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">QLoRA runs exclusively on CPU RAM</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">QLoRA quantizes optimizer states to 1-bit</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q153_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q153_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q153_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for QLoRA &amp; PEFT.</div>
+<div class="quiz-feedback wrong-fb" id="q153_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for QLoRA &amp; PEFT.</div>
 </div>
 <div class="quiz-block" id="quiz-block-153-4">
 <p class="quiz-q"><strong>Question 4:</strong> Why should LoRA adapter weights be merged into base model weights before deploying to production vLLM clusters?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q153_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'To eliminate the secondary matrix addition overhead during token decoding ($W_0 + \\Delta W$)', 'is_correct': True}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'Merged models require 50% less RAM than base weights', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'vLLM does not support Python', 'is_correct': False}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'To change the tokenizer vocabulary size', 'is_correct': False}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q153_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To eliminate the secondary matrix addition overhead during token decoding ($W_0 + \Delta W$)</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Merged models require 50% less RAM than base weights</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">vLLM does not support Python</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q153_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">To change the tokenizer vocabulary size</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q153_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q153_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q153_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for QLoRA &amp; PEFT.</div>
+<div class="quiz-feedback wrong-fb" id="q153_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for QLoRA &amp; PEFT.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2395,7 +2189,6 @@ if __name__ == '__main__':
 </div></div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
-
 <div class="day-switcher-bar" style="display:flex; justify-content:space-between; width:100%; max-width:700px; gap:12px; margin-top:0.5rem; flex-wrap:wrap;">
 <button onclick="goDay('152')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">← Previous Day (Day 152)</button>
 <button onclick="goDay('154')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">Next Day (Day 154) →</button>
@@ -2404,7 +2197,6 @@ if __name__ == '__main__':
 <div class="completion-box">
 <button class="complete-btn" onclick="completeDay('153')">Mark Day 153 Complete ✓</button>
 </div></div>
-
 <div class="day-section" data-xp="200" id="day-154">
 <!-- OBJECTIVES -->
 <div class="objectives">
@@ -2550,97 +2342,17 @@ if __name__ == "__main__":
 </code></pre>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>In Direct Preference Optimization (DPO), which response (chosen y_w or rejected y_l) has its relative log-likelihood maximized?</p>
-<input class="predict-input" id="p154-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p154', 'y_w')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p154-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d154', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d154">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: DPO maximizes the log probability of the chosen response y_w relative to the reference policy while minimizing y_l.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-154">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> In Direct Preference Optimization (DPO), which response (chosen y_w or rejected y_l) has its relative log-likelihood maximized?</p>
+<pre><code class="language-python">pref = "y_w"
+print(pref)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-154-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-154', 'y_w')">Check Answer</button>
 </div>
-</div>
-<pre>
-import time, logging
-from typing import Dict, Any, Optional
-import torch
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname]s] %(message)s")
-logger = logging.getLogger("DPOTrainer")
-
-class DPOAlignmentTrainer:
-    """Production DPO trainer: trains policy to prefer chosen over rejected completions."""
-
-    def __init__(self, policy_model, ref_model, tokenizer, beta: float = 0.1,
-                 label_smoothing: float = 0.0):
-        self.policy = policy_model
-        self.ref = ref_model
-        self.tokenizer = tokenizer
-        self.beta = beta  # KL regularization strength
-        self.label_smoothing = label_smoothing
-        self.ref.eval()
-        for p in self.ref.parameters():
-            p.requires_grad = False
-
-    def dpo_loss(self, policy_chosen_logps: torch.Tensor,
-                 policy_rejected_logps: torch.Tensor,
-                 ref_chosen_logps: torch.Tensor,
-                 ref_rejected_logps: torch.Tensor) -&gt; Dict[str, torch.Tensor]:
-        """Compute DPO loss: L = -E[log σ(β(log π_θ(y_w|x)/π_ref(y_w|x) - log π_θ(y_l|x)/π_ref(y_l|x)))]"""
-        chosen_rewards = self.beta * (policy_chosen_logps - ref_chosen_logps)
-        rejected_rewards = self.beta * (policy_rejected_logps - ref_rejected_logps)
-        logits = chosen_rewards - rejected_rewards
-        if self.label_smoothing &gt; 0:
-            loss = -(1 - self.label_smoothing) * torch.nn.functional.logsigmoid(logits)                    - self.label_smoothing * torch.nn.functional.logsigmoid(-logits)
-        else:
-            loss = -torch.nn.functional.logsigmoid(logits)
-        return {
-            "loss": loss.mean(),
-            "chosen_rewards": chosen_rewards.mean().item(),
-            "rejected_rewards": rejected_rewards.mean().item(),
-            "reward_margin": (chosen_rewards - rejected_rewards).mean().item(),
-            "win_rate": (chosen_rewards &gt; rejected_rewards).float().mean().item(),
-        }
-
-    def compute_logprobs(self, model, input_ids: torch.Tensor,
-                          attention_mask: torch.Tensor, labels: torch.Tensor) -&gt; torch.Tensor:
-        with torch.no_grad() if model is self.ref else torch.enable_grad():
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            logits = outputs.logits[:, :-1, :]
-            log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
-            label_logprobs = log_probs.gather(-1, labels[:, 1:].unsqueeze(-1)).squeeze(-1)
-            mask = labels[:, 1:] != self.tokenizer.pad_token_id
-            return (label_logprobs * mask).sum(-1) / mask.sum(-1).clamp(min=1)
-
-if __name__ == "__main__":
-    # Demo without GPU
-    beta = 0.1
-    policy_chosen = torch.tensor([-1.2])
-    policy_rejected = torch.tensor([-2.5])
-    ref_chosen = torch.tensor([-1.5])
-    ref_rejected = torch.tensor([-2.3])
-    chosen_rew = beta * (policy_chosen - ref_chosen)
-    rejected_rew = beta * (policy_rejected - ref_rejected)
-    logits = chosen_rew - rejected_rew
-    loss = -torch.nn.functional.logsigmoid(logits)
-    print(f"DPO loss: {loss.item():.4f}")
-    print(f"Reward margin: {(chosen_rew - rejected_rew).item():.4f} (should be &gt; 0 for correct preference)")
-    assert loss.item() &gt; 0
-    print("DPOAlignmentTrainer: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-154-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-154-exp" style="display:none;">💡 <strong>Explanation:</strong> DPO maximizes the log probability of the chosen response y_w relative to the reference policy while minimizing y_l.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -2828,49 +2540,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-154">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-154-1">
 <p class="quiz-q"><strong>Question 1:</strong> How does Direct Preference Optimization (DPO) eliminate the need for a separate reward model during LLM alignment?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q154_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'A fast small draft model generates $K$ candidate tokens speculatively, and the large target model verifies all $K$ to...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It skips 50% of the layers in the neural network.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It rounds all floating point numbers to integers.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It uses speculative stock market algorithms.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q154_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">A fast small draft model generates $K$ candidate tokens speculatively, and the large target model verifies all $K$ to...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It skips 50% of the layers in the neural network.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It rounds all floating point numbers to integers.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It uses speculative stock market algorithms.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q154_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q154_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q154_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for DPO, ORPO &amp; GRPO.</div>
+<div class="quiz-feedback wrong-fb" id="q154_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for DPO, ORPO &amp; GRPO.</div>
 </div>
 <div class="quiz-block" id="quiz-block-154-2">
 <p class="quiz-q"><strong>Question 2:</strong> What role does the reference model (pi_ref) play in the DPO loss formulation?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q154_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The acceptance rate $\\alpha$ of draft tokens by the target model and the latency ratio between draft and target forwar...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The size of the hard drive on the server.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': "The screen resolution of the user's monitor.", 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The temperature of the server room.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q154_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The acceptance rate $\alpha$ of draft tokens by the target model and the latency ratio between draft and target forwar...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The size of the hard drive on the server.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The screen resolution of the user's monitor.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The temperature of the server room.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q154_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q154_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q154_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for DPO, ORPO &amp; GRPO.</div>
+<div class="quiz-feedback wrong-fb" id="q154_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for DPO, ORPO &amp; GRPO.</div>
 </div>
 <div class="quiz-block" id="quiz-block-154-3">
 <p class="quiz-q"><strong>Question 3:</strong> How does Odds Ratio Preference Optimization (ORPO) simplify the alignment pipeline compared to standard DPO?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q154_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': "It adds multiple extra MLP heads to the target model's final hidden state to predict multiple future tokens simultane...", 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'It connects 10 separate GPUs in a ring topology.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It converts text into Greek mythology stories.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It trains 5 separate foundation models concurrently.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q154_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It adds multiple extra MLP heads to the target model's final hidden state to predict multiple future tokens simultane...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It connects 10 separate GPUs in a ring topology.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts text into Greek mythology stories.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It trains 5 separate foundation models concurrently.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q154_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q154_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q154_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for DPO, ORPO &amp; GRPO.</div>
+<div class="quiz-feedback wrong-fb" id="q154_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for DPO, ORPO &amp; GRPO.</div>
 </div>
 <div class="quiz-block" id="quiz-block-154-4">
 <p class="quiz-q"><strong>Question 4:</strong> What is the primary risk of setting the DPO beta (KL penalty coefficient) too low during fine-tuning?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q154_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The first 2 accepted tokens and 1 target correction token are emitted, and the remaining 2 draft tokens are discarded.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The server crashes and restarts.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The entire conversation history is erased.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The generation terminates immediately.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q154_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The first 2 accepted tokens and 1 target correction token are emitted, and the remaining 2 draft tokens are discarded.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The server crashes and restarts.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The entire conversation history is erased.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q154_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The generation terminates immediately.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q154_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q154_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q154_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for DPO, ORPO &amp; GRPO.</div>
+<div class="quiz-feedback wrong-fb" id="q154_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for DPO, ORPO &amp; GRPO.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -2959,7 +2672,6 @@ if __name__ == '__main__':
 </div></div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
-
 <div class="day-switcher-bar" style="display:flex; justify-content:space-between; width:100%; max-width:700px; gap:12px; margin-top:0.5rem; flex-wrap:wrap;">
 <button onclick="goDay('153')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">← Previous Day (Day 153)</button>
 <button onclick="goDay('155')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">Next Day (Day 155) →</button>
@@ -2968,7 +2680,6 @@ if __name__ == '__main__':
 <div class="completion-box">
 <button class="complete-btn" onclick="completeDay('154')">Mark Day 154 Complete ✓</button>
 </div></div>
-
 <div class="day-section" data-xp="200" id="day-155">
 <!-- OBJECTIVES -->
 <div class="objectives">
@@ -3140,8 +2851,6 @@ if __name__ == "__main__":
 <button class="complete-btn" onclick="completeDay('155')">Mark Day 155 Complete ✓</button>
 </div>
 </div>
-
-
 <div class="day-section" data-xp="300" id="day-156">
 <!-- OBJECTIVES -->
 <div class="objectives">
@@ -3213,61 +2922,17 @@ $$ W_{Q} = \text{dequantize}(W_{4bit}) + A B \quad \text{where } A \in \mathbb{R
 <p class="math-caption">QLoRA forward pass combining 4-bit base weights and low-rank adapters.</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
-<div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-<h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
-<p>What string is output after successfully merging and saving a trained LoRA adapter into base model weights?</p>
-<input class="predict-input" id="p156-input" placeholder="Type your prediction here..."/>
-<button class="predict-btn" onclick="checkPredict('p156', 'MERGE_COMPLETE')">
-            Check Answer
-          </button>
-<div class="predict-result" id="p156-result"></div>
-<button class="solution-toggle" onclick="toggleSolution('pred-d156', this)" style="margin-top: 0.8rem; background: rgba(108,140,255,0.1); color: var(--blue); border: 1px solid var(--blue); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-            💡 Reveal Detailed Code &amp; Explanation
-          </button>
-<div class="solution-box" id="pred-d156">
-<p style="margin:0; font-family:var(--font-mono); font-size:13px; color:var(--green); line-height:1.6; white-space:pre-wrap;">Expected Output: The merge_and_unload() operation consolidates weights for zero-overhead inference serving.</p>
-<div class="cb" style="margin-top:10px;">
-<div class="cb-head">
-<span class="cb-lang">python</span>
-<div class="cb-btns">
-<button class="copy-btn" onclick="copyCode(this)">copy</button>
-<button class="run-btn" onclick="runCode(this)">Run</button>
+<div class="predict-block" id="predict-block-156">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> What string is output after successfully merging and saving a trained LoRA adapter into base model weights?</p>
+<pre><code class="language-python">status = "MERGE_COMPLETE"
+print(status)</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-156-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-156', 'MERGE_COMPLETE')">Check Answer</button>
 </div>
-</div>
-<pre>import time, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("Dayday156")
-
-class DayDay156Engine:
-    """Production implementation for Week 21 day-156: Data Prep - QLoRA - Merge - vLLM Server."""
-
-    def __init__(self):
-        self.start_time = time.time()
-        logger.info("Engine initialized")
-
-    def run(self, input_data: Dict[str, Any]) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        if not input_data:
-            raise ValueError("Empty input")
-        result = {
-            "status": "processed",
-            "keys": list(input_data.keys()),
-            "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
-        }
-        logger.info(f"Processed in {result['latency_ms']}ms")
-        return result
-
-if __name__ == "__main__":
-    engine = DayDay156Engine()
-    out = engine.run({"sample": 42})
-    print(out)
-    assert out["status"] == "processed"
-    print("DayDay156Engine: OK")
-</pre>
-</div>
-</div>
+<div class="predict-result" id="predict-156-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-156-exp" style="display:none;">💡 <strong>Explanation:</strong> The merge_and_unload() operation consolidates weights for zero-overhead inference serving.</div>
 </div>
 <!-- TASKS SECTION -->
 <h2 class="sh2">🛠 Tasks</h2>
@@ -3478,49 +3143,50 @@ if __name__ == '__main__':
 <!-- QUIZZES -->
 <h2 class="sh2">🧪 Quiz</h2>
 <div class="quiz-section" id="quiz-section-156">
+<h2 class="sh2">📝 Conceptual Quiz Challenges</h2>
 <div class="quiz-block" id="quiz-block-156-1">
 <p class="quiz-q"><strong>Question 1:</strong> In production LLM serving, what does TTFT (Time to First Token) measure?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q156_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The latency from when a user request is received until the first generation token is emitted (dominated by prompt pre...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The time it takes to train the model from scratch.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The time taken to download the model weights from the internet.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The total duration of the entire user conversation.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q156_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The latency from when a user request is received until the first generation token is emitted (dominated by prompt pre...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The time it takes to train the model from scratch.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The time taken to download the model weights from the internet.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_1')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The total duration of the entire user conversation.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q156_1-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q156_1-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q156_1-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned Model.</div>
+<div class="quiz-feedback wrong-fb" id="q156_1-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned Model.</div>
 </div>
 <div class="quiz-block" id="quiz-block-156-2">
 <p class="quiz-q"><strong>Question 2:</strong> What does ITL (Inter-Token Latency) or TPOT (Time Per Output Token) quantify in streaming applications?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q156_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'The time elapsed between generating consecutive output tokens during the autoregressive decoding phase.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'The time taken to boot up the cloud server.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'The duration of network packet transmission over Wi-Fi.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'The time required to parse JSON outputs.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q156_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The time elapsed between generating consecutive output tokens during the autoregressive decoding phase.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The time taken to boot up the cloud server.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The duration of network packet transmission over Wi-Fi.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_2')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">The time required to parse JSON outputs.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q156_2-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q156_2-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q156_2-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned Model.</div>
+<div class="quiz-feedback wrong-fb" id="q156_2-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned Model.</div>
 </div>
 <div class="quiz-block" id="quiz-block-156-3">
 <p class="quiz-q"><strong>Question 3:</strong> Why does Prefix Caching (Prompt Caching) drastically improve throughput in multi-turn chatbot systems?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q156_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'It reuses the precomputed KV-cache for shared system prompts and conversation history across turns, avoiding redundan...', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': "It deletes the user's past messages to save disk space.", 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'It converts conversation text into compressed MP3 audio.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'It disables attention mechanisms entirely.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q156_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It reuses the precomputed KV-cache for shared system prompts and conversation history across turns, avoiding redundan...</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It deletes the user's past messages to save disk space.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It converts conversation text into compressed MP3 audio.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_3')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">It disables attention mechanisms entirely.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q156_3-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q156_3-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q156_3-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned Model.</div>
+<div class="quiz-feedback wrong-fb" id="q156_3-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned Model.</div>
 </div>
 <div class="quiz-block" id="quiz-block-156-4">
 <p class="quiz-q"><strong>Question 4:</strong> When designing an autoscaling policy for high-concurrency LLM inference clusters, what metric is most effective?</p>
 <div class="quiz-options">
-<div class="quiz-opt" onclick="quiz(this, 'correct', 'q156_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'A', 'text': 'vLLM waiting queue length (`num_requests_waiting`) and GPU KV-cache usage percentage.', 'is_correct': True, 'id': 'a'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'B', 'text': 'CPU core utilization only.', 'is_correct': False, 'id': 'b'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'C', 'text': 'Hard drive read/write speed.', 'is_correct': False, 'id': 'c'}</div>
-<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">{'letter': 'D', 'text': 'Number of open browser tabs.', 'is_correct': False, 'id': 'd'}</div>
+<div class="quiz-opt" onclick="quiz(this, 'correct', 'q156_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">vLLM waiting queue length (`num_requests_waiting`) and GPU KV-cache usage percentage.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">CPU core utilization only.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Hard drive read/write speed.</div>
+<div class="quiz-opt" onclick="quiz(this, 'wrong', 'q156_4')" onkeydown="if(event.key==='Enter'||event.key===' ')this.click()" role="button" tabindex="0">Number of open browser tabs.</div>
 </div>
-<div class="quiz-feedback correct-fb" id="q156_4-correct">✅ <strong>Correct!</strong> </div>
-<div class="quiz-feedback wrong-fb" id="q156_4-wrong">❌ <strong>Incorrect.</strong> </div>
+<div class="quiz-feedback correct-fb" id="q156_4-correct">✅ <strong>Correct!</strong> This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned Model.</div>
+<div class="quiz-feedback wrong-fb" id="q156_4-wrong">❌ <strong>Incorrect.</strong> This directly enforces production best practices and robustness for Capstone: Deploying a Custom Fine-Tuned Model.</div>
 </div>
 </div>
 <!-- REVISION FLASHCARDS -->
@@ -3609,7 +3275,6 @@ if __name__ == '__main__':
 </div></div>
 <!-- DAY COMPLETION FOOTER -->
 <div class="day-nav-footer" style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:16px; justify-content:center; align-items:center;">
-
 <div class="day-switcher-bar" style="display:flex; justify-content:space-between; width:100%; max-width:700px; gap:12px; margin-top:0.5rem; flex-wrap:wrap;">
 <button onclick="goDay('155')" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font-mono);">← Previous Day (Day 155)</button>
 <a href="week22.html" style="padding:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); text-decoration:none; font-size:13px; font-family:var(--font-mono); display:inline-flex; align-items:center;">Next Week (Week 22) →</a>
@@ -3619,7 +3284,6 @@ if __name__ == '__main__':
 <button class="complete-btn" onclick="completeDay('156')">Mark Day 156 Complete ✓</button>
 </div></div>
 <!-- MASTER TOOLKIT (IF PRESENT) -->
-
 <div class="day-section" data-xp="500" id="day-toolkit">
 <div class="day-header">
 <div class="day-tag">WEEK 21 · MASTER RESOURCE KIT</div>
@@ -3701,14 +3365,12 @@ def merge_and_export_lora(base_model_path: str, adapter_path: str, output_path: 
     print("✓ Merging complete!")</pre>
 </div>
 </div>
-
 <div class="completion-box">
 <button class="complete-btn" onclick="completeDay('toolkit')">Mark Day toolkit Complete ✓</button>
 </div></div>
 <div class="completion-box">
 <button class="complete-btn" onclick="completeDay('155')">Mark Day 155 Complete ✓</button>
 </div>
-
 </main>
 </div>
 <!-- RUNTIME STATE & SCRIPTS -->
