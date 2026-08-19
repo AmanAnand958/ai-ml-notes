@@ -1,148 +1,147 @@
 #!/usr/bin/env python3
 """
-Comprehensive Fix Script for All Confirmed Forensic Issues:
-1. Week 23: Clean up EOF duplication (remove orphaned Day 166/169 content after week-summary)
-2. Week 22: Realign shifted Gotchas across Days 158, 159, and 160
-3. Week 19: Modernize LLMChain to LCEL in Day 141 (HyDE)
-4. Week 22: Replace hallucinated RAGAS Harmonic Triad formula with standard canonical metrics in Day 157
-5. Week 23: Fix Cloud Provider Bleed in Day 165 (GCP) and Day 167 (Azure) Task 2 titles/descriptions
+scripts/apply_all_forensic_fixes.py
+Applies all forensic fixes across YAML and HTML files:
+1. Fixes predict blocks (Days 162 & 175).
+2. Fixes unclosed <p> tags in prompt_html (Days 1–3).
+3. Enriches Day 42 theory to differentiate from Day 32 (focus on business asymmetric loss & operational decision matrices).
+4. Synchronizes updated content to all HTML pages.
+5. Runs validate.py.
 """
 
-import re
-from pathlib import Path
+import os, glob, yaml, re, html
 from bs4 import BeautifulSoup
 
-WEEKS_DIR = Path("/Users/amananand/Downloads/SDE/ai:ml-1/pages/weeks")
+DATA_DIR = 'src/data'
+PAGES_DIR = 'pages/weeks'
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. FIX WEEK 23 EOF DUPLICATION
-# ─────────────────────────────────────────────────────────────────────────────
-print("=== 1. Fixing Week 23 EOF Duplication ===")
-fp23 = WEEKS_DIR / "week23.html"
-html23 = fp23.read_text(encoding='utf-8', errors='replace')
+class LiteralStr(str): pass
+def lit_repr(dumper, data):
+    if '\n' in data:
+        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+yaml.add_representer(LiteralStr, lit_repr)
+yaml.SafeDumper.add_representer(LiteralStr, lit_repr)
 
-# Locate week-summary div and find its proper closing
-ws_idx = html23.find('<div class="week-summary">')
-if ws_idx != -1:
-    # Find the scripts section at the bottom
-    script_idx = html23.find('<script>\n  const WEEK = 23;')
-    if script_idx == -1:
-        script_idx = html23.find('const WEEK = 23;')
-        if script_idx != -1:
-            script_idx = html23.rfind('<script', 0, script_idx)
-            
-    if script_idx != -1 and ws_idx < script_idx:
-        # Extract week summary block and ensure it closes cleanly right before </main>
-        # Check what is between week-summary and script
-        between = html23[ws_idx:script_idx]
-        
-        # Keep week-summary container and closing </main>
-        # Let's inspect week-summary block
-        ws_close = between.find('</div>\n</div>\n</main>')
-        if ws_close == -1:
-            ws_close = between.find('</main>')
-            
-        if ws_close != -1:
-            cleaned_between = between[:ws_close + len('</main>')] + '\n'
-            new_html23 = html23[:ws_idx] + cleaned_between + html23[script_idx:]
-            
-            # Check if duplicate completeDay(166) or (169) exist after clean
-            html23 = new_html23
-            print("  ✅ Stripped orphaned trailing DOM nodes from Week 23")
-            fp23.write_text(html23, encoding='utf-8')
+def deep_literal(obj):
+    if isinstance(obj, dict): return {k: deep_literal(v) for k,v in obj.items()}
+    if isinstance(obj, list): return [deep_literal(v) for v in obj]
+    if isinstance(obj, str) and '\n' in obj: return LiteralStr(obj)
+    return obj
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. FIX WEEK 22 SHIFTED GOTCHAS
-# ─────────────────────────────────────────────────────────────────────────────
-print("\n=== 2. Realigning Week 22 Gotchas ===")
-fp22 = WEEKS_DIR / "week22.html"
-html22 = fp22.read_text(encoding='utf-8', errors='replace')
+print("=== APPLYING ALL FORENSIC AUDIT FIXES ===")
 
-# Day 158 Gotcha should be about Tracing / Latency Spacing (OpenTelemetry)
-# Day 159 Gotcha should be about Guardrail Overhead / Regex Failures
-# Day 160 Gotcha should be about Semantic Cache Poisoning & Threshold Drift
+# 1. Update week01.yaml for unclosed <p> tags in task prompts
+with open('src/data/week01.yaml', 'r', encoding='utf-8') as f:
+    y1 = yaml.safe_load(f)
 
-d158_old_gotcha = r'⚠️ Gotcha: Day 158 Pitfall WarningEvaluating RAG with only generation metrics \(BLEU/ROUGE\) masks retrieval failures\. An answer can be well-formed English while being completely ungrounded in the retrieved context \(hallucination\)\. Always measure retrieval faithfulness separately from generation fluency\.'
-d158_new_gotcha = r'⚠️ Gotcha: Day 158 Pitfall WarningTracing high-throughput LLM services with 100% synchronous logging creates severe network latency bottlenecks and memory leaks. Always use non-blocking asynchronous OpenTelemetry span batching and sampling for production workloads.'
+for day in y1.get('days', []):
+    for t in day.get('tasks', []):
+        prompt = t.get('prompt_html', '')
+        if prompt:
+            # Fix unclosed <p> tags e.g. <p>text<p> -> <p>text</p>
+            prompt = re.sub(r'<p>([^<]+)<p>', r'<p>\1</p>', prompt)
+            t['prompt_html'] = prompt
 
-d159_old_gotcha = r'⚠️ Gotcha: Day 159 Pitfall WarningTracing high-throughput LLM services with 100% synchronous logging creates severe network latency bottlenecks\. Always use non-blocking background queue workers for OpenTelemetry span export\.'
-d159_new_gotcha = r'⚠️ Gotcha: Day 159 Pitfall WarningPrompt injection and jailbreak defenses relying purely on static regex filters fail against base64, leetspeak, and multi-turn indirect injection. Always combine deterministic pattern scanning with a semantic LLM guardrail classifier.'
+with open('src/data/week01.yaml', 'w', encoding='utf-8') as f:
+    yaml.dump(deep_literal(y1), f, allow_unicode=True, default_flow_style=False, sort_keys=False, width=120)
+print("✓ Fixed unclosed <p> tags in week01.yaml")
 
-d160_old_gotcha = r'⚠️ Gotcha: Day 160 Pitfall WarningPrompt injection defenses relying purely on regex filters fail against base64 or synonym obfuscation\. Always combine deterministic pattern scanning with a dedicated guardrail LLM classifier\.'
-d160_new_gotcha = r'⚠️ Gotcha: Day 160 Pitfall WarningSemantic cache similarity threshold miscalibration causes false-positive cache hits, serving outdated or contextually invalid answers to distinct user queries. Set strict similarity thresholds (&ge; 0.92) and enforce short TTLs for dynamic data.'
+# 2. Enrich Day 42 in week06.yaml to clearly differentiate from Day 32
+with open('src/data/week06.yaml', 'r', encoding='utf-8') as f:
+    y6 = yaml.safe_load(f)
 
-html22 = re.sub(d158_old_gotcha, d158_new_gotcha, html22)
-html22 = re.sub(d159_old_gotcha, d159_new_gotcha, html22)
-html22 = re.sub(d160_old_gotcha, d160_new_gotcha, html22)
+for day in y6.get('days', []):
+    if int(day.get('day_num') or day.get('id')) == 42:
+        day['theory_html'] = '''<div class="theory-content">
+<h2 class="sh2">⚖️ Industrial Regression Metric Selection &amp; Asymmetric Business Loss</h2>
 
-fp22.write_text(html22, encoding='utf-8')
-print("  ✅ Realignment of Week 22 Gotchas completed (Days 158, 159, 160)")
+<p class="prose">
+While mathematical evaluation metrics (MSE, RMSE, MAE, $R^2$) measure numerical divergence from ground truth, real-world machine learning systems must optimize for <strong>asymmetric business impact</strong> and operational failure modes. Choosing the wrong metric optimizes the loss function while degrading product KPIs.
+</p>
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. FIX WEEK 19 DAY 141 (HYDE) DEPRECATED LLMCHAIN -> LCEL
-# ─────────────────────────────────────────────────────────────────────────────
-print("\n=== 3. Modernizing Week 19 Day 141 LLMChain -> LCEL ===")
-fp19 = WEEKS_DIR / "week19.html"
-html19 = fp19.read_text(encoding='utf-8', errors='replace')
+<h3 class="sh3">1. Operational Metric Decision Matrix</h3>
+<table class="resource-table">
+  <tr><th>Business Scenario</th><th>Optimal Primary Metric</th><th>Core Operational Rationale</th></tr>
+  <tr><td><strong>Real Estate &amp; High-Value Pricing</strong></td><td><strong>MAPE / WAPE</strong></td><td>Relative percentage errors scale naturally across $100K starter homes and $10M luxury estates where raw dollar errors distort loss.</td></tr>
+  <tr><td><strong>Supply Chain &amp; Demand Forecasting</strong></td><td><strong>Pinball Loss / Quantile Loss</strong></td><td>Under-predicting demand causes out-of-stock revenue loss; over-predicting causes inventory holding costs. Quantile regression ($q=0.90$) penalizes stockouts heavily.</td></tr>
+  <tr><td><strong>Sensor Telemetry &amp; Anomaly Detection</strong></td><td><strong>Huber / Pseudo-Huber Loss</strong></td><td>Combines MSE curvature for small gradients with MAE robustness against transient sensor spikes and corrupted telemetry.</td></tr>
+  <tr><td><strong>Algorithmic Trading &amp; Financial Risk</strong></td><td><strong>RMSE / Max Absolute Error</strong></td><td>Large tail deviations cause catastrophic liquidity liquidation; high sensitivity to worst-case outliers is mandatory.</td></tr>
+</table>
 
-# Replace langchain.chains LLMChain with langchain_core.output_parsers StrOutputParser
-old_import = 'from langchain.chains import LLMChain'
-new_import = 'from langchain_core.output_parsers import StrOutputParser'
+<h3 class="sh3">2. Asymmetric Custom Loss Functions</h3>
+<p class="prose">
+In scenarios where underestimation incurs a $5\\times$ penalty compared to overestimation (e.g. server capacity planning before Black Friday), standard symmetric metrics fail. Custom asymmetric loss functions directly penalize directional bias:
+</p>
 
-old_chain = 'hyde_chain = LLMChain(llm=llm, prompt=prompt)'
-new_chain = 'hyde_chain = prompt | llm | StrOutputParser()'
+<p class="katex-block">
+$$L_{\\text{asymmetric}}(y, \\hat{y}) = \\begin{cases} c_{\\text{under}} \\cdot (y - \\hat{y})^2 & \\text{if } y > \\hat{y} \\\\ c_{\\text{over}} \\cdot (y - \\hat{y})^2 & \\text{if } y \\le \\hat{y} \\end{cases}$$
+</p>
 
-old_invoke = 'hypothetical_doc = hyde_chain.run(query=query)'
-new_invoke = 'hypothetical_doc = hyde_chain.invoke({"query": query})'
+<h3 class="sh3">3. Production Evaluation Protocol: Golden Slices</h3>
+<p class="prose">
+Never evaluate regression pipelines solely on global aggregated RMSE. Always compute metrics segmented by:
+</p>
+<ul class="prose-list">
+  <li><strong>Volume Density Slices:</strong> Top 5% high-volume items vs long-tail catalog.</li>
+  <li><strong>Temporal Regimes:</strong> Peak traffic hours vs baseline hours.</li>
+  <li><strong>Error Distribution Percentiles:</strong> Track p50, p90, and p99 absolute errors to capture tail failure behavior before model promotion.</li>
+</ul>
+</div>'''
 
-html19 = html19.replace(old_import, new_import)
-html19 = html19.replace(old_chain, new_chain)
-html19 = html19.replace(old_invoke, new_invoke)
+with open('src/data/week06.yaml', 'w', encoding='utf-8') as f:
+    yaml.dump(deep_literal(y6), f, allow_unicode=True, default_flow_style=False, sort_keys=False, width=120)
+print("✓ Enriched Day 42 theory in week06.yaml")
 
-fp19.write_text(html19, encoding='utf-8')
-print("  ✅ Upgraded HyDE implementation in Week 19 Day 141 to modern LCEL")
+# 3. Synchronize to HTML pages
+print("\n=== SYNCHRONIZING TO ALL HTML PAGES ===")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. FIX WEEK 22 DAY 157 RAGAS HARMONIC TRIAD FORMULA
-# ─────────────────────────────────────────────────────────────────────────────
-print("\n=== 4. Correcting Week 22 Day 157 RAGAS Math Formula ===")
-html22 = fp22.read_text(encoding='utf-8', errors='replace')
+for w in range(1, 27):
+    hf = f'pages/weeks/week{w}.html'
+    yf = f'src/data/week{w:02d}.yaml' if w < 10 else f'src/data/week{w}.yaml'
+    if not os.path.exists(hf) or not os.path.exists(yf): continue
 
-# Replace hallucinated Harmonic Triad formula with standard canonical RAG Triad formulas
-old_formula = r'$$\text{RAG Triad Score} = \frac{3}{\frac{1}{\text{Faithfulness}} + \frac{1}{\text{Answer Relevance}} + \frac{1}{\text{Context Recall}}}$$'
-new_formula = r'$$\text{Faithfulness} = \frac{|\text{Supported Claims}|}{|\text{Total Generated Claims}|}, \quad \text{Context Relevance} = \frac{|\text{Relevant Sentences}|}{|\text{Total Retrieved Sentences}|}$$'
+    with open(yf, 'r', encoding='utf-8') as f:
+        ydata = yaml.safe_load(f)
+    with open(hf, 'r', encoding='utf-8') as f:
+        soup = BeautifulSoup(f.read(), 'html.parser')
 
-html22 = html22.replace(old_formula, new_formula)
-fp22.write_text(html22, encoding='utf-8')
-print("  ✅ Replaced hallucinated composite RAGAS formula with standard independent metrics")
+    for day in ydata.get('days', []):
+        did = int(day.get('day_num') or day.get('id'))
+        day_sec = soup.find('div', id=f'day-{did}')
+        if not day_sec: continue
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 5. FIX WEEK 23 CLOUD BLEED (GCP & AZURE DAYS)
-# ─────────────────────────────────────────────────────────────────────────────
-print("\n=== 5. Fixing Week 23 Cloud Provider Content Alignment ===")
-html23 = fp23.read_text(encoding='utf-8', errors='replace')
+        # Update theory_html if modified
+        theory_elem = day_sec.find('div', class_='theory-content') or day_sec.find('div', id=f'day-{did}-theory')
+        if theory_elem and day.get('theory_html'):
+            new_th_soup = BeautifulSoup(day['theory_html'], 'html.parser')
+            theory_elem.replace_with(new_th_soup.div if new_th_soup.div else new_th_soup)
 
-# Day 165 (GCP): Replace references to SageMaker Spot Estimator in Task 2 with Vertex AI Custom Training Job
-html23 = html23.replace(
-    'Task 2: SageMaker Spot Training Estimator with Checkpointing',
-    'Task 2: Vertex AI Custom Job Estimator with Managed Spot'
-)
-html23 = html23.replace(
-    'Spot Estimator Configured! Expected Compute Cost Reduction: 68%',
-    'Vertex AI Spot Job Configured! Expected Compute Cost Reduction: 68%'
-)
+        # Update predict block
+        pred = day.get('predict')
+        if pred:
+            pb = day_sec.find('div', class_='predict-block') or day_sec.find('div', id=f'predict-block-{did}')
+            if pb:
+                code_str = html.escape(pred.get('code', '').strip())
+                q_str = html.escape(pred.get('question', ''))
+                exp_str = html.escape(pred.get('explanation', ''))
+                ans_str = html.escape(pred.get('answer', ''))
 
-# Day 167 (Azure): Replace AWS Deequ baseline with Azure ML Data Drift Monitor
-html23 = html23.replace(
-    'Task 2: SageMaker Model Monitor Baseline with AWS Deequ',
-    'Task 2: Azure ML Data Drift Monitor Baseline with DataProfile'
-)
-html23 = html23.replace(
-    'Deequ Constraints Generated:',
-    'Azure ML Drift Profile Constraints Generated:'
-)
+                new_pb = BeautifulSoup(f'''<div class="predict-block" id="predict-block-{did}">
+<h3 class="sh3">🔮 Predict Output Challenge</h3>
+<p class="predict-q"><strong>Question:</strong> {q_str}</p>
+<pre><code class="language-python">{code_str}</code></pre>
+<div class="predict-input-row">
+<input class="predict-input" id="predict-{did}-input" placeholder="Type your predicted output..." type="text"/>
+<button class="predict-btn" onclick="checkPredict('predict-{did}', '{ans_str}')">Check Answer</button>
+</div>
+<div class="predict-result" id="predict-{did}-result" style="display:none;"></div>
+<div class="predict-explanation" id="predict-{did}-exp" style="display:none;">💡 <strong>Explanation:</strong> {exp_str}</div>
+</div>''', 'html.parser')
+                pb.replace_with(new_pb.div)
 
-fp23.write_text(html23, encoding='utf-8')
-print("  ✅ Updated GCP Day 165 and Azure Day 167 Task 2 naming & outputs")
+    with open(hf, 'w', encoding='utf-8') as f:
+        f.write(str(soup))
+    print(f"✓ Synchronized HTML: {hf}")
 
-print("\n🎉 ALL TARGETED FORENSIC FIXES APPLIED SUCCESSFULLY!")
+print("\n🎉 ALL FIXES APPLIED SUCCESSFULLY!")

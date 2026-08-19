@@ -2344,372 +2344,41 @@ days:
   analogy: Data leakage is like a student getting a copy of the final exam questions (test set) during homework study (training).
     Their study score looks amazing, but their true knowledge is unchecked. (This mirrors how Regression fundamentally operates.)
   theory_html: |-
-    <h2 class="sh2">🧠 Theory &amp; Concepts</h2>
-    <h3 class="sh3">
-           1. The Complete Regression Metric Toolkit
-          </h3><p style="margin: 0.8rem 0; font-size: 13.5px; line-height: 1.6;">Evaluating continuous regression models requires quantifying both absolute prediction deviations (Mean Absolute Error, MAE) and quadratically penalized outlier errors (Root Mean Squared Error, RMSE), benchmarked against the variance explained ratio ($R^2$ score).</p>
-    <div class="cb">
-    <div class="cb-head">
-    <span class="cb-lang">
-             python — all_metrics.py
-            </span>
-    <div class="cb-btns">
-    <button class="copy-btn" onclick="copyCode(this)">
-              copy
-             </button>
-    <button class="run-btn" onclick="runCode(this)" style="margin-left: 4px;">
-              Run
-             </button>
+    <div class="theory-content">
+    <h2 class="sh2">⚖️ Industrial Regression Metric Selection &amp; Asymmetric Business Loss</h2>
+
+    <p class="prose">
+    While mathematical evaluation metrics (MSE, RMSE, MAE, $R^2$) measure numerical divergence from ground truth, real-world machine learning systems must optimize for <strong>asymmetric business impact</strong> and operational failure modes. Choosing the wrong metric optimizes the loss function while degrading product KPIs.
+    </p>
+
+    <h3 class="sh3">1. Operational Metric Decision Matrix</h3>
+    <table class="resource-table">
+      <tr><th>Business Scenario</th><th>Optimal Primary Metric</th><th>Core Operational Rationale</th></tr>
+      <tr><td><strong>Real Estate &amp; High-Value Pricing</strong></td><td><strong>MAPE / WAPE</strong></td><td>Relative percentage errors scale naturally across $100K starter homes and $10M luxury estates where raw dollar errors distort loss.</td></tr>
+      <tr><td><strong>Supply Chain &amp; Demand Forecasting</strong></td><td><strong>Pinball Loss / Quantile Loss</strong></td><td>Under-predicting demand causes out-of-stock revenue loss; over-predicting causes inventory holding costs. Quantile regression ($q=0.90$) penalizes stockouts heavily.</td></tr>
+      <tr><td><strong>Sensor Telemetry &amp; Anomaly Detection</strong></td><td><strong>Huber / Pseudo-Huber Loss</strong></td><td>Combines MSE curvature for small gradients with MAE robustness against transient sensor spikes and corrupted telemetry.</td></tr>
+      <tr><td><strong>Algorithmic Trading &amp; Financial Risk</strong></td><td><strong>RMSE / Max Absolute Error</strong></td><td>Large tail deviations cause catastrophic liquidity liquidation; high sensitivity to worst-case outliers is mandatory.</td></tr>
+    </table>
+
+    <h3 class="sh3">2. Asymmetric Custom Loss Functions</h3>
+    <p class="prose">
+    In scenarios where underestimation incurs a $5\times$ penalty compared to overestimation (e.g. server capacity planning before Black Friday), standard symmetric metrics fail. Custom asymmetric loss functions directly penalize directional bias:
+    </p>
+
+    <p class="katex-block">
+    $$L_{\text{asymmetric}}(y, \hat{y}) = \begin{cases} c_{\text{under}} \cdot (y - \hat{y})^2 & \text{if } y > \hat{y} \\ c_{\text{over}} \cdot (y - \hat{y})^2 & \text{if } y \le \hat{y} \end{cases}$$
+    </p>
+
+    <h3 class="sh3">3. Production Evaluation Protocol: Golden Slices</h3>
+    <p class="prose">
+    Never evaluate regression pipelines solely on global aggregated RMSE. Always compute metrics segmented by:
+    </p>
+    <ul class="prose-list">
+      <li><strong>Volume Density Slices:</strong> Top 5% high-volume items vs long-tail catalog.</li>
+      <li><strong>Temporal Regimes:</strong> Peak traffic hours vs baseline hours.</li>
+      <li><strong>Error Distribution Percentiles:</strong> Track p50, p90, and p99 absolute errors to capture tail failure behavior before model promotion.</li>
+    </ul>
     </div>
-    </div>
-    <pre><code class="language-html"><span class="kw">import</span> numpy <span class="kw">as</span> np
-    <span class="kw">from</span> sklearn.metrics <span class="kw">import</span> (mean_squared_error, mean_absolute_error,
-                                  r2_score, mean_absolute_percentage_error)
-
-    <span class="cm"># House price prediction (in lakhs ₹)</span>
-    y_true = np.<span class="fn">array</span>([<span class="num">50</span>, <span class="num">80</span>, <span class="num">120</span>, <span class="num">200</span>, <span class="num">350</span>])
-    y_pred = np.<span class="fn">array</span>([<span class="num">55</span>, <span class="num">75</span>, <span class="num">130</span>, <span class="num">190</span>, <span class="num">280</span>])   <span class="cm"># reasonable predictions</span>
-    y_pred_outlier = np.<span class="fn">array</span>([<span class="num">55</span>, <span class="num">75</span>, <span class="num">130</span>, <span class="num">190</span>, <span class="num">50</span>])  <span class="cm"># 1 terrible prediction (350 vs 50)</span>
-
-    <span class="cm"># ── Core metrics ──────────────────────────────────────────────────</span>
-    mse   = np.<span class="fn">mean</span>((y_true - y_pred)**2)          <span class="cm"># Mean Squared Error</span>
-    rmse  = np.<span class="fn">sqrt</span>(mse)                             <span class="cm"># Root MSE — same unit as y</span>
-    mae   = np.<span class="fn">mean</span>(np.<span class="fn">abs</span>(y_true - y_pred))         <span class="cm"># Mean Absolute Error</span>
-    mape  = np.<span class="fn">mean</span>(np.<span class="fn">abs</span>((y_true - y_pred) / y_true)) * <span class="num">100</span>  <span class="cm"># % error</span>
-    r2    = <span class="fn">r2_score</span>(y_true, y_pred)                 <span class="cm"># R-squared</span>
-
-    <span class="fn">print</span>(<span class="str">"=== Normal Predictions ==="</span>)
-    <span class="fn">print</span>(<span class="str">f"  MSE  : {mse:.2f}    ← penalises large errors more"</span>)
-    <span class="fn">print</span>(<span class="str">f"  RMSE : {rmse:.2f}   ← same unit as y (lakhs)"</span>)
-    <span class="fn">print</span>(<span class="str">f"  MAE  : {mae:.2f}    ← robust to outliers"</span>)
-    <span class="fn">print</span>(<span class="str">f"  MAPE : {mape:.2f}%  ← percentage error (businesspeople love this)"</span>)
-    <span class="fn">print</span>(<span class="str">f"  R²   : {r2:.4f}    ← fraction of variance explained"</span>)
-
-    <span class="cm"># MSE vs MAE — outlier sensitivity</span>
-    mse_out  = np.<span class="fn">mean</span>((y_true - y_pred_outlier)**<span class="num">2</span>)
-    mae_out  = np.<span class="fn">mean</span>(np.<span class="fn">abs</span>(y_true - y_pred_outlier))
-    <span class="fn">print</span>(<span class="str">f"\n=== With 1 Outlier Prediction (350 → 50) ==="</span>)
-    <span class="fn">print</span>(<span class="str">f"  MSE change : {mse:.2f} → {mse_out:.2f}  ({(mse_out-mse)/mse*100:.0f}% increase!)"</span>)
-    <span class="fn">print</span>(<span class="str">f"  MAE change : {mae:.2f} → {mae_out:.2f}  ({(mae_out-mae)/mae*100:.0f}% increase — much less)"</span>)
-    <span class="cm"># MSE squares the outlier error (300²=90000) — gets dominated</span>
-    <span class="cm"># MAE just takes |error|=300 — stays proportional</span>
-
-    <span class="cm"># Adjusted R² — penalises unnecessary features</span>
-    n, p = <span class="num">100</span>, <span class="num">5</span>  <span class="cm"># 100 samples, 5 features</span>
-    r2_adj = <span class="num">1</span> - (<span class="num">1</span> - r2) * (n - <span class="num">1</span>) / (n - p - <span class="num">1</span>)
-    <span class="fn">print</span>(<span class="str">f"\nAdjusted R² (5 features, 100 samples): {r2_adj:.4f}"</span>)
-    <span class="cm"># Adjusted R² DECREASES when you add irrelevant features — R² never decreases</span></code></pre>
-    </div>
-    <h3 class="sh3">
-           2. R² — The Most Misunderstood Metric
-          </h3>
-    <div class="math-block">
-    <span class="formula">
-            $$R² = 1 − SS_res / SS_tot$$
-           </span>
-    <span class="desc">
-            SS_res = Σ(yᵢ − ŷᵢ)² (residual sum of squares — model error)
-           </span>
-    <span class="desc">
-            SS_tot = Σ(yᵢ − ȳ)² (total sum of squares — variance in data)
-           </span>
-    <span class="formula">
-            $$R² = 0: model no better than predicting the mean$$
-           </span>
-    <span class="formula">
-            $$R^2 &lt; 0 \text{: model WORSE than predicting the mean! (always possible with wrong model)}$$$
-           </span>
-    <span class="formula">
-            $$R² = 1: perfect predictions$$
-           </span>
-    </div>
-    <div class="table-wrap" style="overflow-x: auto; margin: 1.2rem 0; width: 100%;"><table class="concept-table">
-    <tr>
-    <th>
-             METRIC
-            </th>
-    <th>
-             FORMULA
-            </th>
-    <th>
-             UNIT
-            </th>
-    <th>
-             OUTLIER SENSITIVITY
-            </th>
-    <th>
-             BEST FOR
-            </th>
-    </tr>
-    <tr>
-    <td>
-    <strong>
-              MSE
-             </strong>
-    </td>
-    <td>
-             Σ(y−ŷ)²/n
-            </td>
-    <td>
-             y² (confusing!)
-            </td>
-    <td>
-             Very High (squares errors)
-            </td>
-    <td>
-             When large errors are very costly (structural engineering)
-            </td>
-    </tr>
-    <tr>
-    <td>
-    <strong>
-              RMSE
-             </strong>
-    </td>
-    <td>
-             √MSE
-            </td>
-    <td>
-             Same as y
-            </td>
-    <td>
-             High
-            </td>
-    <td>
-             Same as MSE but interpretable — most common
-            </td>
-    </tr>
-    <tr>
-    <td>
-    <strong>
-              MAE
-             </strong>
-    </td>
-    <td>
-             Σ|y−ŷ|/n
-            </td>
-    <td>
-             Same as y
-            </td>
-    <td>
-             Low (robust)
-            </td>
-    <td>
-             When outliers exist and large errors aren't catastrophic
-            </td>
-    </tr>
-    <tr>
-    <td>
-    <strong>
-              MAPE
-             </strong>
-    </td>
-    <td>
-             Σ|y−ŷ|/(y)/n × 100%
-            </td>
-    <td>
-             %
-            </td>
-    <td>
-             Medium (fails if y≈0)
-            </td>
-    <td>
-             Business reporting, demand forecasting (% error is intuitive)
-            </td>
-    </tr>
-    <tr>
-    <td>
-    <strong>
-              R²
-             </strong>
-    </td>
-    <td>
-             1 − SS_res/SS_tot
-            </td>
-    <td>
-             Unitless [−∞, 1]
-            </td>
-    <td>
-             High
-            </td>
-    <td>
-             Comparing models on same dataset. NOT across datasets.
-            </td>
-    </tr>
-    <tr>
-    <td>
-    <strong>
-              Adjusted R²
-             </strong>
-    </td>
-    <td>
-             1 − (1−R²)(n−1)/(n−p−1)
-            </td>
-    <td>
-             Unitless
-            </td>
-    <td>
-             High
-            </td>
-    <td>
-             Feature selection — penalises adding irrelevant features
-            </td>
-    </tr>
-    <tr>
-    <td>
-    <strong>
-              Huber Loss
-             </strong>
-    </td>
-    <td>
-             MSE if |e|≤δ, else MAE
-            </td>
-    <td>
-             Same as y²
-            </td>
-    <td>
-             Low (controlled)
-            </td>
-    <td>
-             When outliers exist but you still want MSE's differentiability
-            </td>
-    </tr>
-    </table></div>
-    <div class="cb">
-    <div class="cb-head">
-    <span class="cb-lang">
-             python — huber_loss.py
-            </span>
-    <div class="cb-btns">
-    <button class="copy-btn" onclick="copyCode(this)">
-              copy
-             </button>
-    <button class="run-btn" onclick="runCode(this)" style="margin-left: 4px;">
-              Run
-             </button>
-    </div>
-    </div>
-    <pre><code class="language-html"><span class="kw">import</span> numpy <span class="kw">as</span> np
-    <span class="kw">from</span> sklearn.linear_model <span class="kw">import</span> HuberRegressor
-
-    <span class="cm"># Huber Loss — combines MSE (smooth) and MAE (outlier-robust)</span>
-    <span class="cm"># δ (delta) is the threshold:</span>
-    <span class="cm"># |error| ≤ δ → use MSE (quadratic, differentiable, fast gradient)</span>
-    <span class="cm"># |error| &gt; δ → use MAE (linear, doesn't explode for huge errors)</span>
-
-    <span class="kw">def</span> <span class="fn">huber_loss</span>(y_true, y_pred, delta=<span class="num">1.35</span>):
-        errors = y_true - y_pred
-        is_small = np.<span class="fn">abs</span>(errors) &lt;= delta
-        huber = np.<span class="fn">where</span>(is_small,
-                         <span class="num">0.5</span> * errors**<span class="num">2</span>,
-                         delta * (np.<span class="fn">abs</span>(errors) - <span class="num">0.5</span> * delta))
-        <span class="kw">return</span> np.<span class="fn">mean</span>(huber)
-
-    y_true = np.<span class="fn">array</span>([<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>, <span class="num">40</span>, <span class="num">500</span>])  <span class="cm"># 500 is an outlier</span>
-    y_pred = np.<span class="fn">array</span>([<span class="num">12</span>, <span class="num">19</span>, <span class="num">31</span>, <span class="num">42</span>, <span class="num">100</span>])
-
-    mse_loss   = np.<span class="fn">mean</span>((y_true - y_pred)**<span class="num">2</span>)
-    mae_loss   = np.<span class="fn">mean</span>(np.<span class="fn">abs</span>(y_true - y_pred))
-    huber_val  = <span class="fn">huber_loss</span>(y_true, y_pred, delta=<span class="num">10</span>)
-
-    <span class="fn">print</span>(<span class="str">f"MSE loss   : {mse_loss:.1f}  ← dominated by the 500 outlier"</span>)
-    <span class="fn">print</span>(<span class="str">f"MAE loss   : {mae_loss:.1f}  ← balanced"</span>)
-    <span class="fn">print</span>(<span class="str">f"Huber loss : {huber_val:.1f}  ← in between"</span>)
-
-    <span class="cm"># sklearn's HuberRegressor — use when you have outliers in y</span>
-    <span class="kw">import</span> numpy <span class="kw">as</span> np
-    X_train = np.random.<span class="fn">randn</span>(<span class="num">100</span>, <span class="num">3</span>)
-    y_train = X_train[:, <span class="num">0</span>] * <span class="num">2</span> + np.random.<span class="fn">randn</span>(<span class="num">100</span>) * <span class="num">0.5</span>
-    y_train[<span class="num">0</span>] = <span class="num">100</span>  <span class="cm"># outlier</span>
-
-    huber_reg = <span class="fn">HuberRegressor</span>(epsilon=<span class="num">1.35</span>)  <span class="cm"># epsilon ≈ delta</span>
-    huber_reg.<span class="fn">fit</span>(X_train, y_train)
-    <span class="fn">print</span>(<span class="str">f"\nHuber coef (robust):   {huber_reg.coef_[0]:.3f}"</span>)  <span class="cm"># ≈ 2.0 despite outlier</span></code></pre>
-    </div>
-    <div class="interview">
-    <strong>
-            Classic interview scenario: "Your model has R²=0.95 on training data but R²=0.40 on test data. What happened and how do you fix it?"
-           </strong>
-    <br/>
-    <br/>
-    <strong>
-            Answer:
-           </strong>
-           Severe overfitting. Fix: regularization, more training data, reduce model complexity, add cross-validation for hyperparameter tuning. Never report training R² as model performance — always report test R² or cross-validated R².
-          </div>
-    <h2 class="sh2">
-           🔮 Predict the Output
-          </h2>
-    <h2 class="sh2">
-           🐛 Find the Bug
-          </h2>
-    <div class="debug-block">
-    <div class="debug-label">
-            DEBUG CHALLENGE — MAPE with zero values
-           </div>
-    <div class="cb">
-    <div class="cb-head">
-    <span class="cb-lang">
-              python — buggy code
-             </span>
-    <div class="cb-btns">
-    <button class="copy-btn" onclick="copyCode(this)">
-               copy
-              </button>
-    <button class="run-btn" onclick="runCode(this)" style="margin-left: 4px;">
-               Run
-              </button>
-    </div>
-    </div>
-    <pre><code class="language-html"><span class="kw">import</span> numpy <span class="kw">as</span> np
-    y_true = np.<span class="fn">array</span>([<span class="num">10</span>, <span class="num">0</span>, <span class="num">20</span>, <span class="num">15</span>, <span class="num">0</span>])  <span class="cm"># contains zeros!</span>
-    y_pred = np.<span class="fn">array</span>([<span class="num">12</span>, <span class="num">2</span>, <span class="num">18</span>, <span class="num">14</span>, <span class="num">1</span>])
-    mape = np.<span class="fn">mean</span>(np.<span class="fn">abs</span>((y_true - y_pred) / y_true)) * <span class="num">100</span>  <span class="cm"># Bug!</span>
-    <span class="fn">print</span>(<span class="str">f"MAPE: {mape:.2f}%"</span>)</code></pre>
-    </div>
-    <button class="solution-toggle" onclick="toggleSolution('debug42-sol')">
-            👁 Show Fix
-           </button>
-    <div class="solution-box" id="debug42-sol">
-    <div class="sol-header">
-             BUG EXPLAINED
-            </div>
-    <div class="cb">
-    <div class="cb-head">
-    <span class="cb-lang">
-               python — fixed
-              </span>
-    <div class="cb-btns">
-    <button class="copy-btn" onclick="copyCode(this)">copy</button><button class="run-btn" onclick="runCode(this)" style="margin-left: 4px;">Run</button></div>
-    </div>
-    <pre><code class="language-html"><span class="kw">import</span> numpy <span class="kw">as</span> np
-
-    <span class="cm"># BUG: Division by zero when y_true contains zeros.</span>
-    <span class="cm"># (y_true - y_pred) / y_true → 0/0 or x/0 → NaN or Inf.</span>
-    <span class="cm"># MAPE is not defined when actual value is zero — you can't compute %</span>
-    <span class="cm"># error relative to zero. np.mean([...inf, ...]) = inf.</span>
-    <span class="cm"># </span>
-    <span class="cm"># FIXES depending on context:</span>
-    <span class="cm"># 1. Filter out zero-true values (if 0 means "no demand" — skip it)</span>
-    <span class="cm"># 2. Use sMAPE (symmetric MAPE) — denominator = (|y| + |ŷ|)/2</span>
-    <span class="cm"># 3. Add a small epsilon to denominator</span>
-    <span class="cm"># 4. Use MAE or RMSE instead when data contains zeros</span>
-
-    <span class="cm"># Fix 1: Filter zeros</span>
-    mask = y_true != <span class="num">0</span>
-    mape_filtered = np.<span class="fn">mean</span>(np.<span class="fn">abs</span>((y_true[mask] - y_pred[mask]) / y_true[mask])) * <span class="num">100</span>
-    <span class="fn">print</span>(<span class="str">f"MAPE (filtered): {mape_filtered:.2f}%"</span>)
-
-    <span class="cm"># Fix 2: sMAPE (denominator never zero)</span>
-    smape = np.<span class="fn">mean</span>(<span class="num">2</span> * np.<span class="fn">abs</span>(y_true - y_pred) / (np.<span class="fn">abs</span>(y_true) + np.<span class="fn">abs</span>(y_pred) + <span class="num">1e-8</span>)) * <span class="num">100</span>
-    <span class="fn">print</span>(<span class="str">f"sMAPE: {smape:.2f}%"</span>)  <span class="cm"># safe — denominator always &gt; 0</span></code></pre>
-    </div>
-    </div>
-    </div>
-    <!-- /day-42-theory -->
-    <!-- /day-42-quiz-section -->
-    <!-- /day-42-tasks-section -->
-    <!-- /day-42-resources-section -->
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
     code: |-

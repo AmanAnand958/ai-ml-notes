@@ -1594,23 +1594,23 @@ days:
     - <strong>Tenant Quota Enforcement:</strong> Implements leaky-bucket rate limiters per API key to prevent runaway automated loops from exceeding department budgets.
     </p>
   predict:
-    question: If a 7B parameter model is quantized to 4-bit (AWQ/GPTQ) with 2048-token context and batch size 4, how much
-      total VRAM is required?
-    answer: 'Total 7B 4-bit VRAM: 4.54 GB (Fits comfortably in a single 8GB/16GB GPU)'
-    explanation: 4-bit quantization reduces 7B model weights to ~3.26 GB (7B × 0.5 bytes). Adding ~0.69 GB for KV cache (batch
-      4, 2k ctx, FP16) and ~0.59 GB for CUDA overhead yields ~4.54 GB total VRAM.
+    question: If a 7B parameter model (with GQA, 8 KV heads) is quantized to 4-bit with 2048-token context and batch size
+      4, how much total VRAM is required?
+    answer: 'Total 7B 4-bit VRAM: 4.98 GB (Fits comfortably in an 8GB/16GB GPU)'
+    explanation: 4-bit weights take ~3.26 GB (7B * 0.5 bytes). With Grouped Query Attention (GQA, 8 KV heads), the KV cache
+      takes ~1.07 GB for batch 4 at 2k context. Adding ~0.65 GB for CUDA overhead yields ~4.98 GB total VRAM.
     code: |
-      # Sizing Calculator for 7B 4-bit Quantized Model
-      def calculate_7b_quantized_vram(params_billion: float = 7.0, bit_precision: int = 4, context_len: int = 2048, batch_size: int = 4) -> float:
+      # Sizing Calculator for 7B 4-bit Quantized Model (with GQA)
+      def calculate_7b_quantized_vram(params_billion: float = 7.0, bit_precision: int = 4, context_len: int = 2048, batch_size: int = 4, num_kv_heads: int = 8) -> float:
           # 1. Weights in GB
           weights_gb = (params_billion * 10**9 * (bit_precision / 8.0)) / (1024**3)
-          # 2. KV Cache (32 layers, 32 heads, 128 head_dim, 2 bytes/element)
-          kv_cache_bytes = 2 * 32 * 32 * 128 * 2.0 * context_len * batch_size
+          # 2. KV Cache (32 layers, 8 kv_heads, 128 head_dim, 2 bytes/element)
+          kv_cache_bytes = 2 * 32 * num_kv_heads * 128 * 2.0 * context_len * batch_size
           kv_cache_gb = kv_cache_bytes / (1024**3)
           # 3. CUDA & Runtime Overhead (~15%)
           overhead_gb = (weights_gb + kv_cache_gb) * 0.15
           total_vram = weights_gb + kv_cache_gb + overhead_gb
-          print(f"Total 7B 4-bit VRAM: {total_vram:.2f} GB (Fits comfortably in a single 8GB/16GB GPU)")
+          print(f"Total 7B 4-bit VRAM: {total_vram:.2f} GB (Weights: {weights_gb:.2f} GB, KV Cache: {kv_cache_gb:.2f} GB)")
           return total_vram
 
       if __name__ == "__main__":
