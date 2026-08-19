@@ -222,72 +222,15 @@
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-125-theory">
-<div class="math-block">
-$$ \text{PodAvailability} = \frac{\text{Uptime}}{\text{Uptime} + \text{Downtime}} \ge 1 - \left(\frac{1}{2}\right)^{\text{Replicas}} $$
-<p class="math-caption">High Availability probability scaling with Kubernetes replicas.</p>
-</div><h3 class="sh3">Production Engineering Walkthrough: Kubernetes Basics for ML Deployments</h3><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_kubernetes_pod_manager.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-bash"># Day 125 — Production Kubernetes Pod Manager
-import subprocess, json, time, logging
-from typing import Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("K8sPodManager")
-
-class KubernetesPodManager:
-    """Production Kubernetes Pod lifecycle manager for ML workloads."""
-
-    def __init__(self, namespace: str = "ml-serving", context: Optional[str] = None):
-        self.namespace = namespace
-        self.ctx_flag = ["--context", context] if context else []
-
-    def _kubectl(self, *args: str) -&gt; Dict:
-        cmd = ["kubectl", *self.ctx_flag, "-n", self.namespace, *args]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode != 0:
-            raise RuntimeError(f"kubectl error: {result.stderr.strip()}")
-        return json.loads(result.stdout) if result.stdout.strip().startswith(("{", "[")) else {"output": result.stdout.strip()}
-
-    def get_pod_status(self, label_selector: str) -&gt; Dict[str, Any]:
-        pods = self._kubectl("get", "pods", "-l", label_selector, "-o", "json")
-        items = pods.get("items", [])
-        return {
-            "total":   len(items),
-            "running": sum(1 for p in items if p["status"]["phase"] == "Running"),
-            "pending": sum(1 for p in items if p["status"]["phase"] == "Pending"),
-            "failed":  sum(1 for p in items if p["status"]["phase"] == "Failed"),
-        }
-
-    def rollout_restart(self, deployment_name: str) -&gt; str:
-        result = self._kubectl("rollout", "restart", f"deployment/{deployment_name}")
-        logger.info(f"Triggered rollout restart: {deployment_name}")
-        return result.get("output", "")
-
-    def wait_for_rollout(self, deployment_name: str, timeout_sec: int = 120) -&gt; bool:
-        cmd = ["kubectl", *self.ctx_flag, "-n", self.namespace,
-               "rollout", "status", f"deployment/{deployment_name}", f"--timeout={timeout_sec}s"]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        success = result.returncode == 0
-        logger.info(f"Rollout {'succeeded' if success else 'FAILED'}: {deployment_name}")
-        return success
-
-    def scale_deployment(self, name: str, replicas: int) -&gt; bool:
-        self._kubectl("scale", f"deployment/{name}", f"--replicas={replicas}")
-        logger.info(f"Scaled {name} to {replicas} replicas")
-        return self.wait_for_rollout(name)
-
-if __name__ == "__main__":
-    mgr = KubernetesPodManager(namespace="ml-serving")
-    print("KubernetesPodManager ready — connects to active kubectl context")
-    print("Ops: get_pod_status, rollout_restart, wait_for_rollout, scale_deployment")
-    print("Test: kubectl get pods -l app=llm-api -n ml-serving")
-</code></pre>
-</div><p>
-When moving from local development to production container orchestration, sizing CPU and RAM allocations requires analyzing peak inference concurrency ($C$), average batch size ($B$), and resident memory for model weights ($M_{\text{weights}}$):
-</p><p>
-In containerized runtimes (Docker/Kubernetes), failing to account for payload serialization buffer overhead leads to immediate <code>OOMKilled</code> (Exit Code 137) container restarts under sudden traffic bursts.
-</p></div>
+<div class="mermaid">
+graph TD
+    Client["Client / Application Gateway"] --&gt; Ingress["K8s Ingress Controller (NGINX / Traefik)"]
+    Ingress --&gt; Service["K8s Service (ClusterIP: Load Balancer)"]
+    Service --&gt; Pod1["Pod 1: FastAPI + ONNX Runtime (GPU Node 1)"]
+    Service --&gt; Pod2["Pod 2: FastAPI + ONNX Runtime (GPU Node 1)"]
+    Service --&gt; Pod3["Pod 3: FastAPI + ONNX Runtime (GPU Node 2)"]
+    Pod1 &amp; Pod2 &amp; Pod3 --&gt; SharedVolume["Shared Persistent Volume (Model Weights Cache)"]
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -426,8 +369,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -718,43 +660,6 @@ print("✓ Kubernetes deployment specification verified.")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-126-theory">
-<h3 class="sh3">1. PaaS vs Managed K8s: Selecting Deployment Targets</h3>
-<p>
-Deploying machine learning models to production requires choosing the right compute infrastructure tier. While large enterprises run dedicated Kubernetes clusters (EKS, GKE), early-stage products, internal tools, and agile prototypes benefit enormously from <strong>Platform-as-a-Service (PaaS)</strong> environments like <strong>Render</strong>, <strong>Railway</strong>, and <strong>Fly.io</strong>.
-</p>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Dimension</th>
-<th style="padding:8px;">PaaS (Render / Railway)</th>
-<th style="padding:8px;">Kubernetes (EKS / GKE)</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Setup Overhead</strong></td>
-<td style="padding:8px;">Sub-10 minutes (Git push to deploy)</td>
-<td style="padding:8px;">Days to weeks (Cluster configuration, Helm, RBAC)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Maintenance Cost</strong></td>
-<td style="padding:8px;">Zero infrastructure maintenance</td>
-<td style="padding:8px;">Requires dedicated Platform / DevOps engineers</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>GPU Sizing</strong></td>
-<td style="padding:8px;">Fixed tiers (e.g. A10G, T4)</td>
-<td style="padding:8px;">Full elasticity (Multi-node H100, spot instances)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Best Fit</strong></td>
-<td style="padding:8px;">MVPs, internal APIs, standard Scikit/PyTorch models</td>
-<td style="padding:8px;">High-scale distributed LLM serving (10,000+ QPS)</td>
-</tr>
-</tbody>
-</table>
-<h3 class="sh3">2. Declarative Infrastructure as Code: <code>render.yaml</code></h3>
 <div class="cb">
 <div class="cb-head"><span class="cb-lang">yaml</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code>services:
@@ -770,7 +675,6 @@ Deploying machine learning models to production requires choosing the right comp
       - key: MODEL_STAGE
         value: production
     healthCheckPath: /health</code></pre>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -861,8 +765,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -1137,73 +1040,10 @@ print("✓ GitHub Actions CI/CD pipeline verified.")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-127-theory">
 <div class="math-block">
 $$ \mathcal{L}_{track}(\theta) = \sum_{t=1}^{T} \alpha_t \cdot \text{Loss}(\theta_t) + \lambda \cdot |\text{Drift}(\theta_t, \theta_0)| $$
 <p class="math-caption">Tracking optimization function balancing performance loss and model drift over time.</p>
-</div><h3 class="sh3">Production Engineering Walkthrough: MLOps Basics &amp; Experiment Tracking</h3><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_mlflow_tracker.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre>
-# Production implementation with validated runtime dependencies
-
-# Day 127 — Production MLflow Experiment Tracker
-import mlflow, time, logging, json
-from typing import Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("MLflowTracker")
-
-class MLflowExperimentTracker:
-    """Production MLflow tracking with auto-registration and stage promotion."""
-
-    def __init__(self, experiment_name: str, tracking_uri: str = "http://localhost:5000"):
-        mlflow.set_tracking_uri(tracking_uri)
-        mlflow.set_experiment(experiment_name)
-        self.experiment_name = experiment_name
-        self.client = mlflow.MlflowClient()
-
-    def log_training_run(self, params: Dict[str, Any], metrics: Dict[str, float],
-                          model, artifact_path: str = "model", run_name: str = "run") -&gt; str:
-        with mlflow.start_run(run_name=run_name) as run:
-            mlflow.log_params(params)
-            mlflow.log_metrics(metrics)
-            mlflow.sklearn.log_model(model, artifact_path=artifact_path,
-                                      registered_model_name=self.experiment_name)
-            run_id = run.info.run_id
-            logger.info(f"Run {run_id}: params={params}, metrics={metrics}")
-            return run_id
-
-    def promote_best_model(self, metric_key: str = "val_f1", stage: str = "Staging") -&gt; Optional[str]:
-        exp = self.client.get_experiment_by_name(self.experiment_name)
-        runs = self.client.search_runs(
-            experiment_ids=[exp.experiment_id],
-            order_by=[f"metrics.{metric_key} DESC"], max_results=1
-        )
-        if not runs:
-            logger.warning("No runs found to promote")
-            return None
-        versions = self.client.get_latest_versions(self.experiment_name, stages=["None"])
-        if not versions:
-            return None
-        v = versions[0]
-        self.client.transition_model_version_stage(self.experiment_name, v.version, stage)
-        logger.info(f"Promoted v{v.version} ({runs[0].info.run_id[:8]}) to {stage}")
-        return v.version
-
-    def get_production_model(self):
-        versions = self.client.get_latest_versions(self.experiment_name, stages=["Production"])
-        if not versions:
-            raise RuntimeError(f"No Production model for {self.experiment_name}")
-        return mlflow.pyfunc.load_model(f"models:/{self.experiment_name}/Production")
-
-if __name__ == "__main__":
-    print("MLflowExperimentTracker: connects to localhost:5000 by default")
-    print("Flow: log_training_run -&gt; promote_best_model(Staging) -&gt; promote(Production)")
-    print("Start server: mlflow server --host 0.0.0.0 --port 5000")
-</pre>
-</div><p>
-MLOps systems require a dual storage architecture: relational databases (PostgreSQL) manage user metadata, access tokens, and structured feature tables with strict ACID guarantees, while object stores (S3/GCS) store large immutable artifact blobs (serialized pickle models, ONNX graphs, and evaluation datasets). Storing model binaries directly inside relational rows introduces severe I/O bottlenecks during horizontal scaling.
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1302,8 +1142,7 @@ if __name__ == "__main__":
 <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
 </div>
 </div>
-<pre>
-import mlflow
+<pre>import mlflow
 import mlflow.sklearn
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
@@ -1374,8 +1213,7 @@ assert f1 is not None, "f1 should not be None"</pre>
 <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
 </div>
 </div>
-<pre>
-import mlflow
+<pre>import mlflow
 import pandas as pd
 
 client = mlflow.tracking.MlflowClient()
@@ -1625,90 +1463,10 @@ assert best_run is not None, "best_run should not be None"</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-128-theory">
 <div class="math-block">
 $$ R_{system} = 1 - \prod_{j=1}^{M} (1 - R_j) $$
 <p class="math-caption">Overall system reliability $R_{system}$ for parallel redundant components $M$.</p>
-</div><h3 class="sh3">Production Engineering Walkthrough: Capstone Part 1: Project Architecture Specification</h3><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_pipeline_architecture.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 128 — Capstone System Architecture Validator
-import time, hashlib, json, logging
-from typing import Dict, Any, List, Set
-from dataclasses import dataclass, field
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("CapstoneArchitecture")
-
-@dataclass
-class DataSplit:
-    name: str
-    ids: Set[int]
-
-    def checksum(self) -&gt; str:
-        return hashlib.md5(str(sorted(self.ids)).encode()).hexdigest()[:8]
-
-@dataclass
-class CapstoneBlueprint:
-    """Architecture validator: checks leakage, component coverage, and latency targets."""
-    project_name: str
-    target_latency_ms: float = 200.0
-    components: List[str] = field(default_factory=list)
-    data_splits: List[DataSplit] = field(default_factory=list)
-    _issues: List[str] = field(default_factory=list)
-
-    REQUIRED_COMPONENTS = {"FastAPI", "Docker", "MLflow"}
-
-    def validate_no_leakage(self) -&gt; bool:
-        if len(self.data_splits) &lt; 2:
-            return True
-        sets = [s.ids for s in self.data_splits]
-        names = [s.name for s in self.data_splits]
-        is_clean = True
-        for i in range(len(sets)):
-            for j in range(i+1, len(sets)):
-                overlap = sets[i] &amp; sets[j]
-                if overlap:
-                    self._issues.append(f"LEAKAGE: {len(overlap)} shared IDs in {names[i]}∩{names[j]}")
-                    is_clean = False
-        logger.info(f"Leakage check: {'PASS' if is_clean else 'FAIL'} ({len(self._issues)} issues)")
-        return is_clean
-
-    def validate_components(self) -&gt; bool:
-        missing = self.REQUIRED_COMPONENTS - set(self.components)
-        if missing:
-            self._issues.append(f"Missing required components: {missing}")
-        logger.info(f"Components: {len(self.components)} present, {len(missing)} missing")
-        return not missing
-
-    def architecture_report(self) -&gt; Dict[str, Any]:
-        return {
-            "project": self.project_name,
-            "components": self.components,
-            "splits": [{"name": s.name, "size": len(s.ids), "checksum": s.checksum()} for s in self.data_splits],
-            "target_latency_ms": self.target_latency_ms,
-            "issues": self._issues,
-            "status": "READY" if not self._issues else "BLOCKED",
-        }
-
-if __name__ == "__main__":
-    bp = CapstoneBlueprint(
-        project_name="Customer Churn Prediction API",
-        target_latency_ms=150.0,
-        components=["FastAPI", "XGBoost", "Redis", "MLflow", "Docker", "Render", "Gunicorn"],
-        data_splits=[
-            DataSplit("train", set(range(8000))),
-            DataSplit("val",   set(range(8000, 9000))),
-            DataSplit("test",  set(range(9000, 10000))),
-        ]
-    )
-    bp.validate_no_leakage()
-    bp.validate_components()
-    report = bp.architecture_report()
-    print(json.dumps(report, indent=2))
-    assert report["status"] == "READY", f"Blueprint issues: {report['issues']}"
-    print("CapstoneBlueprint validation: OK")
-</code></pre>
-</div></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1905,8 +1663,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -2130,25 +1887,28 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-129-theory">
-<h3 class="sh3">4. Model Explainability: TreeSHAP Feature Attribution</h3><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — src/explainability.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python">import shap
-import joblib
-import numpy as np
+<div class="cb">
+<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
+<pre><code><span class="kw">from</span> sklearn.compose <span class="kw">import</span> ColumnTransformer
+<span class="kw">from</span> sklearn.pipeline <span class="kw">import</span> Pipeline
+<span class="kw">from</span> sklearn.impute <span class="kw">import</span> SimpleImputer
+<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> StandardScaler, OneHotEncoder
 
-def generate_shap_audit_report(model_path: str, X_val):
-    model = joblib.load(model_path)
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X_val)
-    
-    # Calculate global mean absolute SHAP feature importance
-    mean_shap = np.abs(shap_values).mean(axis=0)
-    print("Top 5 Driving Features by SHAP Attribution:")
-    for rank, (feat, score) in enumerate(zip(X_val.columns[:5], mean_shap[:5]), 1):
-        print(f"  {rank}. {feat}: {score:.4f}")
-</code></pre>
-</div></div>
+num_pipe = Pipeline([
+    (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'median'</span>)),
+    (<span class="str">'scaler'</span>, StandardScaler())
+])
+
+cat_pipe = Pipeline([
+    (<span class="str">'imputer'</span>, SimpleImputer(strategy=<span class="str">'most_frequent'</span>)),
+    (<span class="str">'ohe'</span>, OneHotEncoder(handle_unknown=<span class="str">'ignore'</span>, sparse_output=<span class="kw">False</span>))
+])
+
+preprocessor = ColumnTransformer([
+    (<span class="str">'num'</span>, num_pipe, [<span class="str">'age'</span>, <span class="str">'income'</span>, <span class="str">'tenure'</span>]),
+    (<span class="str">'cat'</span>, cat_pipe, [<span class="str">'device_type'</span>, <span class="str">'region'</span>])
+])</code></pre>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2266,8 +2026,7 @@ print("✓ Scikit-Learn data preprocessing pipeline verified.")</pre>
 <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
 </div>
 </div>
-<pre>
-"""
+<pre>"""
 Production Implementation: Build Model Training Loop
 Module: Day 129 — Capstone Part 2: Model Training &amp; Core Pipeline
 """
@@ -2320,8 +2079,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -2545,11 +2303,6 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-130-theory">
-<h3 class="sh3">1. Packaging ML Models in FastAPI</h3>
-<p>
-FastAPI provides asynchronous request handling, automated OpenAPI documentation, and strict runtime type validation via Pydantic.
-</p>
 <div class="cb">
 <div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
 <pre><code><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, HTTPException
@@ -2568,7 +2321,6 @@ app = FastAPI(title=<span class="str">"Production ML Inference Service"</span>)
     features = np.array([[req.age, req.income, req.tenure]])
     prob = float(<span class="num">1.0</span> / (<span class="num">1.0</span> + np.exp(-(<span class="num">0.05</span> * req.age - <span class="num">0.0001</span> * req.income))))
     <span class="kw">return</span> {<span class="str">"risk_probability"</span>: round(prob, <span class="num">4</span>), <span class="str">"decision"</span>: <span class="str">"HIGH_RISK"</span> <span class="kw">if</span> prob &gt; <span class="num">0.5</span> <span class="kw">else</span> <span class="str">"NORMAL"</span>}</code></pre>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -2715,8 +2467,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -2940,76 +2691,10 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-131-theory">
 <div class="math-block">
 $$ P(\text{Healthy}) = \lim_{n \to \infty} \left(1 - \frac{1}{n}\right)^{\text{Retries}} = e^{-1} \approx 36.8\% \text{ (baseline)} $$
 <p class="math-caption">Probability analysis of health-check success over repeated polling intervals.</p>
-</div><h3 class="sh3">Production Engineering Walkthrough: Capstone Part 4: Cloud Deployment &amp; Frontend</h3><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_131_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 131 — Production Render/Railway Deployment Checker
-import subprocess, json, time, logging, os
-from typing import Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("DeploymentChecker")
-
-class RenderHealthChecker:
-    """
-    Checks live deployment health via HTTP polling.
-    Verifies /health endpoint after each deployment before marking as live.
-    """
-
-    def __init__(self, service_url: str, max_retries: int = 20, retry_delay: float = 15.0):
-        self.url = service_url.rstrip("/")
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
-
-    def check_health(self) -&gt; Dict[str, Any]:
-        import urllib.request, urllib.error
-        try:
-            t0 = time.perf_counter()
-            req = urllib.request.urlopen(f"{self.url}/health", timeout=10)
-            latency_ms = (time.perf_counter() - t0) * 1000
-            body = json.loads(req.read().decode())
-            return {"status": "healthy", "http_status": req.status,
-                    "body": body, "latency_ms": round(latency_ms, 1)}
-        except Exception as e:
-            return {"status": "unhealthy", "error": str(e)}
-
-    def wait_until_live(self) -&gt; bool:
-        for attempt in range(1, self.max_retries + 1):
-            result = self.check_health()
-            logger.info(f"Health check {attempt}/{self.max_retries}: {result['status']}")
-            if result["status"] == "healthy":
-                return True
-            time.sleep(self.retry_delay)
-        return False
-
-    def smoke_test(self, test_payload: Dict, endpoint: str = "/predict") -&gt; Dict:
-        import urllib.request, json
-        data = json.dumps(test_payload).encode()
-        req = urllib.request.Request(
-            f"{self.url}{endpoint}", data=data,
-            headers={"Content-Type": "application/json"}, method="POST"
-        )
-        try:
-            resp = urllib.request.urlopen(req, timeout=30)
-            return {"pass": True, "response": json.loads(resp.read().decode())}
-        except Exception as e:
-            return {"pass": False, "error": str(e)}
-
-if __name__ == "__main__":
-    print("RenderHealthChecker: HTTP-based deployment validation")
-    print("Flow: deploy → wait_until_live (poll /health) → smoke_test /predict")
-    # Simulate health check structure
-    mock_result = {"status": "healthy", "http_status": 200, "body": {"model": "loaded"}, "latency_ms": 42.3}
-    print(f"Mock health check: {mock_result}")
-    assert mock_result["status"] == "healthy"
-    print("RenderHealthChecker: OK")
-</code></pre>
-</div><p>
-Deploying container updates without dropping in-flight inference requests requires configuring readiness probes with appropriate initial delays. During deployment, the ingress load balancer only directs traffic to new pods after model weights are fully deserialized into memory and warm-up inference queries return <code>200 OK</code>.
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3093,43 +2778,11 @@ if __name__ == "__main__":
 <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
 </div>
 </div>
-<pre>"""
-Production Implementation: Deploy Container to Cloud
-Module: Day 131 — Capstone Part 4: Cloud Deployment &amp; Frontend
-"""
-
-#!/usr/bin/env bash
-# 1. Build optimized multi-stage Docker container
-docker build -t sentiment-analyzer:v1.0.0 -f Dockerfile .
-
-# 2. Test locally before deployment
-docker run -d -p 8000:8000 --name ml-test sentiment-analyzer:v1.0.0
-sleep 3
-curl -X POST http://localhost:8000/predict \
-     -H "Content-Type: application/json" \
-     -d '{"text": "The production deployment works smoothly with low latency!"}'
-
-docker stop ml-test &amp;&amp; docker rm ml-test
-
-# 3. Authenticate with Container Registry (e.g., DockerHub / AWS ECR / Render)
-echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-docker tag sentiment-analyzer:v1.0.0 $DOCKER_USERNAME/sentiment-analyzer:v1.0.0
-docker push $DOCKER_USERNAME/sentiment-analyzer:v1.0.0
-
-# 4. Trigger Webhook or CLI deploy to Render / Railway / Cloud Run
-curl -X POST "https://api.render.com/deploy/srv-xxxxxx?key=$RENDER_DEPLOY_KEY"
-
-# ── Self-Verifying Unit Test &amp; Execution Assertion Block ──
-if __name__ == '__main__':
-    print(f"Executing self-test suite for: Deploy Container to Cloud...")
-    try:
-        # Automated runtime integrity check
-        assert "Deploy Container to Cloud" != "", "Task title specification must be defined"
-        print("✓ All validation test assertions passed successfully!")
-    except Exception as err:
-        print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+<pre># Day 131 Task 1: Production Container Cloud Deployment
+docker build -t enterprise-ml-service:v1.0.0 -f Dockerfile .
+docker tag enterprise-ml-service:v1.0.0 registry.render.com/myorg/enterprise-ml-service:v1.0.0
+docker push registry.render.com/myorg/enterprise-ml-service:v1.0.0
+curl -f https://enterprise-ml-service.onrender.com/health || exit 1</pre>
 </div>
 </div>
 </div>
@@ -3430,7 +3083,6 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-132-theory">
 <h3 class="sh3">1. GitHub Repository Engineering Best Practices</h3>
 <p>
 Senior AI engineers structure repositories with clean separation of concerns:
@@ -3441,7 +3093,6 @@ Senior AI engineers structure repositories with clean separation of concerns:
 <li><code>tests/</code>: Pytest unit tests, schema validation tests, and mock API tests.</li>
 <li><code>.github/workflows/</code>: Automated CI/CD pipelines enforcing linting, testing, and Docker builds.</li>
 </ul>
-</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3559,8 +3210,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -3596,7 +3246,7 @@ Module: Day 132 — GitHub Portfolio Polish
 def generate_capstone_readme(project_name, github_repo, demo_url):
     return f"""# 🚀 {project_name}
 
-<a href="https://img.shields.io/badge/python-3.11-blue.svg" rel="noopener" target="_blank">![Python 3.11</a>](https://www.python.org/)
+&lt;a href="https://img.shields.io/badge/python-3.11-blue.svg" rel="noopener" target="_blank"&gt;![Python 3.11&lt;/a&gt;](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -3634,8 +3284,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -3859,69 +3508,12 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-133-theory">
-<h3 class="sh3">1. Anatomy of Production-Grade AI Engineering Artifacts</h3>
-<p>
-Hiring managers and staff engineers evaluate candidates based on their ability to produce maintainable, observable, and reproducible production artifacts. In enterprise environments, writing code is only 30% of the lifecycle; the remaining 70% revolves around <strong>Architecture Decision Records (ADRs)</strong>, <strong>Service Level Agreements (SLAs)</strong>, and <strong>Automated Incident Runbooks</strong>.
-</p>
 <div class="mermaid">
 graph LR
     Req["Business Requirement"] --&gt; ADR["Architecture Decision Record (ADR)\nDocuments Trade-offs &amp; Alternatives"]
     ADR --&gt; Code["Production Implementation\nClean Code + Type Hints + Unit Tests"]
     Code --&gt; Bench["Benchmarking Suite\nP95/P99 Latency &amp; Memory Profiling"]
     Bench --&gt; Runbook["Operations Runbook\nHealth Probes, Alerting &amp; Rollback Steps"]
-</div>
-<div class="diagram-cap">Figure 133.1: The Production Engineering Documentation &amp; Governance Lifecycle.</div>
-<h3 class="sh3">2. Quantifiable Impact Metrics in Engineering Portfolios</h3>
-<p>
-Engineers must articulate technical impact through concrete quantitative metrics rather than vague qualitative claims:
-</p>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Engineering Dimension</th>
-<th style="padding:8px;">Weak Formulation</th>
-<th style="padding:8px;">Production Formulation</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Serving Latency</strong></td>
-<td style="padding:8px;">"Made model inference faster using ONNX."</td>
-<td style="padding:8px;">"Reduced P99 latency from 320ms to 42ms (7.6x speedup) by exporting PyTorch weights to ONNX Runtime with INT8 dynamic quantization."</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>VRAM &amp; Compute</strong></td>
-<td style="padding:8px;">"Deployed LLM on GPU server."</td>
-<td style="padding:8px;">"Served Llama-3-8B using vLLM PagedAttention, increasing concurrency from 4 to 32 concurrent streams without GPU out-of-memory errors."</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Retrieval Precision</strong></td>
-<td style="padding:8px;">"Built RAG pipeline for company documents."</td>
-<td style="padding:8px;">"Implemented hybrid dense-sparse retrieval with RRF fusion and BGE reranking, improving RAGAS faithfulness from 0.71 to 0.94."</td>
-</tr>
-</tbody>
-</table>
-<h3 class="sh3">3. Standard Architecture Decision Record (ADR) Template</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">markdown — docs/adr/0002-hybrid-search-migration.md</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code># ADR 0002: Migration from Pure Dense Search to Hybrid RRF Search
-
-## Context &amp; Problem Statement
-Dense semantic embeddings failed on 18% of user queries containing SKU codes, error identifiers (e.g. ERR_0x800), and exact product names.
-
-## Decision Drivers
-- Need 99%+ exact match accuracy for technical identifiers.
-- Must preserve semantic synonym matching for natural language queries.
-- Query latency budget: &lt; 50ms at P95.
-
-## Considered Options
-1. Fine-tuning bi-encoder on domain vocabulary.
-2. Two-stage Hybrid Search (BM25 + Dense HNSW) fused with Reciprocal Rank Fusion (k=60).
-
-## Decision Outcome
-Chosen option: Option 2 (Hybrid RRF). Reduced retrieval failure rate by 82% with only +12ms P95 latency overhead.</code></pre>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -4082,7 +3674,7 @@ STAR_PROJECTS = {
 for title, star in STAR_PROJECTS.items():
     print(f"=== {title} ===")
     for k, v in star.items():
-        print(f"<strong>{k}</strong>: {v}")
+        print(f"&lt;strong&gt;{k}&lt;/strong&gt;: {v}")
     print()
 
 # ── Self-Verifying Unit Test &amp; Execution Assertion Block ──
@@ -4094,8 +3686,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -4319,11 +3910,6 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-134-theory">
-<h3 class="sh3">1. The ML System Design Defense Framework</h3>
-<p>
-Staff-level and Senior AI engineering interviews evaluate architectural maturity across 5 core lifecycle pillars: <strong>Data Ingestion &amp; Quality</strong>, <strong>Feature Processing</strong>, <strong>Offline Model Training &amp; Validation</strong>, <strong>Online Serving &amp; Caching</strong>, and <strong>Telemetry &amp; Drift Monitoring</strong>.
-</p>
 <div class="mermaid">
 graph TD
     Client["Client Traffic (Web / Mobile)"] --&gt; WAF["API Gateway / Rate Limiter"]
@@ -4333,69 +3919,6 @@ graph TD
     Serving --&gt; Log["Kafka Event Stream\n(Async Logging)"]
     Log --&gt; Drift["Evidently / Prometheus\n(KS-Test Drift Detector)"]
     Log --&gt; Lake["S3 Feature Lake &amp; Feedback Store"]
-</div>
-<div class="diagram-cap">Figure 134.1: End-to-End Enterprise ML System Design Architecture with Caching &amp; Drift Detection.</div>
-<h3 class="sh3">2. Production Failure Modes &amp; Defensive Mitigations</h3>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border);\ text-align:left;">
-<th style="padding:8px;">Failure Mode</th>
-<th style="padding:8px;">Root Cause</th>
-<th style="padding:8px;">Production Defensive Mitigation</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Training-Serving Skew</strong></td>
-<td style="padding:8px;">Features computed differently in batch SQL vs real-time Python API.</td>
-<td style="padding:8px;">Unified Feature Store (Feast / Hopsworks) with shared transform modules.</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Covariate / Data Drift</strong></td>
-<td style="padding:8px;">Input feature distribution (X)$ shifts over time while (Y|X)$ remains constant.</td>
-<td style="padding:8px;">Kolmogorov-Smirnov (KS) test and Population Stability Index (PSI &gt; 0.25 trigger automated retraining).</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Cold-Start Latency Spike</strong></td>
-<td style="padding:8px;">New container instances loading 10GB+ weights from remote storage during autoscale events.</td>
-<td style="padding:8px;">Pre-warmed Pod pools, node-local SSD weight caches, and aggressive readiness probe initial delays.</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>KV Cache OOM Crash</strong></td>
-<td style="padding:8px;">Concurrent long-context user queries saturating available GPU VRAM.</td>
-<td style="padding:8px;">PagedAttention virtual memory allocation and token-level chunked prefill.</td>
-</tr>
-</tbody>
-</table>
-<h3 class="sh3">3. Critical Architectural Trade-Off Decisions</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — system_design_calculator.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code>def estimate_serving_vram_and_cost(
-    model_params_billions: float,
-    precision_bytes: int,
-    concurrency: int,
-    max_seq_len: int,
-    gpu_vram_gb: float = 80.0
-) -&gt; dict:
-    """Calculates GPU allocation and KV cache capacity requirements."""
-    weight_mem_gb = model_params_billions * precision_bytes
-    # KV cache = 2 * n_layers * n_heads * head_dim * bytes * concurrency * seq_len
-    # Approximation for standard 70B transformer: ~1.2MB per token of context concurrency
-    kv_mem_gb = (concurrency * max_seq_len * 1.2e-3) / 1024
-    total_vram_gb = weight_mem_gb + kv_mem_gb
-    gpus_required = int(-(-total_vram_gb // gpu_vram_gb))
-    
-    return {
-        "weight_memory_gb": round(weight_mem_gb, 2),
-        "kv_cache_memory_gb": round(kv_mem_gb, 2),
-        "total_vram_required_gb": round(total_vram_gb, 2),
-        "minimum_80gb_gpus": gpus_required
-    }
-
-# Example: Serving 70B in FP16 with 32 concurrent 4096-token streams
-print(estimate_serving_vram_and_cost(70, 2, 32, 4096))
-# {'weight_memory_gb': 140.0, 'kv_cache_memory_gb': 153.6, 'total_vram_required_gb': 293.6, 'minimum_80gb_gpus': 4}</code></pre>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -4509,8 +4032,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -4792,98 +4314,10 @@ print("✓ Classical ML algorithms from scratch verified.")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-135-theory">
 <div class="math-block">
 $$ L_{p99} \approx \mu_{latency} + 2.33 \cdot \sigma_{latency} \le 200\text{ms} $$
 <p class="math-caption">Estimating P99 latency bounds under Gaussian assumption for system design.</p>
-</div><h3 class="sh3">Production Engineering Walkthrough: Mid-Course Milestone: MLOps &amp; System Design Architecture</h3><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_135_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 135 — Production End-to-End System Design Validator
-import time, logging, json
-from typing import Dict, Any, List
-from dataclasses import dataclass, field
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("SystemDesignValidator")
-
-@dataclass
-class DesignComponent:
-    name: str
-    latency_p99_ms: float
-    throughput_rps: float
-    sla_latency_ms: float = 200.0
-
-    @property
-    def passes_sla(self) -&gt; bool:
-        return self.latency_p99_ms &lt;= self.sla_latency_ms
-
-@dataclass
-class SystemDesignBlueprint:
-    """
-    Validates a full ML system design for:
-    - SLA compliance (P99 latency budget)
-    - Throughput capacity
-    - Bottleneck identification
-    - Missing components checklist
-    """
-    name: str
-    components: List[DesignComponent] = field(default_factory=list)
-    target_qps: float = 100.0
-    budget_latency_ms: float = 500.0
-
-    REQUIRED = ["load balancer", "cache", "model server", "monitoring", "database"]
-
-    def total_latency(self) -&gt; float:
-        return sum(c.latency_p99_ms for c in self.components)
-
-    def bottleneck(self) -&gt; DesignComponent:
-        return max(self.components, key=lambda c: c.latency_p99_ms) if self.components else None
-
-    def min_throughput(self) -&gt; float:
-        return min(c.throughput_rps for c in self.components) if self.components else 0
-
-    def validate(self) -&gt; Dict[str, Any]:
-        total = self.total_latency()
-        bottleneck = self.bottleneck()
-        min_tput = self.min_throughput()
-        missing = [r for r in self.REQUIRED if not any(r in c.name.lower() for c in self.components)]
-        sla_violations = [c for c in self.components if not c.passes_sla]
-        report = {
-            "system": self.name,
-            "total_p99_latency_ms": round(total, 1),
-            "latency_budget_ms": self.budget_latency_ms,
-            "latency_ok": total &lt;= self.budget_latency_ms,
-            "bottleneck": bottleneck.name if bottleneck else "none",
-            "min_throughput_rps": round(min_tput, 1),
-            "throughput_ok": min_tput &gt;= self.target_qps,
-            "missing_components": missing,
-            "sla_violations": [c.name for c in sla_violations],
-            "status": "PASS" if (total &lt;= self.budget_latency_ms and min_tput &gt;= self.target_qps and not missing) else "FAIL",
-        }
-        logger.info(f"Design validate: {report['status']} (latency={total:.0f}ms, tput={min_tput:.0f}rps)")
-        return report
-
-if __name__ == "__main__":
-    design = SystemDesignBlueprint(
-        name="RAG Production System",
-        target_qps=50.0,
-        budget_latency_ms=800.0,
-        components=[
-            DesignComponent("nginx load balancer", 2.0, 5000.0),
-            DesignComponent("redis cache",         5.0, 1000.0),
-            DesignComponent("faiss retriever",    20.0,  200.0),
-            DesignComponent("cross-encoder reranker", 40.0, 100.0),
-            DesignComponent("gpt-4o model server", 350.0, 80.0),
-            DesignComponent("prometheus monitoring", 0.0, 10000.0),
-            DesignComponent("postgresql database", 10.0, 500.0),
-        ]
-    )
-    report = design.validate()
-    print(json.dumps(report, indent=2))
-    assert report["total_p99_latency_ms"] == 427.0
-    print("SystemDesignBlueprint: OK")
-</code></pre>
-</div></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>

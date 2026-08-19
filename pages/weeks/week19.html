@@ -191,15 +191,6 @@
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-136-theory">
-<h3 class="sh3">1. The Information Retrieval Spectrum: Dense vs. Sparse</h3>
-<p>
-Modern enterprise information retrieval operates across two distinct search paradigms, each with fundamental mathematical and operational trade-offs:
-</p>
-<ul>
-<li><strong>Dense Semantic Retrieval (Bi-Encoders):</strong> Models like <code>text-embedding-3-large</code>, <code>bge-large-en-v1.5</code>, or <code>e5-mistral-7b-instruct</code> project arbitrary natural language passages into dense, continuous embedding spaces $\mathbb{R}^d$ ($d \in [768, 3072]$). Similarity is computed via vector dot product or cosine distance. Dense retrieval captures synonyms, conceptual abstractions, and cross-lingual semantics ("cardiac arrest" matches "heart attack"). However, dense retrieval routinely suffers from <strong>semantic drift on exact identifiers</strong>, model hallucination on out-of-vocabulary acronyms, part numbers (e.g. <code>SKU-8921-X</code>), and precise error codes (e.g. <code>0x80070005</code>).</li>
-<li><strong>Sparse Lexical Retrieval (BM25 &amp; Inverted Indexes):</strong> Okapi BM25 scores document relevance based on term frequency ($TF$), inverse document frequency ($IDF$), and document length normalization. BM25 guarantees deterministic precision on exact keyword tokens, rare technical terms, and proper nouns. However, BM25 fails completely on semantic paraphrases, vocabulary mismatch, and multi-word semantic intent.</li>
-</ul>
 <div class="mermaid">
 graph TD
     Query["User Query: 'Troubleshoot error 0x80070005 in Azure VM'"] --&gt; Fork{"Query Dispatcher"}
@@ -211,141 +202,6 @@ score = sum( 1 / (60 + rank_i) )"]
     RRF --&gt; TopK["Fused &amp; Deduplicated Candidates (Top 20)"]
     TopK --&gt; Reranker["Cross-Encoder Reranker (BGE-Reranker-Large)"]
     Reranker --&gt; FinalContext["Final Top-5 Grounded Contexts -&gt; LLM Context Window"]
-</div>
-<div class="diagram-cap">Figure 136.1: Enterprise Hybrid Search Architecture combining parallel lexical and dense retrieval with RRF and cross-encoder reranking.</div>
-<h3 class="sh3">2. BM25 Mathematical Formulation &amp; Sizing</h3>
-<p>
-The Okapi BM25 score of a document $D$ for a tokenized query $Q = \{q_1, q_2, \dots, q_n\}$ is computed as:
-</p>
-<div class="math-block">
-$$	ext{Score}_{	ext{BM25}}(D, Q) = \sum_{i=1}^n 	ext{IDF}(q_i) \cdot rac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot rac{|D|}{	ext{avgdl}}
-ight)}$$
-</div>
-<p>
-Where:
-</p>
-<ul>
-<li>$f(q_i, D)$ is the term frequency of token $q_i$ in document $D$.</li>
-<li>$|D|$ is the length of document $D$ in words, and $	ext{avgdl}$ is the average document length across the entire corpus.</li>
-<li>$k_1$ is the term frequency saturation parameter (typically $k_1 \in [1.2, 2.0]$). It controls how quickly additional occurrences of a term provide diminishing score returns.</li>
-<li>$b$ is the document length penalty parameter (typically $b = 0.75$). It penalizes overly verbose documents.</li>
-<li>$	ext{IDF}(q_i) = \ln \left( rac{N - n(q_i) + 0.5}{n(q_i) + 0.5} + 1 
-ight)$, where $N$ is total documents and $n(q_i)$ is the number of documents containing term $q_i$.</li>
-</ul>
-<h3 class="sh3">3. The Score Distribution Incompatibility Problem</h3>
-<p>
-Why can we not simply add raw BM25 scores and dense cosine scores together?
-</p>
-<ul>
-<li><strong>BM25 scores are unbounded positive reals $[0, \infty)$:</strong> A document with 10 matching query tokens in a small corpus might receive a BM25 score of <code>42.8</code>, while in a large corpus it receives <code>12.4</code>.</li>
-<li><strong>Cosine similarity scores are strictly bounded $[-1, 1]$ or $[0, 1]$:</strong> Dense vectors reside on a unit hypersphere where distances represent geometric angles.</li>
-</ul>
-<p>
-Attempting linear combination ($S_{	ext{hybrid}} = lpha S_{	ext{dense}} + (1-lpha) S_{	ext{BM25}}$) requires Min-Max or Z-score normalization calibrated on every query. However, because score variance fluctuates wildly based on query length and keyword rarity, linear weighting produces severe ranking instability in production.
-</p>
-<h3 class="sh3">4. Reciprocal Rank Fusion (RRF) Formulation</h3>
-<p>
-<strong>Reciprocal Rank Fusion (RRF)</strong> (Cormack et al., 2009) solves score incompatibility by discarding raw scalar values entirely and fusing candidates strictly based on their <strong>ordinal rank positions</strong> across retrieval lists:
-</p>
-<div class="math-block">
-$$	ext{RRFScore}(d \in D) = \sum_{m \in M} rac{1}{k + r_m(d)}$$
-</div>
-<p>
-Where:
-</p>
-<ul>
-<li>$M$ is the set of retrieval systems (e.g. $M = \{	ext{Dense Vector}, 	ext{Sparse BM25}\}$).</li>
-<li>$r_m(d) \in \{1, 2, \dots, K\}$ is the 1-based rank position of document $d$ in the output of system $m$. If document $d$ was not retrieved by system $m$, its reciprocal rank is $0$.</li>
-<li>$k$ is a rank smoothing constant (standard industry default is $k = 60$). The constant $k$ prevents the top-ranked item in one list from dominating candidates that appear consistently in top-5 positions across both lists.</li>
-</ul>
-<h3 class="sh3">5. Production Python Implementation: Vector + BM25 Hybrid Engine</h3>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Any
-<span class="kw">from</span> collections <span class="kw">import</span> defaultdict
-<span class="kw">import</span> math
-
-<span class="kw">class</span> <span class="fn">HybridSearchEngine</span>:
-    <span class="str">"""
-    Production-grade Hybrid Search with BM25 Lexical + Dense Cosine + RRF Fusion.
-    """</span>
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, k_rrf: int = <span class="num">60</span>):
-        self.k_rrf = k_rrf
-
-    <span class="kw">def</span> <span class="fn">reciprocal_rank_fusion</span>(
-        self,
-        dense_results: List[Dict[str, Any]],
-        sparse_results: List[Dict[str, Any]],
-        top_n: int = <span class="num">10</span>
-    ) -&gt; List[Dict[str, Any]]:
-        rrf_scores = defaultdict(float)
-        doc_store = {}
-
-        <span class="cm"># 1. Process Dense Candidate Rankings</span>
-        <span class="kw">for</span> rank, item <span class="kw">in</span> enumerate(dense_results, start=<span class="num">1</span>):
-            doc_id = item[<span class="str">'id'</span>]
-            rrf_scores[doc_id] += <span class="num">1.0</span> / (self.k_rrf + rank)
-            doc_store[doc_id] = item
-
-        <span class="cm"># 2. Process Sparse BM25 Candidate Rankings</span>
-        <span class="kw">for</span> rank, item <span class="kw">in</span> enumerate(sparse_results, start=<span class="num">1</span>):
-            doc_id = item[<span class="str">'id'</span>]
-            rrf_scores[doc_id] += <span class="num">1.0</span> / (self.k_rrf + rank)
-            doc_store[doc_id] = item
-
-        <span class="cm"># 3. Sort by aggregated RRF score descending</span>
-        sorted_ids = sorted(rrf_scores.keys(), key=<span class="kw">lambda</span> did: rrf_scores[did], reverse=<span class="kw">True</span>)
-
-        fused_output = []
-        <span class="kw">for</span> did <span class="kw">in</span> sorted_ids[:top_n]:
-            entry = dict(doc_store[did])
-            entry[<span class="str">'rrf_score'</span>] = round(rrf_scores[did], <span class="num">6</span>)
-            fused_output.append(entry)
-
-        <span class="kw">return</span> fused_output</code></pre>
-</div>
-<h3 class="sh3">6. Benchmark Performance Comparison</h3>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Retrieval Strategy</th>
-<th style="padding:8px;">Recall @ 10</th>
-<th style="padding:8px;">MRR @ 10</th>
-<th style="padding:8px;">p95 Latency</th>
-<th style="padding:8px;">Failure Modes</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Pure Dense (HNSW)</strong></td>
-<td style="padding:8px;">81.2%</td>
-<td style="padding:8px;">0.64</td>
-<td style="padding:8px;">12ms</td>
-<td style="padding:8px;">Fails on exact error codes, SKUs, and foreign acronyms.</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Pure Sparse (BM25)</strong></td>
-<td style="padding:8px;">73.5%</td>
-<td style="padding:8px;">0.58</td>
-<td style="padding:8px;">4ms</td>
-<td style="padding:8px;">Fails on synonyms, paraphrasing, and cross-lingual intent.</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Hybrid + RRF ($k=60$)</strong></td>
-<td style="padding:8px;"><strong>94.1%</strong></td>
-<td style="padding:8px;"><strong>0.79</strong></td>
-<td style="padding:8px;">18ms</td>
-<td style="padding:8px;">Requires maintaining both inverted index and vector storage.</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Hybrid + RRF + Cross-Encoder</strong></td>
-<td style="padding:8px;"><strong>97.8%</strong></td>
-<td style="padding:8px;"><strong>0.88</strong></td>
-<td style="padding:8px;">45ms</td>
-<td style="padding:8px;">GPU compute required for Stage-2 reranker model.</td>
-</tr>
-</tbody>
-</table>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -823,56 +679,16 @@ print("✓ Hybrid search pipeline verified.")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-137-theory">
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_cross_encoder_reranker.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 137 — Production Cross-Encoder Reranker (BGE-Reranker-Large)
-import time, logging
-from typing import List, Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("CrossEncoderReranker")
-
-class CrossEncoderReranker:
-    """Reranks bi-encoder candidates with BGE-Reranker-Large cross-attention scoring."""
-
-    def __init__(self, model_name: str = "BAAI/bge-reranker-large", batch_size: int = 32,
-                 max_length: int = 512):
-        from sentence_transformers import CrossEncoder
-        self.model = CrossEncoder(model_name, max_length=max_length)
-        self.batch_size = batch_size
-        logger.info(f"CrossEncoder loaded: {model_name}")
-
-    def rerank(self, query: str, candidates: List[Dict[str, Any]], top_n: int = 5) -&gt; List[Dict]:
-        """Score (query, doc_text) pairs and return top_n by cross-encoder relevance."""
-        t0 = time.perf_counter()
-        pairs = [(query, c["text"]) for c in candidates]
-        scores = self.model.predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
-        ranked = sorted(zip(candidates, scores.tolist()), key=lambda x: x[1], reverse=True)
-        results = [{"doc": doc, "ce_score": round(float(score), 4)} for doc, score in ranked[:top_n]]
-        elapsed = (time.perf_counter() - t0) * 1000
-        logger.info(f"Reranked {len(candidates)} → top-{top_n} in {elapsed:.1f}ms")
-        return results
-
-    def pipeline(self, query: str, retriever, top_k_retrieve: int = 50,
-                  top_n_rerank: int = 5, **retriever_kwargs) -&gt; List[Dict]:
-        """Full retrieve-then-rerank pipeline."""
-        candidates = retriever.search(query, top_k=top_k_retrieve, **retriever_kwargs)
-        return self.rerank(query, candidates, top_n=top_n_rerank)
-
-if __name__ == "__main__":
-    print("CrossEncoderReranker: BAAI/bge-reranker-large scores (query, doc) pairs")
-    print("Latency: ~5-15ms per batch of 32 pairs on GPU")
-    # Simulate reranking without model download
-    import random
-    candidates = [{"text": f"Document {i} discussing retrieval augmented generation"} for i in range(20)]
-    scores = [random.gauss(0, 1) for _ in candidates]
-    ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)[:5]
-    print(f"Simulated top-5: {[r[0]['text'][:30] for r in ranked]}")
-    assert len(ranked) == 5
-    print("CrossEncoderReranker: OK")
-</code></pre>
-</div></div>
+<div class="mermaid">
+graph LR
+    UserQuery["Query"] --&gt; BiEncoder["Stage 1: Bi-Encoder (HNSW Index)
+Scales to 10M+ documents
+Latency: 10ms"]
+    BiEncoder --&gt;|Top 50-100 Candidates| CrossEncoder["Stage 2: Cross-Encoder (Full Self-Attention)
+Scores (query, passage) pairs jointly
+Latency: 35ms"]
+    CrossEncoder --&gt;|Top 3-5 Relevant Chunks| ContextWindow["LLM Prompt Context Window"]
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1026,18 +842,34 @@ assert results is not None, "results should not be None"</pre>
           </button>
 </div>
 </div>
-<pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<pre># Day 137 Task 2: Cross-Encoder Joint-Scoring Reranker
+from typing import List, Dict
+import numpy as np
 
-<span class="kw">def</span> <span class="fn">cross_encoder_scoring</span>(query: str, passage: str) -&gt; float:
-    <span class="cm"># Concatenate [CLS] Query [SEP] Passage [SEP]</span>
-    tokens_q = <span class="fn">set</span>(query.<span class="fn">lower</span>().<span class="fn">split</span>())
-    tokens_p = <span class="fn">set</span>(passage.<span class="fn">lower</span>().<span class="fn">split</span>())
-    jaccard = <span class="fn">len</span>(tokens_q.<span class="fn">intersection</span>(tokens_p)) / <span class="fn">max</span>(<span class="num">1</span>, <span class="fn">len</span>(tokens_q.<span class="fn">union</span>(tokens_p)))
-    <span class="cm"># Calibrated probability output</span>
-    prob = <span class="num">1.0</span> / (<span class="num">1.0</span> + np.<span class="fn">exp</span>(- <span class="num">5.0</span> * (jaccard - <span class="num">0.2</span>)))
-<span class="kw">return</span> <span class="fn">round</span>(<span class="fn">float</span>(prob), <span class="num">4</span>)
+class CrossEncoderReranker:
+    """Simulates Cross-Encoder BERT joint self-attention scoring over (query, document) pairs."""
+    def score_pairs(self, query: str, documents: List[str]) -&gt; List[Dict]:
+        q_words = set(query.lower().split())
+        scored = []
+        for idx, doc in enumerate(documents):
+            d_words = doc.lower().split()
+            # Exact match + position weighting
+            match_score = sum(2.0 if w in q_words else 0.0 for w in d_words)
+            length_penalty = len(d_words) * 0.05
+            final_score = float(match_score - length_penalty)
+            scored.append({"doc_id": idx, "document": doc, "cross_score": round(final_score, 3)})
+        return sorted(scored, key=lambda x: x["cross_score"], reverse=True)
 
-<span class="fn">print</span>(<span class="str">"Cross-Encoder Relevance Score:", cross_encoder_scoring("What is LoRA?", "LoRA is Low-Rank Adaptation for LLM fine-tuning."</span>))</pre>
+reranker = CrossEncoderReranker()
+docs = [
+    "Qdrant supports hybrid search combining HNSW vector index and sparse BM25 vectors.",
+    "Python dictionaries use open-addressing hash tables for fast lookup.",
+    "Cross-encoders score query and document tokens jointly with full self-attention."
+]
+ranked = reranker.score_pairs("cross-encoder self-attention", docs)
+print("Top Reranked Document:", ranked[0]["document"])
+assert "Cross-encoders" in ranked[0]["document"]
+print("✓ Cross-encoder reranker verified.")</pre>
 </div>
 <div style="margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;">
 <strong>
@@ -1304,16 +1136,6 @@ print("✓ Cross-encoder reranker verified.")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-138-theory">
-<h3 class="sh3">1. The Chunking Granularity Trade-Off</h3>
-<p>
-In vector search pipelines, chunking converts long unstructured documents into discrete retrievable units. The selected chunk size creates an unavoidable tension:
-</p>
-<ul>
-<li><strong>Small Chunks (e.g. 128 tokens):</strong> Deliver high vector specificity and pinpoint retrieval accuracy, but strip away surrounding context, leaving the LLM unable to answer multi-sentence comprehension questions.</li>
-<li><strong>Large Chunks (e.g. 1024+ tokens):</strong> Preserve complete conversational context, but dilute vector embeddings because the embedding vector averages too many disparate topics ("lost in the middle" effect).</li>
-</ul>
-<h3 class="sh3">2. Advanced Chunking Paradigms</h3>
 <div class="mermaid">
 graph TD
     RawDoc["Raw Enterprise Document (PDF, Markdown, HTML)"] --&gt; Strategy{"Chunking Strategy"}
@@ -1325,46 +1147,6 @@ Return 1024-token parent chunk to LLM)"]
 between consecutive sentences)"]
     Strategy --&gt; DocStructure["3. Document-Aware Recursive Markdown
 (Split strictly on #, ##, ### headers, tables, code blocks)"]
-</div>
-<div class="diagram-cap">Figure 138.1: Advanced chunking methodologies resolving embedding dilution and context loss.</div>
-<h3 class="sh3">3. Parent-Child (Small-to-Big) Indexing Implementation</h3>
-<p>
-Parent-Child indexing solves the granularity dilemma cleanly by separating the <strong>indexing unit</strong> from the <strong>generation context unit</strong>:
-</p>
-<div class="cb">
-<div class="cb-head"><span class="cb-lang">python</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code><span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Any
-<span class="kw">import</span> uuid
-
-<span class="kw">class</span> <span class="fn">ParentChildChunker</span>:
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, parent_size: int = <span class="num">1024</span>, child_size: int = <span class="num">256</span>, overlap: int = <span class="num">32</span>):
-        self.parent_size = parent_size
-        self.child_size = child_size
-        self.overlap = overlap
-
-    <span class="kw">def</span> <span class="fn">chunk_document</span>(self, text: str) -&gt; Dict[str, Any]:
-        parents = []
-        children = []
-        words = text.split()
-        parent_step = self.parent_size - self.overlap
-        
-        <span class="kw">for</span> p_start <span class="kw">in</span> range(<span class="num">0</span>, len(words), parent_step):
-            p_words = words[p_start : p_start + self.parent_size]
-            parent_id = str(uuid.uuid4())
-            parent_text = <span class="str">" "</span>.join(p_words)
-            parents.append({<span class="str">'parent_id'</span>: parent_id, <span class="str">'text'</span>: parent_text})
-
-            child_step = self.child_size - self.overlap
-            <span class="kw">for</span> c_start <span class="kw">in</span> range(<span class="num">0</span>, len(p_words), child_step):
-                c_words = p_words[c_start : c_start + self.child_size]
-                children.append({
-                    <span class="str">'child_id'</span>: str(uuid.uuid4()),
-                    <span class="str">'parent_id'</span>: parent_id,
-                    <span class="str">'text'</span>: <span class="str">" "</span>.join(c_words)
-                })
-
-        <span class="kw">return</span> {<span class="str">'parents'</span>: parents, <span class="str">'children'</span>: children}</code></pre>
-</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -1542,8 +1324,7 @@ if __name__ == '__main__':
     for idx, c in enumerate(result_chunks, 1):
         print(f"  Chunk {idx}: {c}")
     assert len(result_chunks) == 2, "Semantic boundary detection failed"
-    print("✓ All semantic chunking assertions passed!")
-</pre>
+    print("✓ All semantic chunking assertions passed!")</pre>
 </div>
 </div>
 </div>
@@ -1813,7 +1594,6 @@ print("✓ Semantic boundary chunking verified.")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-139-theory">
 <h3 class="sh3">1. Exact vs Approximate Nearest Neighbors (ANN)</h3>
 <p>
 Exact search (<strong>Flat Index / FlatL2</strong>) performs exhaustive $O(N \cdot d)$ pairwise distance calculations. While recall is 100%, query latency scales linearly with dataset size ($N$), becoming unusable for datasets exceeding 1,000,000 vectors.
@@ -1868,7 +1648,6 @@ Production vector databases (Qdrant, Pinecone, Milvus) employ <strong>Approximat
 </tr>
 </tbody>
 </table>
-</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1984,8 +1763,7 @@ if __name__ == "__main__":
 <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
 </div>
 </div>
-<pre>
-# Solution for Task: HNSW in FAISS
+<pre># Solution for Task: HNSW in FAISS
 import faiss
 import numpy as np
 
@@ -2340,18 +2118,6 @@ print("✅ Vector indexing assertions passed")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-140-theory">
-<h3 class="sh3">1. The Point-Lookup Failure of Standard Vector RAG</h3>
-<p>
-Standard vector similarity retrieval is designed for <strong>local point lookups</strong>: queries that ask for specific, localized facts (e.g. <em>"What is the interest rate on loan #8812?"</em>). However, vector RAG fails completely on <strong>global aggregation and relational reasoning queries</strong>, such as:
-</p>
-<ul>
-<li><em>"What are the main systemic supply chain failure modes across all European vendor audits in 2024?"</em></li>
-<li><em>"How do the security vulnerabilities in the authentication service relate to the incidents reported by the payment gateway?"</em></li>
-</ul>
-<p>
-Because vector embeddings match against isolated chunks, no single chunk contains the macro-level answer. <strong>GraphRAG</strong> (developed by Microsoft Research) bridges this gap by extracting a knowledge graph of entities and relationships from the text, running community detection, and pre-generating hierarchical community summaries.
-</p>
 <div class="mermaid">
 graph TD
     RawDocs["Corpus Documents"] --&gt; LLMExtract["LLM Extraction Pipeline
@@ -2363,54 +2129,6 @@ Hierarchical Graph Partitioning (Levels C0, C1, C2)"]
 Pre-summarize each cluster with an LLM"]
     CommSummaries --&gt; GlobalSearch["Global Search Engine
 Query mapped to community summaries -&gt; Map-Reduce Synthesis"]
-</div>
-<div class="diagram-cap">Figure 140.1: GraphRAG Extraction, Leiden Clustering, and Hierarchical Community Summarization.</div>
-<h3 class="sh3">2. Leiden Community Detection &amp; Modularity Math</h3>
-<p>
-The Leiden algorithm partitions the entity graph into densely connected clusters by maximizing network <strong>modularity</strong> $\mathcal{H}$:
-</p>
-<div class="math-block">
-$$\mathcal{H} = rac{1}{2m} \sum_{i,j} \left( A_{ij} - \gamma rac{k_i k_j}{2m} 
-ight) \delta(\sigma_i, \sigma_j)$$
-</div>
-<p>
-Where $A_{ij}$ is the adjacency weight between entity $i$ and $j$, $k_i = \sum_j A_{ij}$ is the degree of node $i$, $m = rac{1}{2}\sum_{ij} A_{ij}$ is the total network edge weight, $\gamma$ is the resolution parameter, and $\delta(\sigma_i, \sigma_j) = 1$ if nodes $i, j$ belong to the same community $\sigma$.
-</p>
-<p>
-Hierarchical community levels allow GraphRAG to answer queries at different levels of abstraction:
-</p>
-<ul>
-<li><strong>Level C0 (Global Root):</strong> High-level thematic overview across the entire enterprise corpus.</li>
-<li><strong>Level C1 (Sub-domains):</strong> Department-level clusters (e.g. Risk, Legal, Platform Infrastructure).</li>
-<li><strong>Level C2 (Fine-grained):</strong> Specific incidents, code repositories, or individual projects.</li>
-</ul>
-<h3 class="sh3">3. GraphRAG vs Vector RAG Comparison Matrix</h3>
-<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
-<thead>
-<tr style="border-bottom:2px solid var(--border); text-align:left;">
-<th style="padding:8px;">Dimension</th>
-<th style="padding:8px;">Standard Vector RAG</th>
-<th style="padding:8px;">GraphRAG (Microsoft)</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Query Scope</strong></td>
-<td style="padding:8px;">Local specific facts ("Who signed contract X?")</td>
-<td style="padding:8px;">Global holistic themes ("What were top risks in 2024?")</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Ingestion Cost</strong></td>
-<td style="padding:8px;">Low ($O(N)$ embedding calls)</td>
-<td style="padding:8px;">High ($O(N)$ LLM entity extraction + community summaries)</td>
-</tr>
-<tr style="border-bottom:1px solid var(--border);">
-<td style="padding:8px;"><strong>Query Latency</strong></td>
-<td style="padding:8px;">10ms - 50ms</td>
-<td style="padding:8px;">200ms - 1.5s (Map-reduce over community summaries)</td>
-</tr>
-</tbody>
-</table>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -2904,11 +2622,6 @@ print("✅ GraphRAG assertions passed")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-141-theory">
-<h3 class="sh3">1. Query Reformulation Strategies in Enterprise RAG</h3>
-<p>
-User queries are frequently poorly formulated, ambiguous, or conceptually distant from the target document phrasing. <strong>Advanced Query Transformations</strong> rewrite, expand, or decompose the raw user prompt prior to vector index querying:
-</p>
 <div class="mermaid">
 graph TD
     RawPrompt["User Query"] --&gt; Transform{"Transformation Engine"}
@@ -2924,18 +2637,6 @@ Retrieve foundational background context"]
     Transform --&gt; SubQuery["4. Sub-Query Decomposition
 Decompose complex multi-hop question into sub-queries;
 Execute in parallel and synthesize"]
-</div>
-<div class="diagram-cap">Figure 141.1: The Four Core Query Transformation Pipelines.</div>
-<h3 class="sh3">2. Hypothetical Document Embeddings (HyDE) Formulation</h3>
-<p>
-HyDE (Gao et al., 2022) leverages an instruction-tuned LLM $M$ to synthesize a hypothetical document:
-</p>
-<div class="math-block">
-$$\hat{d} = M(q), \quad ec{v}_{	ext{query}} = 	ext{Embed}(\hat{d})$$
-</div>
-<p>
-Because $\hat{d}$ resides directly in the <em>document embedding manifold</em> (sharing document vocabulary, grammar, and structural tone), $ec{v}_{	ext{query}}$ achieves significantly higher cosine similarity with actual relevant documents than the short query vector $	ext{Embed}(q)$.
-</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -3024,31 +2725,24 @@ if __name__ == "__main__":
 <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
 </div>
 </div>
-<pre># Solution for Task: Step-Back Prompt
-from openai import OpenAI
+<pre># Day 141 Task 1: Advanced Query Decomposition Engine
+from typing import List, Dict
+import re
 
-class StepBackPromptingEngine:
-    def __init__(self):
-        self.client = OpenAI()
-        
-def generate_step_back_question(self, specific_query: str) -&gt; str:
-        prompt = f"""You are an expert prompt engineer. Given a specific user question, derive a higher-level 'step-back' question that addresses the underlying core principles and background theory.
+def decompose_complex_query(query: str) -&gt; List[str]:
+    """Decomposes a multi-intent query into atomic search sub-queries."""
+    sub_queries = []
+    # Split on coordinating conjunctions and comparative clauses
+    parts = re.split(r'\band\b|\bvs\b|\bcompared to\b|\bas well as\b', query, flags=re.IGNORECASE)
+    for p in parts:
+        cleaned = p.strip()
+        if len(cleaned) &gt; 5:
+            sub_queries.append(cleaned)
+    return sub_queries if sub_queries else [query]
 
-Specific Question: {specific_query}
-Step-Back Question:"""
-
-        res = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0
-        )
-return res.choices[0].message.content.strip()
-
-engine = StepBackPromptingEngine()\nuser_q = "Why does PyTorch throw a CUDA out of memory error during the backward pass of a 70B parameter model?"
-step_back_q = engine.generate_step_back_question(user_q)
-print(f"Original Query:  {user_q}")
-print(f"Step-Back Query: {step_back_q}")
-assert step_back_q is not None, "step_back_q should not be None"</pre>
+# Example execution
+test_q = "Compare BERT and Llama-3 performance on financial sentiment analysis"
+print(decompose_complex_query(test_q))</pre>
 </div>
 </div>
 </div>
@@ -3106,8 +2800,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -3322,86 +3015,10 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-142-theory">
 <div class="math-block">
 $$ \text{RRF}(d) = \sum_{r \in R} \frac{1}{k + \text{rank}_r(d)} $$
 <p class="math-caption">Reciprocal Rank Fusion score for document $d$ across multiple retrieval models $R$.</p>
-</div><h3 class="sh3">Production Engineering Walkthrough: Capstone: Production RAG</h3><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_142_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 142 — Production End-to-End RAG Pipeline
-import time, logging
-from typing import List, Dict, Any, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("RAGPipeline")
-
-class ProductionRAGPipeline:
-    """
-    Full production RAG pipeline:
-    Query → HyDE expansion → Hybrid retrieval → Cross-encoder rerank → LLM generation
-    with citation tracking and RAGAS evaluation logging.
-    """
-
-    def __init__(self, retriever, reranker, llm_client,
-                 top_k_retrieve: int = 50, top_n_rerank: int = 5,
-                 generation_model: str = "gpt-4o"):
-        self.retriever = retriever
-        self.reranker = reranker
-        self.llm = llm_client
-        self.top_k = top_k_retrieve
-        self.top_n = top_n_rerank
-        self.gen_model = generation_model
-
-    def _build_context(self, chunks: List[Dict]) -&gt; str:
-        parts = []
-        for i, chunk in enumerate(chunks, 1):
-            src = chunk.get("doc", {}).get("source", f"Source {i}")
-            parts.append(f"[{i}] {src}
-{chunk['doc']['text']}")
-        return "
-
-".join(parts)
-
-    def query(self, question: str, conversation_history: Optional[List] = None) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        # Step 1: Retrieve
-        candidates = self.retriever.search(question, top_k=self.top_k)
-        # Step 2: Rerank
-        reranked = self.reranker.rerank(question, candidates, top_n=self.top_n)
-        context = self._build_context(reranked)
-        # Step 3: Generate
-        messages = (conversation_history or []) + [
-            {"role": "system", "content": (
-                "You are a precise technical assistant. Answer based ONLY on the provided context. "
-                "Cite sources using [N] notation. If the context doesn't answer the question, say so."
-            )},
-            {"role": "user", "content": f"Context:
-{context}
-
-Question: {question}"},
-        ]
-        resp = self.llm.chat.completions.create(
-            model=self.gen_model, messages=messages, temperature=0.1, max_tokens=1024
-        )
-        answer = resp.choices[0].message.content
-        total_ms = (time.perf_counter() - t0) * 1000
-        result = {
-            "question": question, "answer": answer,
-            "sources": [r.get("doc", {}) for r in reranked],
-            "contexts": [r.get("doc", {}).get("text", "") for r in reranked],
-            "latency_ms": round(total_ms, 1),
-            "tokens_used": resp.usage.total_tokens,
-        }
-        logger.info(f"RAG query in {total_ms:.0f}ms: {resp.usage.total_tokens} tokens")
-        return result
-
-if __name__ == "__main__":
-    print("ProductionRAGPipeline: Requires retriever + reranker + OpenAI")
-    print("Pipeline: hybrid_search(top_k=50) → cross_encoder_rerank(top_n=5) → GPT-4o generation")
-    print("Output includes: answer, sources, contexts (for RAGAS), latency_ms, tokens_used")
-    print("RAGPipeline: OK")
-</code></pre>
-</div></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3532,8 +3149,7 @@ if __name__ == '__main__':
     prompt = pipeline.generate_context("How does PagedAttention optimize GPU RAM?", q_vec)
     print(prompt)
     assert "vLLM employs PagedAttention" in prompt
-    print("✓ Full production RAG pipeline validated!")
-</pre>
+    print("✓ Full production RAG pipeline validated!")</pre>
 </div>
 </div>
 </div>
@@ -3587,8 +3203,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>

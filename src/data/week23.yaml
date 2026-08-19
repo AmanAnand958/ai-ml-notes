@@ -20,11 +20,11 @@ days:
   - 'Apply: pip install sagemaker boto3.'
   checklist:
   - id: chk_164_1
-    text: Derive and analyze mathematical and architectural principles for AWS SageMaker — Training & Endpoints
+    text: Master the core concepts, mathematical principles, and architecture of AWS SageMaker — Training & Endpoints
   - id: chk_164_2
-    text: Build and benchmark production coding pipelines for AWS SageMaker — Training & Endpoints
+    text: 'Complete hands-on implementation and test assertions for Task 1: Custom Training Script'
   - id: chk_164_3
-    text: 'Execute and validate test verification suite for Task 1: Custom Training Script'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 164
   - id: chk_164_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -404,11 +404,11 @@ days:
   - 'Apply: pip install google-cloud-aiplatform.'
   checklist:
   - id: chk_165_1
-    text: Derive and analyze mathematical and architectural principles for GCP Vertex AI
+    text: Master the core concepts, mathematical principles, and architecture of GCP Vertex AI
   - id: chk_165_2
-    text: Build and benchmark production coding pipelines for GCP Vertex AI
+    text: 'Complete hands-on implementation and test assertions for Task 1: Gemini via Vertex SDK'
   - id: chk_165_3
-    text: 'Execute and validate test verification suite for Task 1: Gemini via Vertex SDK'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 165
   - id: chk_165_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -424,97 +424,43 @@ days:
   analogy: 'Vertex AI Pipelines is like an automated logistics rail network: every shipping container (Kubeflow component)
     runs on standardized tracks, with electronic manifests (Vertex ML Metadata) logging origin, cargo, and destination.'
   theory_html: |-
-    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-    $$ \text{AutoscalingPods} = \max\left(\text{MinReplicas}, \left\lceil \frac{\text{CurrentRPS}}{\text{TargetRPS\_per\_Pod}} \right\rceil \right) $$
-    <p class="math-caption">Target tracking autoscaling logic for Vertex AI model endpoints.</p>
-    </div><p>
-    </p><h3 class="sh3">Production Engineering Walkthrough: GCP Vertex AI</h3><p>
-    The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **GCP Vertex AI** in enterprise production systems:
-    </p><div class="cb">
-    <div class="cb-head"><span class="cb-lang">python — production_day_165_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-    <pre><code class="language-python"># Day 165 — Production Vertex AI Model Deployment Manager
-    import time, logging, json
-    from typing import Dict, Any, Optional, List
+    <div class="theory-content">
+    <h2 class="sh2">☁️ GCP Vertex AI: Managed Training &amp; Endpoint Serving</h2>
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    logger = logging.getLogger("VertexAIManager")
-
-    class VertexAIModelDeployer:
-        """
-        Production Vertex AI endpoint manager:
-        uploads model artifacts → creates endpoint → deploys with traffic split → monitors.
-        """
-
-        def __init__(self, project_id: str, region: str = "us-central1"):
-            from google.cloud import aiplatform
-            aiplatform.init(project=project_id, location=region)
-            self.project = project_id
-            self.region = region
-            self.ai = aiplatform
-            logger.info(f"Vertex AI initialized: project={project_id}, region={region}")
-
-        def upload_model(self, display_name: str, artifact_uri: str,
-                          serving_container: str = "us-docker.pkg.dev/vertex-ai/prediction/pytorch-gpu.1-13:latest",
-                          labels: Optional[Dict[str, str]] = None) -&gt; str:
-            model = self.ai.Model.upload(
-                display_name=display_name,
-                artifact_uri=artifact_uri,
-                serving_container_image_uri=serving_container,
-                labels=labels or {"team": "ml-platform"},
-            )
-            logger.info(f"Uploaded model: {model.resource_name}")
-            return model.resource_name
-
-        def create_endpoint(self, display_name: str) -&gt; str:
-            endpoint = self.ai.Endpoint.create(
-                display_name=display_name,
-                labels={"env": "production"}
-            )
-            logger.info(f"Created endpoint: {endpoint.resource_name}")
-            return endpoint.resource_name
-
-        def deploy(self, endpoint_name: str, model_name: str,
-                    machine_type: str = "n1-standard-4",
-                    accelerator: str = "NVIDIA_TESLA_T4", n_accelerators: int = 1,
-                    min_replicas: int = 1, max_replicas: int = 5,
-                    traffic_split: Optional[Dict[str, int]] = None) -&gt; Dict[str, Any]:
-            endpoint = self.ai.Endpoint(endpoint_name)
-            model = self.ai.Model(model_name)
-            deployed = endpoint.deploy(
-                model=model,
-                deployed_model_display_name="prod-deployment",
-                machine_type=machine_type,
-                accelerator_type=accelerator,
-                accelerator_count=n_accelerators,
-                min_replica_count=min_replicas,
-                max_replica_count=max_replicas,
-                traffic_split=traffic_split or {"0": 100},
-                enable_access_logging=True,
-            )
-            logger.info(f"Deployed model to endpoint: {endpoint_name}")
-            return {"endpoint": endpoint_name, "model": model_name, "machine": machine_type}
-
-        def predict(self, endpoint_name: str, instances: List[Dict]) -&gt; List[Dict]:
-            endpoint = self.ai.Endpoint(endpoint_name)
-            t0 = time.perf_counter()
-            predictions = endpoint.predict(instances=instances)
-            elapsed_ms = (time.perf_counter() - t0) * 1000
-            logger.info(f"Prediction: {len(instances)} instances in {elapsed_ms:.1f}ms")
-            return predictions.predictions
-
-    if __name__ == "__main__":
-        print("VertexAIModelDeployer: Requires google-cloud-aiplatform + GCP credentials")
-        print("Flow: upload_model → create_endpoint → deploy → predict")
-        print("Autoscaling: min_replicas=1, max_replicas=5, trigger=CPU 60%")
-        # Simulate traffic split (blue-green)
-        traffic = {"model_v1_id": 80, "model_v2_id": 20}
-        print(f"Blue-green split: {traffic}")
-        assert sum(traffic.values()) == 100
-        print("VertexAIModelDeployer: OK")
-    </code></pre>
-    </div><h3 class="sh3">SageMaker Distributed Training &amp; Spot Instance Checkpointing</h3><p>
-    Training large-scale deep learning models on AWS Spot GPU instances reduces compute costs by up to $70\%$. To survive sudden spot interruptions (2-minute warning notices), training loops must implement automated S3 state checkpointing: saving model weights, optimizer states, learning rate schedulers, and dataloader batch pointers to persistent S3 buckets.
+    <p class="prose">
+    <strong>Google Cloud Vertex AI</strong> unifies ML lifecycle workflows from data ingestion to serverless endpoint serving. It natively integrates with Google Kubernetes Engine (GKE), Google BigQuery, and NVIDIA GPU accelerators.
     </p>
+
+    <h3 class="sh3">1. Vertex AI Custom Training &amp; WorkerPool Architecture</h3>
+    <p class="prose">
+    Custom training jobs on Vertex AI run containerized workloads specified in Google Artifact Registry. Compute clusters are defined via <code>WorkerPoolSpec</code>:
+    </p>
+    <ul class="prose-list">
+      <li><strong>WorkerPool 0 (Primary Node):</strong> Orchestrates distributed training and saves model checkpoints to Cloud Storage (GCS).</li>
+      <li><strong>WorkerPool 1 (Worker Nodes):</strong> Executes parallel gradient compute via PyTorch DDP across NVIDIA L4 / A100 GPUs.</li>
+    </ul>
+
+    <h3 class="sh3">2. Vertex AI Pipelines &amp; Kubeflow Integration</h3>
+    <p class="prose">
+    Vertex AI Pipelines executes serverless ML workflows defined using the Kubeflow Pipelines (KFP) SDK. Each step runs as an isolated lightweight container with managed lineage tracking:
+    </p>
+    <div class="diagram-box">
+    <pre class="diagram-code">
+    [BigQuery Ingestion] ──► [Vertex Feature Store] ──► [Custom Training Job (L4 GPU)]
+                                                               │
+                                                    [Model Artifact in GCS]
+                                                               │
+                                                    [Vertex Model Registry]
+                                                               │
+                                                    [Vertex Endpoint (Autoscaled)]
+    </pre>
+    </div>
+
+    <h3 class="sh3">3. High-Throughput Endpoint Serving &amp; Traffic Splitting</h3>
+    <p class="prose">
+    Deploying to Vertex AI Endpoints supports zero-downtime blue/green deployments and canary traffic splits directly in the endpoint configuration, automatically scaling down to zero when idle if configured.
+    </p>
+    </div>
   predict:
     question: What string is output when Google Cloud Vertex AI Pipeline completes all DAG component executions?
     answer: PIPELINE_SUCCESS
@@ -790,11 +736,11 @@ days:
   - Deploy and configure Docker installed locally.
   checklist:
   - id: chk_166_1
-    text: Derive and analyze mathematical and architectural principles for Serverless ML with Lambda + API Gateway
+    text: Master the core concepts, mathematical principles, and architecture of Serverless ML with Lambda + API Gateway
   - id: chk_166_2
-    text: Build and benchmark production coding pipelines for Serverless ML with Lambda + API Gateway
+    text: Complete hands-on implementation and test assertions for Deploy Serverless Container on AWS Lambda
   - id: chk_166_3
-    text: Execute and validate test verification suite for Deploy Serverless Container on AWS Lambda
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 166
   - id: chk_166_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -811,91 +757,33 @@ days:
   analogy: 'Serverless ML with AWS Lambda is like calling a taxi on demand: the car arrives when you hail it, takes you to
     your destination, and departs. You never pay for parking, insurance, or maintenance while the car sits idle in a garage.'
   theory_html: |-
-    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-    $$ \text{ColdStartPenalty} = \mathbb{I}(\text{ContainerInit}) \cdot \left( t_{\text{download}} + t_{\text{load\_weights}} \right) $$
-    <p class="math-caption">Latency penalty equation for serverless AWS Lambda inference cold starts.</p>
-    </div><p>
-    </p><h3 class="sh3">Production Engineering Walkthrough: Serverless ML with Lambda + API Gateway</h3><p>
-    The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Serverless ML with Lambda + API Gateway** in enterprise production systems:
-    </p><div class="cb">
-    <div class="cb-head"><span class="cb-lang">python — production_day_166_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-    <pre>
-    # Production implementation with validated runtime dependencies
-    # Day 166 — Production AWS Lambda ML Inference Function
-    import json, logging, os, time
-    from typing import Dict, Any
+    <div class="theory-content">
+    <h2 class="sh2">⚡ Serverless ML Inference: AWS Lambda &amp; API Gateway</h2>
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    logger = logging.getLogger("LambdaInference")
-
-    # Module-level model loading (persists across warm invocations)
-    _model = None
-    _tokenizer = None
-
-    def _load_model():
-        """Load model from EFS or S3 — called once per Lambda container lifecycle."""
-        global _model, _tokenizer
-        if _model is not None:
-            return  # already loaded (warm start)
-        import torch
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
-        model_dir = os.environ.get("MODEL_DIR", "/mnt/efs/models/classifier")
-        t0 = time.time()
-        _tokenizer = AutoTokenizer.from_pretrained(model_dir)
-        _model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-        _model.eval()
-        logger.info(f"Model loaded from {model_dir} in {time.time()-t0:.1f}s (cold start)")
-
-    def handler(event: Dict[str, Any], context) -&gt; Dict[str, Any]:
-        """AWS Lambda handler: validates input → infers → returns structured response."""
-        t0 = time.perf_counter()
-        try:
-            _load_model()  # no-op on warm start
-            # Parse request body
-            body = json.loads(event.get("body", "{}")) if isinstance(event.get("body"), str) else event.get("body", event)
-            if "text" not in body:
-                return _error(400, "Missing 'text' field in request body")
-            text = body["text"]
-            if len(text) &gt; 10000:
-                return _error(413, "Text exceeds 10,000 character limit")
-            # Inference
-            import torch
-            inputs = _tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
-            with torch.no_grad():
-                logits = _model(**inputs).logits
-            probs = torch.softmax(logits, dim=-1).tolist()[0]
-            pred_label = _model.config.id2label[int(logits.argmax())]
-            latency_ms = (time.perf_counter() - t0) * 1000
-            logger.info(f"Inference: {pred_label} ({max(probs):.3f}) in {latency_ms:.1f}ms")
-            return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({
-                    "prediction": pred_label, "probabilities": probs,
-                    "latency_ms": round(latency_ms, 1)
-                })
-            }
-        except Exception as e:
-            logger.error(f"Lambda error: {e}", exc_info=True)
-            return _error(500, str(e))
-
-    def _error(code: int, msg: str) -&gt; Dict:
-        return {"statusCode": code, "body": json.dumps({"error": msg})}
-
-    if __name__ == "__main__":
-        # Simulate a Lambda invocation without real model
-        print("Lambda Inference Handler: model loaded at cold start, cached for warm invocations")
-        print("Key: MODULE-LEVEL _model variable persists across requests in same container")
-        # Test input validation
-        bad_event = {"body": json.dumps({"input": "wrong key"})}
-        result = handler(bad_event, None)
-        print(f"Missing 'text' → status {result['statusCode']}: {json.loads(result['body'])}")
-        assert result["statusCode"] == 400
-        print("LambdaInferenceHandler: OK")
-    </pre>
-    </div><h3 class="sh3">SageMaker Multi-Model Endpoints (MME) Memory Management</h3><p>
-    Multi-Model Endpoints allow hosting hundreds of fine-tuned models on a single GPU cluster. SageMaker dynamically loads target model weights into GPU VRAM on first request and evicts least-recently-used (LRU) model weights when memory pressure approaches threshold limits.
+    <p class="prose">
+    Serverless inference provides extreme cost efficiency for bursty or low-traffic ML workloads by scaling from zero to thousands of concurrent requests with sub-second billing.
     </p>
+
+    <h3 class="sh3">1. Lambda Container Packaging (10GB Image Support)</h3>
+    <p class="prose">
+    Standard zip deployment packages in Lambda are capped at 250MB (unzipped), which is insufficient for PyTorch or ONNX Runtime. Packaging Lambda functions as <strong>Docker container images</strong> uploaded to Amazon ECR provides up to 10GB of storage for model weights and dependencies.
+    </p>
+
+    <h3 class="sh3">2. Cold Start Mitigation &amp; Provisioned Concurrency</h3>
+    <p class="prose">
+    ML models incur significant cold start latency during weight loading and framework initialization. Key mitigation strategies:
+    </p>
+    <ul class="prose-list">
+      <li><strong>Provisioned Concurrency:</strong> Keeps pre-warmed execution environments ready, reducing latency from 3500ms to &lt;25ms.</li>
+      <li><strong>Memory / vCPU Scaling:</strong> Lambda allocates CPU power proportionally to RAM. Allocating 1,769 MB gives exactly 1 full vCPU thread; allocating 3,008 MB gives 2 vCPUs.</li>
+      <li><strong>ONNX Runtime Optimization:</strong> Converting PyTorch models to ONNX reduces container binary overhead by 70% and accelerates CPU inference via OpenVINO/MKL-DNN.</li>
+    </ul>
+
+    <h3 class="sh3">3. API Gateway REST &amp; HTTP Routing</h3>
+    <p class="prose">
+    Amazon API Gateway sits in front of Lambda to handle TLS termination, request validation, rate limiting (token bucket), and API key management with payload compression.
+    </p>
+    </div>
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
     code: |-
@@ -1176,11 +1064,11 @@ days:
   - 'Apply: pip install openai.'
   checklist:
   - id: chk_167_1
-    text: Derive and analyze mathematical and architectural principles for Azure OpenAI Service
+    text: Master the core concepts, mathematical principles, and architecture of Azure OpenAI Service
   - id: chk_167_2
-    text: Build and benchmark production coding pipelines for Azure OpenAI Service
+    text: 'Complete hands-on implementation and test assertions for Task 1: LangChain with Azure · MEDIUM'
   - id: chk_167_3
-    text: 'Execute and validate test verification suite for Task 1: LangChain with Azure · MEDIUM'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 167
   - id: chk_167_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -1198,93 +1086,32 @@ days:
     public street (VNet Peering), access is strictly biometric (Managed Identities), and you have a guaranteed dedicated teller
     (PTUs).'
   theory_html: |-
-    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-    $$ \text{RateLimitBuffer} = \max\left(0, \text{Tokens}_{\text{requested}} - \text{TPM}_{\text{limit}} \cdot \frac{\text{TimeWindow}}{60} \right) $$
-    <p class="math-caption">Token bucket algorithm estimation for Enterprise LLM rate limit planning.</p>
-    </div><p>
-    </p><h3 class="sh3">Production Engineering Walkthrough: Azure OpenAI Service</h3><p>
-    The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Azure OpenAI Service** in enterprise production systems:
-    </p><div class="cb">
-    <div class="cb-head"><span class="cb-lang">python — production_day_167_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-    <pre><code class="language-python"># Day 167 — Production Azure OpenAI Enterprise Client
-    import time, logging, json
-    from typing import Dict, Any, List, Optional
-    import os
+    <div class="theory-content">
+    <h2 class="sh2">🛡️ Azure OpenAI Service: Enterprise Deployment &amp; Security</h2>
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    logger = logging.getLogger("AzureOpenAIClient")
-
-    class AzureOpenAIEnterpriseClient:
-        """
-        Production Azure OpenAI client with:
-        - Managed identity authentication (no API key in code)
-        - Exponential backoff on 429 rate limits
-        - Content filtering response handling
-        - Token usage tracking
-        """
-
-        def __init__(self, endpoint: str, deployment: str = "gpt-4o",
-                     api_version: str = "2024-02-01", use_managed_identity: bool = True):
-            from openai import AzureOpenAI
-            from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-            if use_managed_identity:
-                credential = DefaultAzureCredential()
-                token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
-                self.client = AzureOpenAI(azure_endpoint=endpoint, api_version=api_version,
-                                           azure_ad_token_provider=token_provider)
-            else:
-                self.client = AzureOpenAI(azure_endpoint=endpoint, api_version=api_version,
-                                           api_key=os.environ["AZURE_OPENAI_API_KEY"])
-            self.deployment = deployment
-            self._usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_cost_usd": 0.0}
-
-        def complete(self, messages: List[Dict], max_tokens: int = 1024, temperature: float = 0.0,
-                      max_retries: int = 5) -&gt; Dict[str, Any]:
-            for attempt in range(max_retries):
-                try:
-                    t0 = time.perf_counter()
-                    resp = self.client.chat.completions.create(
-                        model=self.deployment, messages=messages,
-                        max_tokens=max_tokens, temperature=temperature
-                    )
-                    latency_ms = (time.perf_counter() - t0) * 1000
-                    self._usage["prompt_tokens"] += resp.usage.prompt_tokens
-                    self._usage["completion_tokens"] += resp.usage.completion_tokens
-                    # Content filter check
-                    finish_reason = resp.choices[0].finish_reason
-                    if finish_reason == "content_filter":
-                        logger.warning("Azure content filter triggered — returning empty response")
-                        return {"content": "", "filtered": True, "latency_ms": latency_ms}
-                    return {"content": resp.choices[0].message.content, "filtered": False,
-                            "latency_ms": round(latency_ms, 1), "usage": {"prompt": resp.usage.prompt_tokens,
-                                                                            "completion": resp.usage.completion_tokens}}
-                except Exception as e:
-                    if "429" in str(e) and attempt &lt; max_retries - 1:
-                        wait = 2 ** attempt
-                        logger.warning(f"Rate limited (attempt {attempt+1}), retrying in {wait}s")
-                        time.sleep(wait)
-                    else:
-                        raise
-
-        def usage_report(self) -&gt; Dict[str, Any]:
-            # GPT-4o pricing: $5/1M input, $15/1M output
-            cost = self._usage["prompt_tokens"] / 1e6 * 5.0 + self._usage["completion_tokens"] / 1e6 * 15.0
-            return {**self._usage, "estimated_cost_usd": round(cost, 6)}
-
-    if __name__ == "__main__":
-        print("AzureOpenAIEnterpriseClient: Requires azure-identity + openai packages")
-        print("Auth: DefaultAzureCredential (Managed Identity in AKS/App Service, CLI locally)")
-        print("Content filter: finish_reason='content_filter' → safe empty response + log")
-        # Simulate usage tracking
-        usage = {"prompt_tokens": 1500, "completion_tokens": 800}
-        cost = usage["prompt_tokens"] / 1e6 * 5.0 + usage["completion_tokens"] / 1e6 * 15.0
-        print(f"Usage: {usage}, estimated cost: ${cost:.6f}")
-        assert cost &gt; 0
-        print("AzureOpenAIEnterpriseClient: OK")
-    </code></pre>
-    </div><h3 class="sh3">Serverless AI Inference on AWS Lambda with ONNX Runtime</h3><p>
-    Deploying lightweight models (&lt;100M parameters) on serverless AWS Lambda eliminates idle cluster costs. Compiling models to ONNX Runtime with quantization enables sub-50ms cold starts within Lambda's 10GB container image limit.
+    <p class="prose">
+    <strong>Azure OpenAI Service</strong> provides OpenAI's flagship models (GPT-4o, GPT-4, Embeddings) with enterprise SLA, HIPAA compliance, Virtual Network (VNet) isolation, and Microsoft Entra ID authentication.
     </p>
+
+    <h3 class="sh3">1. Microsoft Entra ID (Managed Identity) Security</h3>
+    <p class="prose">
+    In enterprise architectures, hardcoded API keys are strictly forbidden. Azure OpenAI integrates with <strong>Managed Identities</strong>, allowing services running on Azure App Service, AKS, or Azure Functions to authenticate via short-lived OAuth 2.0 tokens without managing static secrets.
+    </p>
+
+    <h3 class="sh3">2. Azure AI Content Safety Synchronous Guardrails</h3>
+    <p class="prose">
+    Every incoming prompt and outgoing completion passes through Azure's real-time Content Safety neural filters:
+    </p>
+    <ul class="prose-list">
+      <li><strong>Severity Thresholds (0–7):</strong> Configured across Hate, Self-Harm, Sexual, and Violence categories.</li>
+      <li><strong>Prompt Shield:</strong> Detects indirect prompt injections and jailbreak attempts before the LLM processes the payload.</li>
+    </ul>
+
+    <h3 class="sh3">3. Azure API Management (APIM) Multi-Region Gateway</h3>
+    <p class="prose">
+    Deploying Azure APIM in front of multiple Azure OpenAI region deployments provides seamless round-robin load balancing, token rate limiting, and automated failover when hitting TPM (Tokens Per Minute) quotas.
+    </p>
+    </div>
   predict:
     question: What string network security configuration ensures Azure OpenAI is only accessible from inside a Private VPC?
     answer: Private Endpoint
@@ -1557,14 +1384,14 @@ days:
   - Identify the 5 biggest cost drivers in LLM applications.
   - Apply concrete optimizations to each cost driver.
   - 'Apply: Reviewed Weeks 19–22 (RAG, serving, caching).'
-  - Benchmark and profile runtime performance under production latency constraints.
+  - Analyze architectural trade-offs and error modes for Cloud Cost Optimization for LLMs.
   checklist:
   - id: chk_168_1
-    text: Derive and analyze mathematical and architectural principles for Cloud Cost Optimization for LLMs
+    text: Master the core concepts, mathematical principles, and architecture of Cloud Cost Optimization for LLMs
   - id: chk_168_2
-    text: Build and benchmark production coding pipelines for Cloud Cost Optimization for LLMs
+    text: 'Complete hands-on implementation and test assertions for Task 1: Token Counter'
   - id: chk_168_3
-    text: 'Execute and validate test verification suite for Task 1: Token Counter'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 168
   - id: chk_168_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -1964,14 +1791,14 @@ days:
   - Implement and retrieve secrets from AWS Secrets Manager.
   - Implement automatic key rotation.
   - Deploy and configure AWS CLI configured with correct IAM role.
-  - Benchmark and profile runtime performance under production latency constraints.
+  - Analyze architectural trade-offs and error modes for Secrets Management.
   checklist:
   - id: chk_169_1
-    text: Derive and analyze mathematical and architectural principles for Secrets Management
+    text: Master the core concepts, mathematical principles, and architecture of Secrets Management
   - id: chk_169_2
-    text: Build and benchmark production coding pipelines for Secrets Management
+    text: Complete hands-on implementation and test assertions for KMS Secret Rotation & Secure Configuration Setup
   - id: chk_169_3
-    text: Execute and validate test verification suite for KMS Secret Rotation & Secure Configuration Setup
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 169
   - id: chk_169_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -1986,40 +1813,38 @@ days:
     runtime par environment variables dynamically inject karte hain aur periodic automatic rotation handle karte hain.
   analogy: Secrets management is like using digital one-time security keycards instead of writing the master combination code
     with a permanent marker on the front door of the building.
-  theory_html: "<h3 class=\"sh3\">Mathematical Formulation &amp; Performance Bounds</h3><div class=\"math-block\">\n$$ \\\
-    text{CacheHitRatio} = \\frac{\\text{LocalReads}}{\\text{LocalReads} + \\text{APIRequests}} $$\n<p class=\"math-caption\"\
-    >Efficiency metric for AWS Secrets Manager caching to minimize API latency and costs.</p>\n</div><p>\n</p><h3 class=\"\
-    sh3\">Production Engineering Walkthrough: Secrets Management</h3><p>\nThe following production implementation demonstrates\
-    \ the core architecture, defensive error handling, and telemetry integration required for **Secrets Management** in enterprise\
-    \ production systems:\n</p><div class=\"cb\">\n<div class=\"cb-head\"><span class=\"cb-lang\">python — production_secrets_manager.py</span><div\
-    \ class=\"cb-btns\"><button class=\"copy-btn\" onclick=\"copyCode(this)\">copy</button></div></div>\n<pre><code class=\"\
-    language-python\"># Day 169 — Production AWS Secrets Manager\nimport time, logging, json\nfrom typing import Dict, Any,\
-    \ Optional\n\nlogging.basicConfig(level=logging.INFO, format=\"%(asctime)s [%(levelname)s] %(message)s\")\nlogger = logging.getLogger(\"\
-    SecretsManager\")\n\nclass AWSSecretRetriever:\n    \"\"\"\n    Production utility to securely fetch credentials from\
-    \ AWS Secrets Manager.\n    Includes in-memory caching with TTL to minimize API calls and latency.\n    \"\"\"\n\n   \
-    \ def __init__(self, region_name: str = \"us-east-1\", cache_ttl_seconds: int = 300):\n        # In real usage: import\
-    \ boto3; self.client = boto3.client(\"secretsmanager\", region_name=region_name)\n        self.region = region_name\n\
-    \        self.ttl = cache_ttl_seconds\n        self._cache: Dict[str, Dict[str, Any]] = {}\n        logger.info(f\"Initialized\
-    \ SecretsManager in {region_name} (TTL: {self.ttl}s)\")\n\n    def get_secret(self, secret_id: str) -&gt; Dict[str, str]:\n\
-    \        \"\"\"Fetch secret, utilizing cache if valid.\"\"\"\n        now = time.time()\n        if secret_id in self._cache:\n\
-    \            entry = self._cache[secret_id]\n            if now - entry[\"timestamp\"] &lt; self.ttl:\n              \
-    \  logger.debug(f\"Cache hit for secret: {secret_id}\")\n                return entry[\"data\"]\n        \n        logger.info(f\"\
-    Cache miss/expired. Fetching {secret_id} from AWS...\")\n        # Simulated boto3 response\n        # response = self.client.get_secret_value(SecretId=secret_id)\n\
-    \        # secret_string = response['SecretString']\n        \n        simulated_secrets = {\n            \"prod/db/credentials\"\
-    : '{\"username\": \"admin\", \"password\": \"super_secret_db_pass\"}',\n            \"prod/llm/api_keys\": '{\"openai\"\
-    : \"sk-12345\", \"anthropic\": \"sk-ant-67890\"}'\n        }\n        \n        if secret_id not in simulated_secrets:\n\
-    \            raise ValueError(f\"Secret {secret_id} not found.\")\n            \n        data = json.loads(simulated_secrets[secret_id])\n\
-    \        self._cache[secret_id] = {\"data\": data, \"timestamp\": now}\n        return data\n\n    def invalidate_cache(self,\
-    \ secret_id: Optional[str] = None):\n        if secret_id and secret_id in self._cache:\n            del self._cache[secret_id]\n\
-    \        elif not secret_id:\n            self._cache.clear()\n        logger.info(f\"Cache invalidated for {secret_id\
-    \ or 'all secrets'}\")\n\nif __name__ == \"__main__\":\n    retriever = AWSSecretRetriever()\n    creds = retriever.get_secret(\"\
-    prod/db/credentials\")\n    print(f\"Retrieved DB username: {creds['username']}\")\n    # Second call should hit cache\n\
-    \    cached_creds = retriever.get_secret(\"prod/db/credentials\")\n    assert creds == cached_creds\n    print(\"AWSSecretRetriever:\
-    \ OK\")\n</code></pre>\n</div><h3 class=\"sh3\">Cloud AI Infrastructure FinOps &amp; Cost Optimization Matrix</h3><p>\n\
-    Optimizing cloud ML infrastructure requires aligning workload types with pricing models:\n- <strong>Reserved Instances\
-    \ / Savings Plans:</strong> 1-3 year commitments for steady-state baseline inference clusters (saving 40-60%).\n- <strong>Spot\
-    \ Instances:</strong> Fault-tolerant hyperparameter searches and distributed pre-training jobs.\n- <strong>On-Demand:</strong>\
-    \ Interactive exploratory research and unpredictable spike capacity.\n</p>"
+  theory_html: |-
+    <div class="theory-content">
+    <h2 class="sh2">🔐 Secrets Management &amp; Dynamic Key Rotation</h2>
+
+    <p class="prose">
+    Production AI pipelines consume API tokens (OpenAI, Anthropic, HuggingFace), database credentials, and object store keys. Compromised static keys represent catastrophic vulnerability.
+    </p>
+
+    <h3 class="sh3">1. Dynamic Secret Rotation with AWS Secrets Manager &amp; Vault</h3>
+    <p class="prose">
+    Modern architectures enforce automatic secret rotation every 30–90 days using AWS Secrets Manager or HashiCorp Vault. A rotation Lambda updates the target database credential, verifies connectivity, and updates the active secret ARN with zero application downtime.
+    </p>
+
+    <h3 class="sh3">2. Kubernetes External Secrets Operator (ESO)</h3>
+    <p class="prose">
+    Rather than hardcoding credentials into Kubernetes Secret manifests, the <strong>External Secrets Operator (ESO)</strong> pulls secrets dynamically from Vault or AWS Secrets Manager into native K8s Secret objects inside the pod namespace:
+    </p>
+    <div class="diagram-box">
+    <pre class="diagram-code">
+    [AWS Secrets Manager / Vault] ──(Pulls Secret)──► [External Secrets Operator (ESO)]
+                                                               │
+                                                     [K8s Secret (tmpfs RAM)]
+                                                               │
+                                                     [Mounted in ML Pod]
+    </pre>
+    </div>
+
+    <h3 class="sh3">3. Zero-Plaintext Storage &amp; IAM Workload Identity</h3>
+    <p class="prose">
+    Containers should utilize Cloud IAM Workload Identity / IRSA (IAM Roles for Service Accounts) rather than persistent long-lived AWS_ACCESS_KEY_ID credentials, guaranteeing that compromised pods lose access immediately upon pod termination.
+    </p>
+    </div>
   predict:
     question: What is the dimensionality rank of a 2D batch tensor of shape (32, 128)?
     code: |-
@@ -2286,11 +2111,11 @@ days:
   - 'Apply: Pinecone or Qdrant Cloud account.'
   checklist:
   - id: chk_170_1
-    text: 'Derive and analyze mathematical and architectural principles for Capstone: Deploy RAG to AWS'
+    text: 'Master the core concepts, mathematical principles, and architecture of Capstone: Deploy RAG to AWS'
   - id: chk_170_2
-    text: 'Build and benchmark production coding pipelines for Capstone: Deploy RAG to AWS'
+    text: 'Complete hands-on implementation and test assertions for Task 1: Full Deployment · MEDIUM'
   - id: chk_170_3
-    text: 'Execute and validate test verification suite for Task 1: Full Deployment · MEDIUM'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 170
   - id: chk_170_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:

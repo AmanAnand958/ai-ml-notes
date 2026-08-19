@@ -189,95 +189,10 @@
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-185-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{MultimodalLoss} = \alpha \cdot \mathcal{L}_{text\_generation} + \beta \cdot \mathcal{L}_{image\_alignment} $$
 <p class="math-caption">Objective function for aligning vision encoders with LLMs in LLaVA-style architectures.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Vision-Language Models (VLMs)</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Vision-Language Models (VLMs)** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_vit_patch_projector.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre>
-# Production implementation with validated runtime dependencies
-# Day 185 — Production ViT Patch Projector (GPT-4V / LLaVA compatible)
-import math, logging
-import torch, torch.nn as nn
-import torch.nn.functional as F
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("ViTPatchProjector")
-
-class ViTPatchProjector(nn.Module):
-    """
-    Vision Transformer patch embedding:
-    image (B, C, H, W) → patch sequence (B, N+1, D) with CLS token + positional embedding.
-    Compatible with LLaVA-style visual encoder inputs.
-    """
-
-    def __init__(self, image_size: int = 224, patch_size: int = 14,
-                 in_channels: int = 3, embed_dim: int = 1024, dropout: float = 0.0):
-        super().__init__()
-        assert image_size % patch_size == 0
-        self.n_patches = (image_size // patch_size) ** 2
-        self.embed_dim = embed_dim
-        self.patch_size = patch_size
-
-        # Linear projection: Conv2d with kernel=stride=patch_size
-        self.patch_embed = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size, bias=False)
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, self.n_patches + 1, embed_dim))
-        self.norm = nn.LayerNorm(embed_dim)
-        self.dropout = nn.Dropout(dropout)
-        self._init_weights()
-        logger.info(f"ViTPatchProjector: {self.n_patches} patches, dim={embed_dim}, patch_size={patch_size}")
-
-    def _init_weights(self):
-        nn.init.trunc_normal_(self.cls_token, std=0.02)
-        nn.init.trunc_normal_(self.pos_embed, std=0.02)
-        nn.init.kaiming_uniform_(self.patch_embed.weight, a=math.sqrt(5))
-
-    def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
-        """x: (B, C, H, W) → (B, N+1, D)"""
-        B = x.shape[0]
-        x = self.patch_embed(x)      # (B, D, H/P, W/P)
-        x = x.flatten(2).transpose(1, 2)  # (B, N, D)
-        cls = self.cls_token.expand(B, -1, -1)
-        x = torch.cat([cls, x], dim=1)   # (B, N+1, D)
-        x = self.norm(x + self.pos_embed)
-        return self.dropout(x)
-
-    def cls_features(self, x: torch.Tensor) -&gt; torch.Tensor:
-        """Image-level embedding via CLS token: (B, D)"""
-        return self.forward(x)[:, 0, :]
-
-    def patch_features(self, x: torch.Tensor) -&gt; torch.Tensor:
-        """Dense patch embeddings for ColPali-style retrieval: (B, N, D)"""
-        return self.forward(x)[:, 1:, :]
-
-if __name__ == "__main__":
-    model = ViTPatchProjector(image_size=224, patch_size=14, embed_dim=1024)
-    x = torch.randn(2, 3, 224, 224)
-    full = model(x)
-    cls = model.cls_features(x)
-    patches = model.patch_features(x)
-    n = (224 // 14) ** 2  # 256 patches
-    print(f"Full output: {full.shape}   → expected (2, {n+1}, 1024)")
-    print(f"CLS features: {cls.shape}  → expected (2, 1024)")
-    print(f"Patch features: {patches.shape} → expected (2, {n}, 1024)")
-    assert full.shape == (2, n+1, 1024)
-    assert cls.shape == (2, 1024)
-    params = sum(p.numel() for p in model.parameters())
-    print(f"Parameters: {params:,}")
-    print("ViTPatchProjector: OK")
-</pre>
-</div><h3 class="sh3">Vision Transformer (ViT) Patch Tokenization Mathematical Formulation</h3><p>
-ViT decomposes a 2D image $\mathbf{X} \in \mathbb{R}^{H \times W \times C}$ into a sequence of non-overlapping patches $\mathbf{x}_p \in \mathbb{R}^{N \times (P^2 C)}$, where $P$ is patch resolution (e.g. $14 \times 14$) and $N = \frac{HW}{P^2}$ is token count:
-</p><div class="math-block">
-$$\mathbf{z}_0 = \left[ \mathbf{x}_{\text{class}}; \, \mathbf{x}_p^1 \mathbf{E}; \, \mathbf{x}_p^2 \mathbf{E}; \, \dots; \, \mathbf{x}_p^N \mathbf{E} \right] + \mathbf{E}_{\text{pos}}$$
-</div><p>
-Linear projection matrix $\mathbf{E}$ maps each flattened patch into the Transformer hidden dimension $D$.
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -439,8 +354,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -510,8 +424,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -728,82 +641,10 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-186-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{Score}_{ColPali} = \sum_{i=1}^{|Q|} \max_{j \in |D|} \left( q_i \cdot d_j \right) $$
 <p class="math-caption">MaxSim late-interaction scoring for multimodal document retrieval (ColPali).</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Multimodal RAG</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Multimodal RAG** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_colpali_retriever.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 186 — Production Multimodal Retrieval (ColPali)
-import time, logging
-from typing import Dict, Any, List
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("ColPaliRetriever")
-
-class ColPaliMultimodalRetriever:
-    """
-    Production implementation of ColPali for Vision-Language retrieval.
-    Embeds raw document images (PDF pages) directly using Vision Transformers,
-    bypassing OCR entirely for complex layouts, tables, and figures.
-    """
-
-    def __init__(self, model_name: str = "vidore/colpali-v1.2"):
-        self.model_name = model_name
-        self.image_embeddings = {} # Simulated index
-
-    def index_document_images(self, doc_id: str, images: List[bytes]) -&gt; int:
-        """Process raw page images into multi-vector representations."""
-        logger.info(f"Indexing {len(images)} pages for document {doc_id} using {self.model_name}")
-        # In real usage:
-        # processor = ColPaliProcessor.from_pretrained(model_name)
-        # model = ColPali.from_pretrained(model_name)
-        # inputs = processor(images=pil_images, return_tensors="pt")
-        # embeddings = model(**inputs)
-        
-        time.sleep(0.1 * len(images)) # Simulating compute
-        # Store in dict for mock retrieval
-        self.image_embeddings[doc_id] = {"num_pages": len(images), "indexed_at": time.time()}
-        return len(images)
-
-    def search_with_text(self, text_query: str, top_k: int = 3) -&gt; List[Dict[str, Any]]:
-        """Encode text query and perform MaxSim late-interaction over image patches."""
-        logger.info(f"Executing MaxSim search for query: '{text_query}'")
-        # In real usage:
-        # query_inputs = processor(text=text_query, return_tensors="pt")
-        # q_emb = model(**query_inputs)
-        # scores = torch.einsum("bnd,bmd-&gt;bnm", q_emb, doc_emb).max(dim=2).values.sum(dim=1)
-        
-        time.sleep(0.2)
-        results = []
-        for doc_id, meta in self.image_embeddings.items():
-            results.append({"doc_id": doc_id, "score": 0.85 + (meta["num_pages"] * 0.01)})
-            
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:top_k]
-
-if __name__ == "__main__":
-    retriever = ColPaliMultimodalRetriever()
-    # Simulate indexing 2 PDF pages
-    retriever.index_document_images("financial_report_q3", [b"img1", b"img2"])
-    retriever.index_document_images("architecture_diagram", [b"img1"])
-    
-    # Search
-    results = retriever.search_with_text("What is the revenue growth in Q3?")
-    print(f"Top result: {results[0]['doc_id']} (score: {results[0]['score']})")
-    assert len(results) == 2
-    print("ColPaliMultimodalRetriever: OK")
-</code></pre>
-</div><h3 class="sh3">ColPali Late Interaction vs Single-Vector Dense Retrieval</h3><p>
-Single-vector multimodal models compress an entire image into a single 1024D vector, losing fine-grained document details (tables, chart axes, captions). ColPali retains all 576 visual patch token embeddings and computes late interaction via MaxSim:
-</p><div class="math-block">
-$$\text{Score}(Q, D) = \sum_{i=1}^{|Q|} \max_{j=1}^{|D|} \left( \vec{q}_i \cdot \vec{d}_j \right)$$
-</div><p>
-This preserves spatial grounding and enables indexing complex PDF documents without OCR preprocessing pipelines.
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -948,8 +789,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -1013,8 +853,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -1229,90 +1068,10 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-187-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{WER} = \frac{\text{Substitutions} + \text{Deletions} + \text{Insertions}}{\text{TotalWordsInReference}} $$
 <p class="math-caption">Word Error Rate calculation for evaluating Speech-to-Text pipeline accuracy.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Audio Processing with Whisper</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Audio Processing with Whisper** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_whisper_pipeline.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 187 — Production Whisper Speech-to-Text Pipeline
-import time, logging, os
-from typing import Dict, Any, List, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("WhisperPipeline")
-
-class WhisperTranscriptionPipeline:
-    """
-    Production speech-to-text pipeline using faster-whisper (CTranslate2 backend):
-    - Voice Activity Detection (VAD) filtering
-    - Word-level timestamps
-    - Multi-language detection
-    - Real-Time Factor (RTF) monitoring
-    """
-
-    def __init__(self, model_size: str = "large-v3", device: str = "cuda",
-                 compute_type: str = "float16", beam_size: int = 5):
-        from faster_whisper import WhisperModel
-        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
-        self.beam_size = beam_size
-        logger.info(f"Whisper {model_size} loaded ({device}, {compute_type})")
-
-    def transcribe(self, audio_path: str, language: Optional[str] = None,
-                    word_timestamps: bool = True, normalize: bool = True) -&gt; Dict[str, Any]:
-        t0 = time.perf_counter()
-        segments, info = self.model.transcribe(
-            audio_path, beam_size=self.beam_size, language=language,
-            word_timestamps=word_timestamps,
-            vad_filter=True,
-            vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 100},
-        )
-        segs = list(segments)
-        text = " ".join(s.text.strip() for s in segs)
-        if normalize:
-            text = self._normalize(text)
-        elapsed = time.perf_counter() - t0
-        rtf = elapsed / max(info.duration, 0.001)
-        logger.info(f"Transcribed {info.duration:.1f}s → RTF={rtf:.3f}, lang={info.language} ({info.language_probability:.2f})")
-        return {
-            "transcript": text,
-            "language": info.language,
-            "language_probability": round(info.language_probability, 3),
-            "duration_sec": round(info.duration, 2),
-            "processing_sec": round(elapsed, 2),
-            "real_time_factor": round(rtf, 3),
-            "segments": [{"start": s.start, "end": s.end, "text": s.text.strip()} for s in segs],
-        }
-
-    def _normalize(self, text: str) -&gt; str:
-        """Strip leading/trailing whitespace and normalize multiple spaces."""
-        import re
-        return re.sub(r"\s+", " ", text).strip()
-
-    def batch_transcribe(self, paths: List[str], **kwargs) -&gt; List[Dict]:
-        return [self.transcribe(p, **kwargs) for p in paths]
-
-if __name__ == "__main__":
-    print("WhisperTranscriptionPipeline: Requires faster-whisper + GPU")
-    print("Compute types: float16 (GPU), int8_float16 (GPU, 2x speed), int8 (CPU)")
-    print("VAD: min_silence_duration_ms=500 removes silence before transcription")
-    # Simulate output
-    simulated = {
-        "transcript": "PagedAttention enables efficient KV cache management in vLLM.",
-        "language": "en", "language_probability": 0.999,
-        "duration_sec": 5.2, "processing_sec": 1.1, "real_time_factor": 0.21,
-        "segments": [{"start": 0.0, "end": 5.2, "text": "PagedAttention enables..."}]
-    }
-    assert simulated["real_time_factor"] &lt; 1.0, "Should be faster than real-time on GPU"
-    print(f"RTF={simulated['real_time_factor']} &lt; 1.0 (real-time capable): OK")
-    print("WhisperPipeline: OK")
-</code></pre>
-</div><h3 class="sh3">Whisper Audio Transcription &amp; Speculative Decoding for Speech</h3><p>
-OpenAI's Whisper employs an encoder-decoder Transformer processing 80-channel log-Mel spectrograms. Chunking 30-second audio windows with voice activity detection (VAD) prevents hallucinations during silent intervals and reduces processing latency by $40\%$.
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1435,8 +1194,7 @@ if __name__ == "__main__":
 <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
 </div>
 </div>
-<pre>
-# Day 187 Task 1: Log-Mel Spectrogram Preprocessing for OpenAI Whisper
+<pre># Day 187 Task 1: Log-Mel Spectrogram Preprocessing for OpenAI Whisper
 import numpy as np
 import torch
 
@@ -1524,8 +1282,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -1738,92 +1495,32 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-188-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-$$ \mathcal{L}_{contrastive} = -\log \frac{\exp(\text{sim}(q, d^+)/\tau)}{\sum_{j=1}^{B} \exp(\text{sim}(q, d^-_j)/\tau)} $$
-<p class="math-caption">InfoNCE loss function using in-batch negatives for training Two-Tower retrieval models.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: ML System Design — Recommendation System</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **ML System Design — Recommendation System** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_188_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre>
-# Production implementation with validated runtime dependencies
-# Day 188 — Production DSPy Two-Tower Retrieval Optimizer
-import time, logging
-import torch, torch.nn as nn
-import torch.nn.functional as F
-from typing import List, Dict, Any, Tuple, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("TwoTowerModel")
-
-class TwoTowerRetriever(nn.Module):
-    """
-    Production two-tower dense retrieval model:
-    Independent query and document encoders trained with in-batch negatives.
-    Architecture: BERT-style encoder → MLP projection → L2-normalised embedding.
-    """
-
-    def __init__(self, encoder_dim: int = 768, embed_dim: int = 256, hidden_dim: int = 512):
-        super().__init__()
-        self.query_tower = self._build_tower(encoder_dim, hidden_dim, embed_dim)
-        self.doc_tower   = self._build_tower(encoder_dim, hidden_dim, embed_dim)
-        self.temperature = nn.Parameter(torch.tensor(0.07))  # learned temperature
-
-    def _build_tower(self, in_dim, hidden_dim, out_dim) -&gt; nn.Sequential:
-        return nn.Sequential(
-            nn.Linear(in_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.GELU(),
-            nn.Dropout(0.1), nn.Linear(hidden_dim, out_dim)
-        )
-
-    def encode_query(self, query_emb: torch.Tensor) -&gt; torch.Tensor:
-        return F.normalize(self.query_tower(query_emb), dim=-1)
-
-    def encode_doc(self, doc_emb: torch.Tensor) -&gt; torch.Tensor:
-        return F.normalize(self.doc_tower(doc_emb), dim=-1)
-
-    def forward(self, query_emb: torch.Tensor, doc_emb: torch.Tensor) -&gt; Tuple[torch.Tensor, Dict]:
-        """In-batch negative contrastive loss (InfoNCE)."""
-        q = self.encode_query(query_emb)   # (B, D)
-        d = self.encode_doc(doc_emb)       # (B, D)
-        # Similarity matrix: (B, B) — diagonal = positive pairs
-        sim = torch.matmul(q, d.T) / self.temperature.clamp(min=0.01)
-        labels = torch.arange(q.shape[0], device=q.device)
-        loss = F.cross_entropy(sim, labels)
-        # Metrics
-        with torch.no_grad():
-            top1_acc = (sim.argmax(dim=-1) == labels).float().mean()
-            mrr = (1.0 / (sim.argsort(dim=-1, descending=True) == labels.unsqueeze(1)).float().argmax(dim=-1).add(1).float()).mean()
-        return loss, {"loss": loss.item(), "top1_acc": top1_acc.item(), "mrr": mrr.item()}
-
-    def retrieve(self, query_emb: torch.Tensor, doc_index: torch.Tensor, top_k: int = 10) -&gt; torch.Tensor:
-        """At inference: returns indices of top-k most similar documents."""
-        q = self.encode_query(query_emb.unsqueeze(0) if query_emb.dim() == 1 else query_emb)
-        sims = torch.matmul(q, doc_index.T)  # (B, N_docs)
-        return sims.topk(top_k, dim=-1).indices
-
-if __name__ == "__main__":
-    model = TwoTowerRetriever(encoder_dim=256, embed_dim=128, hidden_dim=512)
-    B, D = 32, 256
-    q_emb = torch.randn(B, D)
-    d_emb = torch.randn(B, D)
-    loss, metrics = model(q_emb, d_emb)
-    print(f"Loss: {loss.item():.4f}, Top-1 Acc: {metrics['top1_acc']:.3f}, MRR: {metrics['mrr']:.3f}")
-    # Retrieval test
-    doc_index = torch.randn(1000, 128)
-    doc_index = F.normalize(doc_index, dim=-1)
-    query = torch.randn(128)
-    top_k = model.retrieve(query, doc_index, top_k=5)
-    print(f"Top-5 doc indices: {top_k.tolist()}")
-    assert top_k.shape == (1, 5)
-    params = sum(p.numel() for p in model.parameters())
-    print(f"Parameters: {params:,}")
-    print("TwoTowerRetriever: OK")
+<div class="theory-content">
+<h2 class="sh2">🎯 Large-Scale ML Recommendation System Architecture</h2>
+<p class="prose">
+Industrial recommender systems (Netflix, YouTube, Amazon) operate over candidate catalogs of $10^7$ to $10^9$ items, requiring a multi-stage funnel architecture to balance millisecond retrieval latency with complex ranking model capacity.
+</p>
+<h3 class="sh3">1. The Multi-Stage Recommender Funnel</h3>
+<div class="diagram-box">
+<pre class="diagram-code">
+[Catalog: 10,000,000 Items]
+          │
+  (Stage 1: Retrieval / Candidate Gen) ──► Two-Tower Embeddings (Faiss/ANN) ──► [Top 1,000 Candidates in &lt;10ms]
+          │
+  (Stage 2: Heavy Ranking / Scoring)   ──► Deep &amp; Cross Network (DCN-v2)    ──► [Top 50 Scored Items in &lt;30ms]
+          │
+  (Stage 3: Re-ranking &amp; Diversity)    ──► Category Diversity &amp; Filters     ──► [Final Top 10 Displayed to User]
 </pre>
-</div><h3 class="sh3">DSPy: Automated Prompt Compilation &amp; Optimization</h3><p>
-DSPy treats prompt engineering as an algorithmic optimization problem. Instead of hand-crafting prompts, DSPy parameterizes LLM pipeline signatures, evaluates outputs against a metric function, and uses Teleprompter optimizers (BootstrapFewShot, MIPRO) to automatically synthesize optimal few-shot demonstrations and prompt instructions.
-</p></div>
+</div>
+<h3 class="sh3">2. Two-Tower Deep Neural Network Retrieval</h3>
+<p class="prose">
+Candidate generation decouples the <strong>User Tower</strong> $u(x)$ and <strong>Item Tower</strong> $v(y)$. Item vectors are pre-computed and indexed offline in an Approximate Nearest Neighbor (ANN) index. At query time, only the user vector is computed in real time, reducing scoring complexity from $O(N \cdot d)$ to $O(\log N)$.
+</p>
+<h3 class="sh3">3. Ranking Loss &amp; Cold-Start Exploration</h3>
+<p class="prose">
+Ranking models are optimized using ListNet or Binary Cross-Entropy with negative sampling. $\epsilon$-greedy exploration and contextual multi-armed bandits guarantee new catalog items receive sufficient exploration impressions.
+</p>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1911,40 +1608,37 @@ if __name__ == "__main__":
 <button class="run-btn" onclick="openInColab(this)">⚡ Run on Colab</button>
 </div>
 </div>
-<pre># Day 188 Task 1: Two-Stage Billion-Scale Recommendation Engine Architecture
-from typing import List, Dict
+<pre># Day 188 Task 1: Two-Stage Recommender Pipeline
 import numpy as np
+from typing import List, Dict
 
-class TwoStageRecommenderSystem:
-    """Stage 1: Fast Candidate Retrieval (10,000 -&gt; 100) | Stage 2: Heavy Neural Ranking (100 -&gt; 10)"""
-    def __init__(self, num_catalog_items: int = 10000):
-        np.random.seed(42)
-        self.catalog_items = [f"item_{i}" for i in range(num_catalog_items)]
-        self.item_embeddings = np.random.randn(num_catalog_items, 32)
-        self.item_embeddings /= np.linalg.norm(self.item_embeddings, axis=1, keepdims=True)
+def two_stage_recommend(
+    user_vector: np.ndarray,
+    candidate_item_vectors: np.ndarray,
+    item_metadata: List[Dict],
+    top_k_retrieve: int = 50,
+    top_n_final: int = 5
+) -&gt; List[Dict]:
+    """Two-stage retrieval and ranking recommender architecture."""
+    # Stage 1: Fast Dot-Product Retrieval
+    scores = np.dot(candidate_item_vectors, user_vector)
+    top_indices = np.argsort(scores)[::-1][:top_k_retrieve]
 
-    def stage1_candidate_generation(self, user_vec: np.ndarray, top_k: int = 50) -&gt; List[int]:
-        sims = self.item_embeddings @ user_vec
-        return list(np.argsort(sims)[::-1][:top_k])
+    # Stage 2: Precision Cross-Scoring with Diversity Penalty
+    ranked_items = []
+    seen_categories = set()
+    for idx in top_indices:
+        item = dict(item_metadata[idx])
+        item["retrieval_score"] = float(scores[idx])
+        cat = item.get("category", "general")
+        # Soft category diversity bonus
+        diversity_factor = 1.0 if cat not in seen_categories else 0.85
+        item["final_rank_score"] = round(item["retrieval_score"] * diversity_factor, 4)
+        seen_categories.add(cat)
+        ranked_items.append(item)
 
-    def stage2_heavy_ranking(self, candidate_indices: List[int], user_features: dict) -&gt; List[Dict]:
-        ranked = []
-        for idx in candidate_indices:
-            # Multi-feature interaction cross-scoring (CTR prediction surrogate)
-            ctr_prob = 1.0 / (1.0 + np.exp(-float(self.item_embeddings[idx][0] * 1.5 + user_features.get("engagement", 0.5))))
-            ranked.append({"item_id": self.catalog_items[idx], "predicted_ctr": round(ctr_prob, 4)})
-        return sorted(ranked, key=lambda x: x["predicted_ctr"], reverse=True)[:10]
-
-rec_sys = TwoStageRecommenderSystem()\nu_vec = np.random.randn(32)\nu_vec /= np.linalg.norm(u_vec)
-
-candidates = rec_sys.stage1_candidate_generation(u_vec, top_k=50)
-final_feed = rec_sys.stage2_heavy_ranking(candidates, {"engagement": 0.8})
-
-print(f"Delivered {len(final_feed)} Top Ranked Recommendations for Feed:")
-for item in final_feed[:3]:
-    print(f"  • {item['item_id']}: Predicted CTR = {item['predicted_ctr']}")
-assert len(final_feed) == 10
-print("✓ Two-stage recommendation system architecture verified.")</pre>
+    ranked_items.sort(key=lambda x: x["final_rank_score"], reverse=True)
+    return ranked_items[:top_n_final]</pre>
 </div>
 </div>
 </div>
@@ -2003,8 +1697,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -2217,100 +1910,84 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-189-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-$$ \text{DSPyOptimization} \to \arg\min_{\theta} \mathbb{E}_{(x,y) \sim D} \left[ \text{Metric}( \text{Program}_\theta(x), y ) \right] $$
-<p class="math-caption">Objective for DSPy prompt/weight optimization replacing manual prompt engineering.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: DSPy — Programmatic Prompt Optimization</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **DSPy — Programmatic Prompt Optimization** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_colpali_maxsim_index.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre>
-# Production implementation with validated runtime dependencies
-# Day 189 — Production ColPali MaxSim Document Index
-import torch, time, logging
-import torch.nn.functional as F
-from typing import List, Dict, Any, Tuple, Optional
-import numpy as np
+<div class="theory-content">
+<h2 class="sh2">🤖 DSPy: Declarative Programming &amp; Automated Prompt Compilation</h2>
+<p class="prose">
+Traditional LLM engineering relies on brittle, hand-crafted prompt strings that break whenever model weights or temperatures change. <strong>DSPy</strong> (Declarative Self-improving Python) abstracts prompts into modular, parameterized Python classes and automatically compiles high-performing prompts, few-shot exemplars, and instruction prefixes against a defined metric.
+</p>
+<h3 class="sh3">1. Core DSPy Primitives: Signatures &amp; Modules</h3>
+<p class="prose">
+DSPy decouples the <em>specification</em> of what an LLM does from <em>how</em> it is prompted:
+</p>
+<ul class="prose-list">
+<li><strong>dspy.Signature:</strong> Declarative input/output contract (e.g. <code>"context, question -&gt; answer"</code>).</li>
+<li><strong>dspy.Predict:</strong> Basic predictor executing a signature.</li>
+<li><strong>dspy.ChainOfThought:</strong> Automatically injects step-by-step reasoning tokens before the final output.</li>
+<li><strong>dspy.ProgramOfThought:</strong> Generates and executes executable Python code to solve computational reasoning queries.</li>
+</ul>
+<h3 class="sh3">2. Teleprompters &amp; Automated Optimization Algorithms</h3>
+<p class="prose">
+A <strong>Teleprompter (Optimizer)</strong> tunes the parameters (prompts, exemplars, weights) of a DSPy pipeline:
+</p>
+<ul class="prose-list">
+<li><strong>BootstrapFewShot:</strong> Synthesizes high-quality reasoning traces from unlabelled training queries and selects optimal few-shot exemplars.</li>
+<li><strong>MIPROv2 (Multi-prompt Instruction Proposal Optimizer):</strong> Generates and searches over candidate instruction prompts and demonstrations via Bayesian optimization.</li>
+</ul>
+<h3 class="sh3">3. Production DSPy Compilation &amp; Evaluation Walkthrough</h3>
+<p class="prose">
+The following production script defines a multi-hop question answering pipeline, defines an evaluation metric, and compiles it via <code>BootstrapFewShot</code>:
+</p>
+<pre><code class="language-python"># production_dspy_pipeline.py
+import dspy
+from dspy.teleprompt import BootstrapFewShot
+from typing import List
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("ColPaliIndex")
+# Step 1: Configure LM Client
+lm = dspy.LM('openai/gpt-4o-mini', api_key="sk-test", temperature=0.0)
+dspy.configure(lm=lm)
 
-class ColPaliDocumentIndex:
-    """
-    Production ColPali late-interaction index:
-    - Pre-computes and caches page patch embeddings at index time
-    - Uses MaxSim scoring at query time: score(q,d) = Σ_i max_j cos_sim(q_i, d_j)
-    - Time complexity: O(|Q| × |D| × n_pages) — scale with FAISS for 10k+ pages
-    """
+# Step 2: Define Declarative Signature
+class MultiHopQA(dspy.Signature):
+    """Answers complex questions by reasoning over provided context documents."""
+    context: List[str] = dspy.InputField(desc="Relevant retrieved passages")
+    question: str = dspy.InputField(desc="The user question to answer")
+    reasoning: str = dspy.OutputField(desc="Step-by-step logical deduction")
+    answer: str = dspy.OutputField(desc="Concise, factual answer")
 
-    def __init__(self, embed_dim: int = 128, device: str = "cpu"):
-        self.embed_dim = embed_dim
-        self.device = torch.device(device)
-        self._pages: List[torch.Tensor] = []   # (N_patches, D) each
-        self._meta: List[Dict] = []
+# Step 3: Define Modular Pipeline
+class RAGPipeline(dspy.Module):
+    def __init__(self):
+        super().__init__()
+        self.generate_answer = dspy.ChainOfThought(MultiHopQA)
 
-    def add_pages(self, embeddings: List[torch.Tensor], metadata: List[Dict]) -&gt; None:
-        """Index-time: normalise and cache all page embeddings."""
-        for emb, m in zip(embeddings, metadata):
-            norm = F.normalize(emb.to(self.device), dim=-1)  # (P, D)
-            self._pages.append(norm)
-            self._meta.append(m)
-        logger.info(f"Indexed {len(embeddings)} pages (total: {len(self._pages)})")
+    def forward(self, context: List[str], question: str):
+        return self.generate_answer(context=context, question=question)
 
-    def maxsim(self, query_emb: torch.Tensor, page_emb: torch.Tensor) -&gt; float:
-        """score(q, d) = Σ_i max_j cosine_sim(q_i, d_j)"""
-        q = F.normalize(query_emb.to(self.device), dim=-1)  # (Q, D)
-        sim = torch.matmul(q, page_emb.T)                   # (Q, P)
-        return sim.max(dim=-1).values.sum().item()
+# Step 4: Define Evaluation Metric
+def validate_answer(example, pred, trace=None):
+    # Asserts ground-truth answer key is accurately captured in pred
+    return example.answer.lower() in pred.answer.lower()
 
-    def search(self, query_emb: torch.Tensor, top_k: int = 5) -&gt; List[Dict[str, Any]]:
-        t0 = time.perf_counter()
-        scores = [self.maxsim(query_emb, pe) for pe in self._pages]
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-        results = [{"rank": r+1, "score": scores[i], "metadata": self._meta[i]}
-                   for r, i in enumerate(top_indices)]
-        logger.info(f"MaxSim over {len(self._pages)} pages in {elapsed_ms:.1f}ms")
-        return results
+# Step 5: Compile with BootstrapFewShot Teleprompter
+training_set = [
+    dspy.Example(
+        context=["vLLM utilizes PagedAttention to eliminate memory fragmentation."],
+        question="What algorithm does vLLM use for KV cache management?",
+        answer="PagedAttention"
+    ).with_inputs('context', 'question')
+]
 
-    def batch_search(self, query_embs: List[torch.Tensor], top_k: int = 5) -&gt; List[List[Dict]]:
-        return [self.search(q, top_k=top_k) for q in query_embs]
+teleprompter = BootstrapFewShot(metric=validate_answer, max_bootstrapped_demos=4)
+compiled_rag = teleprompter.compile(RAGPipeline(), trainset=training_set)
 
-    def save(self, path: str) -&gt; None:
-        import pickle
-        data = {"pages": [p.cpu().numpy() for p in self._pages], "meta": self._meta, "dim": self.embed_dim}
-        with open(path, "wb") as f:
-            pickle.dump(data, f)
-        logger.info(f"Saved {len(self._pages)}-page index to {path}")
-
-    def load(self, path: str) -&gt; None:
-        import pickle
-        with open(path, "rb") as f:
-            data = pickle.load(f)
-        self._pages = [torch.from_numpy(p).to(self.device) for p in data["pages"]]
-        self._meta = data["meta"]
-        self.embed_dim = data["dim"]
-        logger.info(f"Loaded {len(self._pages)}-page index from {path}")
-
-if __name__ == "__main__":
-    dim, n_pages, n_patches = 128, 200, 196
-    # Simulate page embeddings (ColPali produces 196 patches per page for 224x224/14)
-    idx = ColPaliDocumentIndex(embed_dim=dim)
-    page_embs = [torch.randn(n_patches, dim) for _ in range(n_pages)]
-    meta = [{"doc": f"report_{i//10}", "page": i} for i in range(n_pages)]
-    idx.add_pages(page_embs, meta)
-    # Query with 10 query tokens
-    q_emb = torch.randn(10, dim)
-    results = idx.search(q_emb, top_k=5)
-    print(f"Top-5 pages: {[r['metadata']['page'] for r in results]}")
-    print(f"Scores (desc): {[round(r['score'], 3) for r in results]}")
-    assert len(results) == 5
-    assert results[0]["score"] &gt;= results[-1]["score"]
-    print("ColPaliDocumentIndex: OK")
-</pre>
-</div></div>
+# Execute compiled pipeline
+prediction = compiled_rag(
+    context=["vLLM utilizes PagedAttention to eliminate memory fragmentation."],
+    question="What algorithm does vLLM use for KV cache management?"
+)
+print("Compiled Output Answer:", prediction.answer)
+</code></pre>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2556,8 +2233,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -2774,110 +2450,10 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-190-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{SearchComplexity}_{HNSW} \approx \mathcal{O}(\log(N) \cdot \text{efSearch} \cdot d) $$
 <p class="math-caption">Time complexity estimation for approximate nearest neighbor search in HNSW vector databases.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: ML System Design — Semantic Search</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **ML System Design — Semantic Search** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_190_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre>
-# Production implementation with validated runtime dependencies
-
-# Day 190 — Production HNSW Vector DB Scaling Benchmark
-import time, logging, json
-import numpy as np
-from typing import Dict, Any, List, Tuple
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("VectorDBBenchmark")
-
-class VectorDBScalingBenchmark:
-    """
-    Production benchmark comparing FAISS HNSW, Qdrant, and Weaviate
-    at scales: 100K, 1M, 10M vectors.
-    Measures: index build time, query latency (p50/p95/p99), recall@10.
-    """
-
-    def benchmark_faiss_hnsw(self, n_vectors: int = 100_000, dim: int = 768,
-                               M: int = 32, ef_construction: int = 200,
-                               ef_search: int = 64, top_k: int = 10) -&gt; Dict[str, Any]:
-        import faiss
-        vecs = np.random.randn(n_vectors, dim).astype("float32")
-        faiss.normalize_L2(vecs)
-        # Build index
-        index = faiss.IndexHNSWFlat(dim, M, faiss.METRIC_INNER_PRODUCT)
-        index.hnsw.efConstruction = ef_construction
-        t_build = time.perf_counter()
-        index.add(vecs)
-        build_time = time.perf_counter() - t_build
-        # Query benchmark (100 queries)
-        n_queries = min(100, n_vectors // 10)
-        queries = np.random.randn(n_queries, dim).astype("float32")
-        faiss.normalize_L2(queries)
-        index.hnsw.efSearch = ef_search
-        latencies = []
-        for q in queries:
-            t0 = time.perf_counter()
-            index.search(q.reshape(1, -1), top_k)
-            latencies.append((time.perf_counter() - t0) * 1000)
-        latencies.sort()
-        result = {
-            "backend": "FAISS HNSW", "n_vectors": n_vectors, "dim": dim, "M": M,
-            "build_sec": round(build_time, 2),
-            "p50_ms": round(latencies[len(latencies)//2], 3),
-            "p95_ms": round(latencies[int(len(latencies)*0.95)], 3),
-            "p99_ms": round(latencies[int(len(latencies)*0.99)], 3),
-            "index_size_mb": round(index.sa_code_size() * n_vectors / 1e6, 1) if hasattr(index, "sa_code_size") else "N/A",
-        }
-        logger.info(f"HNSW {n_vectors}vecs: build={build_time:.1f}s, p99={result['p99_ms']}ms")
-        return result
-
-    def recall_at_k(self, index, ground_truth_fn, queries: np.ndarray, k: int = 10) -&gt; float:
-        """Measure recall@k by comparing ANN results to exact brute-force."""
-        import faiss
-        n = len(queries)
-        ann_indices = index.search(queries, k)[1]
-        # Ground truth via exact search
-        exact_index = faiss.IndexFlatIP(queries.shape[1])
-        exact_index.add(index.reconstruct_n(0, index.ntotal) if hasattr(index, "reconstruct_n") else queries)
-        gt_indices = exact_index.search(queries, k)[1]
-        recall_sum = 0
-        for ann, gt in zip(ann_indices, gt_indices):
-            recall_sum += len(set(ann.tolist()) &amp; set(gt.tolist())) / k
-        return recall_sum / n
-
-    def compare_configurations(self) -&gt; List[Dict]:
-        """Benchmark HNSW at multiple M values."""
-        results = []
-        for M in [16, 32, 64]:
-            r = self.benchmark_faiss_hnsw(n_vectors=10_000, dim=256, M=M)
-            results.append(r)
-        return sorted(results, key=lambda x: x["p99_ms"])
-
-if __name__ == "__main__":
-    bench = VectorDBScalingBenchmark()
-    print("Running HNSW benchmark (10K vectors, 256 dims)...")
-    result = bench.benchmark_faiss_hnsw(n_vectors=10_000, dim=256, M=32)
-    print(json.dumps(result, indent=2))
-    assert result["p50_ms"] &lt; result["p99_ms"]
-    assert result["build_sec"] &gt; 0
-    print()
-    print("Comparing M configurations...")
-    comparisons = bench.compare_configurations()
-    for r in comparisons:
-        print(f"  M={r['M']:2d}: build={r['build_sec']:.2f}s, p99={r['p99_ms']:.3f}ms")
-    print("VectorDBScalingBenchmark: OK")
-</pre>
-</div><h3 class="sh3">High-Concurrency Generative Search Architecture</h3><p>
-Architecting an enterprise AI search engine capable of handling 10,000 QPS requires a 4-tier funnel:
-1. <strong>Tier 1 (Filter &amp; Lexical):</strong> BM25 / Sparse index narrows 100M documents $\to$ 10,000 candidates ($\lt 2\text{ms}$).
-2. <strong>Tier 2 (Vector Search):</strong> HNSW dense retrieval narrows 10,000 $\to$ 200 candidates ($\lt 8\text{ms}$).
-3. <strong>Tier 3 (Cross-Encoder Re-Ranker):</strong> MiniLM re-ranks 200 $\to$ 10 high-precision chunks ($\lt 15\text{ms}$).
-4. <strong>Tier 4 (LLM Generation):</strong> vLLM streaming synthesizer produces cited response ($\lt 250\text{ms}$ TTFT).
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2992,8 +2568,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -3058,8 +2633,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -3277,139 +2851,10 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-191-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{CapstoneGrade} = \sum_{c \in \text{components}} w_c \cdot \text{QualityScore}(c) $$
 <p class="math-caption">Final evaluation function aggregating evidence across all multimodal AI system components.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Final Capstone &amp; Portfolio Polish</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Final Capstone &amp; Portfolio Polish** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_191_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 191 — Production Multimodal AI Capstone System Validator
-import time, logging, json
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("CapstoneValidator")
-
-@dataclass
-class CapstoneEvidenceItem:
-    component: str
-    artifact: str
-    status: str  # "COMPLETE", "PARTIAL", "MISSING"
-    notes: str = ""
-
-class MultimodalCapstoneValidator:
-    """
-    Final capstone validation framework:
-    Checks all portfolio evidence items for a production-grade multimodal AI system.
-    Generates a completion certificate with itemised scores.
-    """
-
-    REQUIRED_COMPONENTS = {
-        "data_pipeline":          "Data ingestion + DVC versioning + quality validation",
-        "vector_index":           "FAISS/Qdrant index with &gt; 10K documents, HNSW M=32",
-        "hybrid_retriever":       "Dense + BM25 + RRF fusion, latency &lt; 50ms p99",
-        "reranker":               "Cross-encoder (BGE-Reranker) top-5 from 50 candidates",
-        "llm_api":                "FastAPI /predict endpoint, /health, /metrics",
-        "multimodal_encoder":     "ViT patch embeddings for image documents",
-        "containerization":       "Docker + docker-compose with GPU support",
-        "ci_cd":                  "GitHub Actions: lint → test → build → deploy",
-        "kubernetes":             "K8s Deployment + HPA + PodDisruptionBudget",
-        "monitoring":             "Prometheus + Grafana + DCGM exporter",
-        "drift_detection":        "PSI + KS test on feature distributions",
-        "ragas_evaluation":       "faithfulness &gt; 0.7, answer_relevancy &gt; 0.7",
-        "mlflow_registry":        "Experiment tracking + model staging + promotion",
-        "documentation":          "README.md with architecture diagram + API reference",
-    }
-
-    def validate(self, evidence: List[CapstoneEvidenceItem]) -&gt; Dict[str, Any]:
-        evidence_by_component = {e.component: e for e in evidence}
-        scored = {}
-        for component, description in self.REQUIRED_COMPONENTS.items():
-            if component in evidence_by_component:
-                item = evidence_by_component[component]
-                score = {"COMPLETE": 1.0, "PARTIAL": 0.5, "MISSING": 0.0}.get(item.status, 0.0)
-            else:
-                score = 0.0
-                item = CapstoneEvidenceItem(component, "", "MISSING")
-            scored[component] = {"score": score, "artifact": getattr(item, "artifact", ""), "description": description}
-        total = sum(v["score"] for v in scored.values())
-        max_score = len(self.REQUIRED_COMPONENTS)
-        pct = total / max_score * 100
-        missing = [c for c, v in scored.items() if v["score"] == 0.0]
-        partial = [c for c, v in scored.items() if v["score"] == 0.5]
-        return {
-            "total_score": round(total, 1), "max_score": max_score,
-            "completion_pct": round(pct, 1),
-            "grade": ("DISTINCTION" if pct &gt;= 90 else "MERIT" if pct &gt;= 75 else "PASS" if pct &gt;= 60 else "INCOMPLETE"),
-            "missing_components": missing, "partial_components": partial,
-            "scored_items": scored,
-        }
-
-    def generate_certificate(self, student_name: str, validation_result: Dict) -&gt; str:
-        grade = validation_result["grade"]
-        pct = validation_result["completion_pct"]
-        date = time.strftime("%Y-%m-%d")
-        return (f"
-{'='*60}
-"
-                f" AI/ML ENGINEERING CURRICULUM — COMPLETION CERTIFICATE
-"
-                f"{'='*60}
-"
-                f" Student: {student_name}
-"
-                f" Date: {date}
-"
-                f" Score: {validation_result['total_score']}/{validation_result['max_score']} ({pct:.1f}%)
-"
-                f" Grade: {grade}
-"
-                f"{'='*60}
-"
-                f" {len(self.REQUIRED_COMPONENTS) - len(validation_result['missing_components'])} of "
-                f"{len(self.REQUIRED_COMPONENTS)} components validated
-"
-                f"{'='*60}
-")
-
-if __name__ == "__main__":
-    validator = MultimodalCapstoneValidator()
-    # Simulate a strong capstone submission
-    evidence = [
-        CapstoneEvidenceItem("data_pipeline", "data/pipeline.py + .dvc/", "COMPLETE"),
-        CapstoneEvidenceItem("vector_index", "faiss_index.py + 50K docs indexed", "COMPLETE"),
-        CapstoneEvidenceItem("hybrid_retriever", "hybrid_search.py, p99=38ms", "COMPLETE"),
-        CapstoneEvidenceItem("reranker", "cross_encoder_reranker.py", "COMPLETE"),
-        CapstoneEvidenceItem("llm_api", "FastAPI app, /health returns 200", "COMPLETE"),
-        CapstoneEvidenceItem("multimodal_encoder", "vit_patch_projector.py", "COMPLETE"),
-        CapstoneEvidenceItem("containerization", "Dockerfile + docker-compose.yml", "COMPLETE"),
-        CapstoneEvidenceItem("ci_cd", ".github/workflows/ml-cicd.yml", "COMPLETE"),
-        CapstoneEvidenceItem("kubernetes", "helm/ml-service/ + HPA manifest", "COMPLETE"),
-        CapstoneEvidenceItem("monitoring", "Grafana dashboard JSON exported", "PARTIAL"),
-        CapstoneEvidenceItem("drift_detection", "drift_detector.py", "COMPLETE"),
-        CapstoneEvidenceItem("ragas_evaluation", "RAGAS: F=0.84, AR=0.91", "COMPLETE"),
-        CapstoneEvidenceItem("mlflow_registry", "MLflow server + 15 experiments", "COMPLETE"),
-        CapstoneEvidenceItem("documentation", "README.md with arch diagram", "PARTIAL"),
-    ]
-    result = validator.validate(evidence)
-    certificate = validator.generate_certificate("AI/ML Engineer", result)
-    print(certificate)
-    print(f"Completion: {result['completion_pct']}%, Grade: {result['grade']}")
-    print(f"Partial: {result['partial_components']}")
-    assert result["grade"] in ("DISTINCTION", "MERIT", "PASS")
-    print("MultimodalCapstoneValidator: OK")
-</code></pre>
-</div><h3 class="sh3">Final Master Capstone: Principal AI Engineering System Design Checklist</h3><p>
-Assembling the master portfolio capstone requires demonstrating end-to-end mastery:
-1. <strong>Data &amp; Ingestion:</strong> Multimodal ColPali vector indexing and hybrid BM25 + Dense RRF fusion.
-2. <strong>Serving &amp; Optimization:</strong> vLLM engine with PagedAttention and FP8 / INT4 AWQ quantization.
-3. <strong>Agentic Routing:</strong> LangGraph multi-agent supervisors with cyclic state validation and human approval gates.
-4. <strong>Infrastructure &amp; Telemetry:</strong> Kubernetes GPU autoscaling, OpenTelemetry GenAI spans, and automated drift alerting.
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3530,8 +2975,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -3593,8 +3037,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>

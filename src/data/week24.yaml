@@ -19,11 +19,11 @@ days:
   - 'Apply: Basic PyTorch or sklearn knowledge.'
   checklist:
   - id: chk_171_1
-    text: Derive and analyze mathematical and architectural principles for MLflow Experiment Tracking & Metadata Logging
+    text: Master the core concepts, mathematical principles, and architecture of MLflow Experiment Tracking & Metadata Logging
   - id: chk_171_2
-    text: Build and benchmark production coding pipelines for MLflow Experiment Tracking & Metadata Logging
+    text: 'Complete hands-on implementation and test assertions for Task 1: Compare 3 Models'
   - id: chk_171_3
-    text: 'Execute and validate test verification suite for Task 1: Compare 3 Models'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 171
   - id: chk_171_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -40,85 +40,32 @@ days:
   analogy: 'MLflow experiment tracking is like a high-tech flight data recorder: it continuously logs airspeed, altitude,
     engine temperatures, and cockpit commands during every single flight for full post-flight analysis.'
   theory_html: |-
-    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-    $$ \text{ReproducibilityScore} = \mathbb{I}(\text{Hash}_{train} == \text{Hash}_{orig}) \cdot \mathbb{I}(|M_{new} - M_{orig}| &lt; \epsilon) $$
-    <p class="math-caption">Strict reproducibility definition requiring identical data hashes and model metrics within margin.</p>
-    </div><p>
-    </p><h3 class="sh3">Production Engineering Walkthrough: MLflow Experiment Tracking &amp; Metadata Logging</h3><p>
-    The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **MLflow Experiment Tracking &amp; Metadata Logging** in enterprise production systems:
-    </p><div class="cb">
-    <div class="cb-head"><span class="cb-lang">python — production_drift_detector.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-    <pre><code class="language-python"># Day 171 — Production Statistical Drift Detector
-    import logging, numpy as np
-    from typing import Dict, Any, List
-    from scipy import stats
+    <div class="theory-content">
+    <h2 class="sh2">📊 MLflow Experiment Tracking &amp; Artifact Lineage</h2>
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    logger = logging.getLogger("DriftDetector")
-
-    class ProductionDriftDetector:
-        """
-        Production drift monitoring:
-        - PSI (Population Stability Index) for feature distribution shift
-        - KS test for statistical distribution change
-        - Wasserstein distance for severity quantification
-        """
-
-        PSI_BINS = 10
-        PSI_WARN, PSI_ALERT = 0.1, 0.2  # STABLE / WARNING / ALERT thresholds
-
-        def psi(self, ref: np.ndarray, prod: np.ndarray) -&gt; Dict[str, Any]:
-            _, bins = np.histogram(ref, bins=self.PSI_BINS)
-            ref_pct = (np.histogram(ref, bins=bins)[0] + 1e-8) / len(ref)
-            prod_pct = (np.histogram(prod, bins=bins)[0] + 1e-8) / len(prod)
-            value = float(np.sum((prod_pct - ref_pct) * np.log(prod_pct / ref_pct)))
-            status = "STABLE" if value &lt; self.PSI_WARN else ("WARNING" if value &lt; self.PSI_ALERT else "ALERT")
-            return {"psi": round(value, 4), "status": status}
-
-        def ks_test(self, ref: np.ndarray, prod: np.ndarray, alpha: float = 0.05) -&gt; Dict[str, Any]:
-            stat, p = stats.ks_2samp(ref, prod)
-            return {"ks_stat": round(stat, 4), "p_value": round(p, 4), "drifted": p &lt; alpha}
-
-        def wasserstein(self, ref: np.ndarray, prod: np.ndarray) -&gt; float:
-            return round(float(stats.wasserstein_distance(ref, prod)), 4)
-
-        def monitor_features(self, ref_df, prod_df, features: List[str]) -&gt; Dict[str, Any]:
-            report, drifted = {}, []
-            for col in features:
-                r, p = ref_df[col].dropna().values, prod_df[col].dropna().values
-                psi_res = self.psi(r, p)
-                ks_res = self.ks_test(r, p)
-                w1 = self.wasserstein(r, p)
-                report[col] = {"psi": psi_res, "ks": ks_res, "wasserstein": w1}
-                if ks_res["drifted"] or psi_res["status"] == "ALERT":
-                    drifted.append(col)
-            report["_summary"] = {"drifted_features": drifted, "total_monitored": len(features)}
-            logger.info(f"Drift monitoring: {len(drifted)}/{len(features)} features drifted")
-            return report
-
-    if __name__ == "__main__":
-        import pandas as pd
-        rng = np.random.RandomState(42)
-        ref_data = pd.DataFrame({"feature_A": rng.normal(0, 1, 5000), "feature_B": rng.uniform(0, 1, 5000)})
-        # Stable production distribution
-        prod_stable = pd.DataFrame({"feature_A": rng.normal(0, 1, 2000), "feature_B": rng.uniform(0, 1, 2000)})
-        # Drifted production distribution
-        prod_drift  = pd.DataFrame({"feature_A": rng.normal(2.5, 1.5, 2000), "feature_B": rng.uniform(0.5, 1.5, 2000)})
-
-        detector = ProductionDriftDetector()
-        stable_report = detector.monitor_features(ref_data, prod_stable, ["feature_A", "feature_B"])
-        drift_report  = detector.monitor_features(ref_data, prod_drift,  ["feature_A", "feature_B"])
-        print(f"Stable drifted: {stable_report['_summary']['drifted_features']}")
-        print(f"Drifted drifted: {drift_report['_summary']['drifted_features']}")
-        assert len(drift_report["_summary"]["drifted_features"]) &gt; len(stable_report["_summary"]["drifted_features"])
-        print("ProductionDriftDetector: OK")
-    </code></pre>
-    </div><h3 class="sh3">MLflow Model Registry Lifecycle &amp; Approval Gates</h3><p>
-    The MLflow Model Registry governs model progression across environment tiers:
-    - <strong>Staging:</strong> Automated integration tests evaluate latency, throughput, and statistical data validation suites.
-    - <strong>Production:</strong> Requires signed peer approvals and compliance audits before tagging the model as <code>@champion</code>.
-    - <strong>Archived:</strong> Deprecated models retained for auditability and regulatory compliance.
+    <p class="prose">
+    <strong>MLflow Tracking</strong> provides systematic experiment logging, parameter tracking, step-wise metric visualization, and artifact lineage for reproducible machine learning workflows.
     </p>
+
+    <h3 class="sh3">1. MLflow Architecture: Tracking Server, Backend &amp; Artifact Store</h3>
+    <p class="prose">
+    A production MLflow deployment decouples metadata from heavy artifacts:
+    </p>
+    <ul class="prose-list">
+      <li><strong>Backend Store (PostgreSQL / MySQL):</strong> Stores experiment names, run parameters, tags, and step-wise scalar metrics ($O(1)$ fast querying).</li>
+      <li><strong>Artifact Store (S3 / GCS / Azure Blob):</strong> Stores heavy model weights (<code>model.pkl</code>, <code>model.safetensors</code>), plots, tensorboard logs, and environment files (<code>conda.yaml</code>, <code>requirements.txt</code>).</li>
+    </ul>
+
+    <h3 class="sh3">2. Framework Autologging &amp; Custom Metrics Series</h3>
+    <p class="prose">
+    With <code>mlflow.pytorch.autolog()</code> or <code>mlflow.xgboost.autolog()</code>, training loss, learning rate schedules, and gradient norms are logged per epoch automatically. Custom metrics are captured with <code>mlflow.log_metric(key, value, step=epoch)</code> to enable interactive dashboard comparison.
+    </p>
+
+    <h3 class="sh3">3. Dataset Tracking &amp; Code Versioning</h3>
+    <p class="prose">
+    MLflow logs Git commit hashes and dataset digests via <code>mlflow.data.from_pandas()</code>, guaranteeing that any deployed model can be traced back to its exact training data distribution and source code commit.
+    </p>
+    </div>
   predict:
     question: What MLflow tracking method is called to record validation loss at epoch 10?
     answer: log_metric
@@ -391,14 +338,14 @@ days:
   - Register a model from an MLflow run.
   - 'Apply: Promote a model through Staging → Production stages.'
   - 'Apply: MLflow tracking server running.'
-  - Benchmark and profile runtime performance under production latency constraints.
+  - Analyze architectural trade-offs and error modes for MLflow Model Registry & Model Aliases.
   checklist:
   - id: chk_172_1
-    text: Derive and analyze mathematical and architectural principles for MLflow Model Registry & Model Aliases
+    text: Master the core concepts, mathematical principles, and architecture of MLflow Model Registry & Model Aliases
   - id: chk_172_2
-    text: Build and benchmark production coding pipelines for MLflow Model Registry & Model Aliases
+    text: 'Complete hands-on implementation and test assertions for Task 1: Champion/Challenger'
   - id: chk_172_3
-    text: 'Execute and validate test verification suite for Task 1: Champion/Challenger'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 172
   - id: chk_172_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -706,11 +653,11 @@ days:
   - 'Apply: pip install dvc dvc-s3.'
   checklist:
   - id: chk_173_1
-    text: Derive and analyze mathematical and architectural principles for Data Version Control (DVC) & Dataset Lineage
+    text: Master the core concepts, mathematical principles, and architecture of Data Version Control (DVC) & Dataset Lineage
   - id: chk_173_2
-    text: Build and benchmark production coding pipelines for Data Version Control (DVC) & Dataset Lineage
+    text: 'Complete hands-on implementation and test assertions for Task 1: Track a Dataset'
   - id: chk_173_3
-    text: 'Execute and validate test verification suite for Task 1: Track a Dataset'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 173
   - id: chk_173_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -1132,11 +1079,11 @@ days:
   - "Apply: Airflow initialized (\n        \n         airflow db init\n        \n        )."
   checklist:
   - id: chk_174_1
-    text: Derive and analyze mathematical and architectural principles for ML Workflow Orchestration with Apache Airflow
+    text: Master the core concepts, mathematical principles, and architecture of ML Workflow Orchestration with Apache Airflow
   - id: chk_174_2
-    text: Build and benchmark production coding pipelines for ML Workflow Orchestration with Apache Airflow
+    text: 'Complete hands-on implementation and test assertions for Task 1: Embedding Update DAG'
   - id: chk_174_3
-    text: 'Execute and validate test verification suite for Task 1: Embedding Update DAG'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 174
   - id: chk_174_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -1153,116 +1100,44 @@ days:
   analogy: 'Apache Airflow DAG orchestration is like an automated assembly line in a car plant: the chassis moves to the next
     robotic arm only after the engine bolts are torqued to exact specifications and verified by sensors.'
   theory_html: |-
-    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-    $$ P(\text{DAG\_Success}) = \prod_{i \in \text{CriticalPath}} P(\text{Task}_i = \text{Success}) $$
-    <p class="math-caption">Probability of successful ML pipeline execution based on independent Airflow task reliabilities.</p>
-    </div><p>
-    </p><h3 class="sh3">Production Engineering Walkthrough: ML Workflow Orchestration with Apache Airflow</h3><p>
-    The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **ML Workflow Orchestration with Apache Airflow** in enterprise production systems:
-    </p><div class="cb">
-    <div class="cb-head"><span class="cb-lang">python — production_day_174_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-    <pre>
-    # Production implementation with validated runtime dependencies
+    <div class="theory-content">
+    <h2 class="sh2">⏳ ML Workflow Orchestration with Apache Airflow</h2>
 
-    # Day 174 — Production Airflow ML Pipeline DAG
-    import time, logging
-    from typing import Dict, Any, List, Callable, Optional
-    from datetime import datetime, timedelta
-
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    logger = logging.getLogger("AirflowMLPipeline")
-
-    # Production Airflow DAG definition
-    def create_ml_training_dag():
-        """
-        Production Airflow DAG for ML retraining pipeline.
-        Schedule: daily at 2am UTC.
-        Flow: data_validation → feature_engineering → model_training → evaluation → promotion.
-        """
-        from airflow import DAG
-        from airflow.operators.python import PythonOperator
-        from airflow.operators.empty import EmptyOperator
-        from airflow.utils.trigger_rule import TriggerRule
-
-        def validate_data(**context) -&gt; Dict[str, Any]:
-            logger.info("Validating incoming data...")
-            # Great Expectations suite run
-            import great_expectations as gx
-            context_gx = gx.get_context()
-            result = context_gx.run_checkpoint(checkpoint_name="daily_data_checkpoint")
-            if not result.success:
-                raise ValueError(f"Data validation failed: {result.statistics}")
-            return {"rows": result.statistics["evaluated_expectations"], "valid": True}
-
-        def engineer_features(**context) -&gt; str:
-            logger.info("Engineering features...")
-            # Pull XCom from upstream
-            ti = context["task_instance"]
-            validation_result = ti.xcom_pull(task_ids="validate_data")
-            logger.info(f"Processing {validation_result.get('rows', 0)} validated rows")
-            output_path = f"s3://ml-bucket/features/{context['ds']}/features.parquet"
-            # (actual feature engineering here)
-            logger.info(f"Features saved to {output_path}")
-            return output_path
-
-        def train_model(**context) -&gt; Dict:
-            ti = context["task_instance"]
-            features_path = ti.xcom_pull(task_ids="engineer_features")
-            logger.info(f"Training on {features_path}")
-            # (actual training here)
-            return {"model_path": "s3://ml-bucket/models/latest/", "val_f1": 0.891}
-
-        def evaluate_and_promote(**context) -&gt; bool:
-            ti = context["task_instance"]
-            train_result = ti.xcom_pull(task_ids="train_model")
-            val_f1 = train_result.get("val_f1", 0.0)
-            MIN_F1 = float(context["params"].get("min_f1", "0.80"))
-            if val_f1 &lt; MIN_F1:
-                raise ValueError(f"Model quality gate FAILED: val_f1={val_f1:.3f} &lt; {MIN_F1}")
-            # Promote to MLflow Production stage
-            import mlflow
-            client = mlflow.MlflowClient()
-            client.transition_model_version_stage("churn_model", version="latest", stage="Production")
-            logger.info(f"Model promoted to Production: val_f1={val_f1:.3f}")
-            return True
-
-        default_args = {
-            "owner": "ml-platform",
-            "retries": 2,
-            "retry_delay": timedelta(minutes=5),
-            "email_on_failure": True,
-            "email": ["ml-alerts@company.com"],
-        }
-        with DAG("ml_daily_retraining", default_args=default_args,
-                 schedule_interval="0 2 * * *",  # 2am UTC daily
-                 start_date=datetime(2024, 1, 1), catchup=False,
-                 params={"min_f1": "0.80"},
-                 tags=["ml", "retraining"]) as dag:
-            start = EmptyOperator(task_id="start")
-            validate = PythonOperator(task_id="validate_data", python_callable=validate_data)
-            featurise = PythonOperator(task_id="engineer_features", python_callable=engineer_features)
-            train = PythonOperator(task_id="train_model", python_callable=train_model)
-            promote = PythonOperator(task_id="evaluate_and_promote", python_callable=evaluate_and_promote)
-            end = EmptyOperator(task_id="end", trigger_rule=TriggerRule.ALL_DONE)
-            start &gt;&gt; validate &gt;&gt; featurise &gt;&gt; train &gt;&gt; promote &gt;&gt; end
-        return dag
-
-    ml_dag = None  # create_ml_training_dag()  # Uncomment when running in Airflow
-
-    if __name__ == "__main__":
-        print("Airflow ML Retraining DAG: schedule=daily 2am UTC")
-        print("Flow: start → validate_data → engineer_features → train_model → evaluate_and_promote → end")
-        print("Gates: GX data validation + val_f1 &gt;= 0.80 quality gate")
-        print("XCom: each task passes output to next via task_instance.xcom_pull()")
-        print("AirflowMLPipelineDAG: OK")
-    </pre>
-    </div><h3 class="sh3">Statistical Data Drift Detection: Population Stability Index (PSI)</h3><p>
-    Data drift occurs when production feature distributions $P(X)$ deviate from training distributions $Q(X)$. The Population Stability Index (PSI) quantifies this shift across $B$ binned feature intervals:
-    </p><div class="math-block">
-    $$\text{PSI} = \sum_{b=1}^B \left( P_b - Q_b \right) \times \ln\left( \frac{P_b}{Q_b} \right)$$
-    </div><p>
-    A PSI $\gt  0.2$ indicates significant distributional drift requiring automated retraining DAG triggering.
+    <p class="prose">
+    <strong>Apache Airflow</strong> is the industry standard for orchestrating complex, scheduled, multi-stage machine learning pipelines, handling data extraction, feature engineering, distributed training, and model evaluation.
     </p>
+
+    <h3 class="sh3">1. Airflow Core Architecture: Schedulers, Executors &amp; DAGs</h3>
+    <p class="prose">
+    Airflow defines pipelines as Directed Acyclic Graphs (DAGs) in pure Python:
+    </p>
+    <ul class="prose-list">
+      <li><strong>Scheduler:</strong> Evaluates DAG schedule intervals (cron), resolves task dependencies, and queues executable task instances.</li>
+      <li><strong>Celery / KubernetesExecutor:</strong> Launches isolated worker containers to execute heavy GPU compute tasks without blocking the scheduler.</li>
+      <li><strong>Idempotency Principle:</strong> Every task must produce identical results when re-run on the same execution date ($T_{\text{exec}}$).</li>
+    </ul>
+
+    <h3 class="sh3">2. Airflow Sensors &amp; Event-Driven Triggers</h3>
+    <p class="prose">
+    Instead of polling databases with custom loops, Airflow provides specialized <strong>Sensors</strong>:
+    </p>
+    <div class="diagram-box">
+    <pre class="diagram-code">
+    [S3KeySensor / ExternalTaskSensor] ──(Detects New Batch)──► [Data Preprocessing Task]
+                                                                         │
+                                                          [GPU Training Task (K8sPodOperator)]
+                                                                         │
+                                                          [Model Evaluation BranchPythonOperator]
+                                                            ├── (Passed) ──► [Deploy to Staging]
+                                                            └── (Failed) ──► [Slack Alert &amp; Abort]
+    </pre>
+    </div>
+
+    <h3 class="sh3">3. SLA Management &amp; Automated Failure Retries</h3>
+    <p class="prose">
+    Airflow manages task failures via exponential backoff retries (<code>retries=3, retry_delay=timedelta(minutes=5)</code>) and triggers SLA alert callbacks if a model retraining pipeline exceeds its expected execution window.
+    </p>
+    </div>
   predict:
     question: What string is output when an Apache Airflow DAG completes its scheduled daily retraining run?
     answer: success
@@ -1603,14 +1478,15 @@ days:
   - Implement and evaluate Data Drift vs Concept Drift.
   - Generate drift reports using Evidently AI.
   - 'Apply: pip install evidently.'
-  - Benchmark and profile runtime performance under production latency constraints.
+  - Analyze architectural trade-offs and error modes for Model & Data Drift Monitoring with Evidently AI.
   checklist:
   - id: chk_175_1
-    text: Derive and analyze mathematical and architectural principles for Model & Data Drift Monitoring with Evidently AI
+    text: Master the core concepts, mathematical principles, and architecture of Model & Data Drift Monitoring with Evidently
+      AI
   - id: chk_175_2
-    text: Build and benchmark production coding pipelines for Model & Data Drift Monitoring with Evidently AI
+    text: 'Complete hands-on implementation and test assertions for Task 1: Simulate Drift'
   - id: chk_175_3
-    text: 'Execute and validate test verification suite for Task 1: Simulate Drift'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 175
   - id: chk_175_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -1977,14 +1853,14 @@ days:
   - Implement a canary deployment with traffic splitting.
   - Formulate success metrics to automate rollout/rollback.
   - 'Apply: Understanding of MLflow Model Registry (Day 172).'
-  - Benchmark and profile runtime performance under production latency constraints.
+  - Analyze architectural trade-offs and error modes for Canary Deployments & Statistical A/B Testing.
   checklist:
   - id: chk_176_1
-    text: Derive and analyze mathematical and architectural principles for Canary Deployments & Statistical A/B Testing
+    text: Master the core concepts, mathematical principles, and architecture of Canary Deployments & Statistical A/B Testing
   - id: chk_176_2
-    text: Build and benchmark production coding pipelines for Canary Deployments & Statistical A/B Testing
+    text: 'Complete hands-on implementation and test assertions for Task 1: Shadow Mode'
   - id: chk_176_3
-    text: 'Execute and validate test verification suite for Task 1: Shadow Mode'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 176
   - id: chk_176_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:
@@ -1999,125 +1875,36 @@ days:
     bhejta hai aur statistical hypothesis testing (t-test) se latency aur accuracy verify karta hai before full rollout.
   analogy: 'Canary deployment is like sending a canary down a coal mine: if the canary detects toxic gas, miners exit immediately
     before anyone gets hurt. Only when the air is verified clear do all workers enter.'
-  theory_html: |-
-    <h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-    $$ \text{Traffic}_{green}(t) = \min\left(1.0, \frac{t - t_0}{\text{RolloutDuration}}\right) \cdot \mathbb{I}(\text{ErrorRate} &lt; \tau) $$
-    <p class="math-caption">Progressive blue-green traffic shifting logic with automatic rollback on error threshold.</p>
-    </div><p>
-    </p><h3 class="sh3">Production Engineering Walkthrough: Canary Deployments &amp; Statistical A/B Testing</h3><p>
-    The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Canary Deployments &amp; Statistical A/B Testing** in enterprise production systems:
-    </p><div class="cb">
-    <div class="cb-head"><span class="cb-lang">python — production_day_176_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-    <pre><code class="language-python"># Day 176 — Production Blue-Green Model Deployment Router
-    import time, logging, random
-    from typing import Dict, Any, Optional, Callable
-
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    logger = logging.getLogger("BlueGreenRouter")
-
-    class BlueGreenModelRouter:
-        """
-        Production blue-green model deployment router:
-        Traffic splitting between stable (blue) and new (green) model.
-        Supports progressive rollout: 0% → 5% → 20% → 50% → 100%.
-        """
-
-        ROLLOUT_STAGES = [0, 5, 20, 50, 100]
-
-        def __init__(self, blue_model, green_model,
-                     green_traffic_pct: float = 0.0, min_requests_per_stage: int = 100):
-            self.blue = blue_model
-            self.green = green_model
-            self.green_pct = green_traffic_pct / 100.0
-            self.min_requests = min_requests_per_stage
-            self._metrics: Dict[str, Dict] = {"blue": {"requests": 0, "errors": 0, "latencies": []},
-                                                "green": {"requests": 0, "errors": 0, "latencies": []}}
-
-        def route(self, request: Dict[str, Any]) -&gt; Dict[str, Any]:
-            """Route request to blue or green model based on traffic split."""
-            use_green = random.random() &lt; self.green_pct
-            model_name = "green" if use_green else "blue"
-            model = self.green if use_green else self.blue
-            t0 = time.perf_counter()
-            try:
-                result = model.predict(request)
-                latency_ms = (time.perf_counter() - t0) * 1000
-                self._metrics[model_name]["requests"] += 1
-                self._metrics[model_name]["latencies"].append(latency_ms)
-                return {**result, "_model": model_name, "_latency_ms": round(latency_ms, 1)}
-            except Exception as e:
-                self._metrics[model_name]["errors"] += 1
-                logger.error(f"{model_name} model error: {e}")
-                # Fallback to blue on green failure
-                if use_green:
-                    return self.blue.predict(request)
-                raise
-
-        def advance_rollout(self) -&gt; Optional[float]:
-            """Advance to next rollout stage if metrics are healthy."""
-            current_pct = round(self.green_pct * 100)
-            if current_pct not in self.ROLLOUT_STAGES:
-                return None
-            idx = self.ROLLOUT_STAGES.index(current_pct)
-            if idx &gt;= len(self.ROLLOUT_STAGES) - 1:
-                return 100.0
-            green_m = self._metrics["green"]
-            blue_m = self._metrics["blue"]
-            if green_m["requests"] &lt; self.min_requests:
-                logger.warning(f"Not enough green requests ({green_m['requests']}) for rollout advance")
-                return None
-            green_error_rate = green_m["errors"] / max(green_m["requests"], 1)
-            if green_error_rate &gt; 0.02:  # &gt; 2% error rate = halt
-                logger.error(f"Green error rate {green_error_rate:.1%} &gt; 2% — halting rollout")
-                return None
-            next_pct = self.ROLLOUT_STAGES[idx + 1]
-            self.green_pct = next_pct / 100.0
-            logger.info(f"Rollout advanced: {current_pct}% → {next_pct}%")
-            return float(next_pct)
-
-        def rollback(self) -&gt; None:
-            self.green_pct = 0.0
-            logger.warning("Rollback: 100% traffic reverted to blue model")
-
-        def metrics_report(self) -&gt; Dict[str, Any]:
-            report = {}
-            for name, m in self._metrics.items():
-                lats = m["latencies"]
-                report[name] = {
-                    "requests": m["requests"], "error_rate": m["errors"] / max(m["requests"], 1),
-                    "p50_ms": sorted(lats)[len(lats)//2] if lats else 0,
-                    "p99_ms": sorted(lats)[int(len(lats)*0.99)] if lats else 0,
-                }
-            report["green_traffic_pct"] = round(self.green_pct * 100, 1)
-            return report
-
-    if __name__ == "__main__":
-        class MockModel:
-            def __init__(self, name, fail_rate=0.0):
-                self.name = name
-                self.fail_rate = fail_rate
-            def predict(self, req):
-                if random.random() &lt; self.fail_rate:
-                    raise RuntimeError(f"{self.name} error")
-                time.sleep(0.01)
-                return {"score": random.random(), "model": self.name}
-
-        blue = MockModel("blue-v1")
-        green = MockModel("green-v2")
-        router = BlueGreenModelRouter(blue, green, green_traffic_pct=5.0, min_requests_per_stage=20)
-        # Simulate 50 requests
-        for _ in range(50):
-            router.route({"features": [1, 2, 3]})
-        metrics = router.metrics_report()
-        print(f"Metrics: {metrics}")
-        next_pct = router.advance_rollout()
-        print(f"Rollout advanced to: {next_pct}%")
-        assert metrics["green_traffic_pct"] == 5.0
-        print("BlueGreenModelRouter: OK")
-    </code></pre>
-    </div><h3 class="sh3">Model Governance &amp; Production Model Cards</h3><p>
-    Regulatory compliance (EU AI Act, NIST AI RMF) mandates comprehensive model governance documentation: intended use cases, training dataset provenance, fairness and bias audits across demographic slices, performance decay bounds, and environmental compute footprints.
-    </p>
+  theory_html: "<div class=\"theory-content\">\n<h2 class=\"sh2\">\U0001F52C Production Canary Deployments &amp; Statistical\
+    \ A/B Testing</h2>\n\n<p class=\"prose\">\nDeploying new machine learning models directly to 100% of production traffic\
+    \ invites catastrophic risk from silent data drift, latent latency regressions, and unexpected distribution shifts. <strong>Canary\
+    \ deployments</strong> and <strong>Statistical A/B Testing</strong> provide controlled, empirical gates to validate model\
+    \ quality against production ground-truth business metrics before full rollout.\n</p>\n\n<h3 class=\"sh3\">1. Canary Traffic\
+    \ Routing Architecture</h3>\n<p class=\"prose\">\nIn a canary rollout, the incumbent model ($M_{\\text{baseline}}$) handles\
+    \ 90–95% of traffic while the challenger ($M_{\\text{canary}}$) serves 5–10%. An API Gateway (e.g., Envoy, Kong, or AWS\
+    \ ALB) routes requests probabilistically or based on specific customer headers:\n</p>\n\n<div class=\"diagram-box\">\n\
+    <pre class=\"diagram-code\">\n[Incoming User Traffic] ──► [Envoy / Ingress Controller]\n                             \
+    \   ├── (90%) ──► [Baseline Model v1 Pods] ──► [Log Latency &amp; Conversions]\n                                └── (10%)\
+    \ ──► [Canary Model v2 Pods]   ──► [Log Latency &amp; Conversions]\n                                                 \
+    \  │\n                                            [Prometheus / Drift Watcher]\n                                     \
+    \       (Auto-Rollback on Error Spike > 1%)\n</pre>\n</div>\n\n<h3 class=\"sh3\">2. Statistical Hypothesis Testing (Two-Proportion\
+    \ Z-Test)</h3>\n<p class=\"prose\">\nTo confirm that an observed performance lift in the challenger model is not due to\
+    \ random noise, we formulate a two-tailed hypothesis test:\n</p>\n<ul class=\"prose-list\">\n  <li><strong>Null Hypothesis\
+    \ ($H_0$):</strong> $p_B - p_A = 0$ (No difference in conversion / acceptance rate).</li>\n  <li><strong>Alternative Hypothesis\
+    \ ($H_1$):</strong> $p_B - p_A \neq 0$ (Significant performance difference).</li>\n</ul>\n\n<p class=\"prose\">\nThe pooled\
+    \ standard error $SE_{\\text{pool}}$ and test statistic $Z$ are calculated as:\n</p>\n<p class=\"katex-block\">\n$$p_{\\\
+    text{pool}} = \\frac{x_A + x_B}{n_A + n_B}, \\quad SE_{\\text{pool}} = \\sqrt{p_{\\text{pool}}(1 - p_{\\text{pool}})\\\
+    left(\\frac{1}{n_A} + \\frac{1}{n_B}\\right)}, \\quad Z = \\frac{\\hat{p}_B - \\hat{p}_A}{SE_{\\text{pool}}}$$\n</p>\n\
+    \n<h3 class=\"sh3\">3. Minimum Sample Size &amp; Statistical Power Calculation</h3>\n<p class=\"prose\">\nBefore declaring\
+    \ an A/B test conclusive, you must run it until you achieve sufficient <strong>Statistical Power ($1 - \\beta = 0.80$)</strong>\
+    \ at a significance level of $\\alpha = 0.05$. Stopping a test prematurely when $p < 0.05$ is a critical error (\"peeking\
+    \ problem\") that inflates False Positive rates up to 30%.\n</p>\n<p class=\"prose\">\nThe minimum sample size $N$ per\
+    \ variant required to reliably detect a Minimum Detectable Effect (MDE $\\Delta = |p_B - p_A|$) is computed as:\n</p>\n\
+    <p class=\"katex-block\">\n$$N = \\frac{2 \\cdot (Z_{\\alpha/2} + Z_\\beta)^2 \\cdot p_{\\text{pool}}(1 - p_{\\text{pool}})}{\\\
+    Delta^2}$$\n</p>\n\n<div class=\"callout callout-tip\">\n  <strong>\U0001F3AF Production A/B Testing Rule:</strong><br/>\n\
+    \  Always compute $N$ upfront before beginning rollout. If baseline conversion is $8.5\\%$ and target lift is $15\\%$\
+    \ relative ($p_B = 9.8\\%$, $\\Delta = 0.013$), you need at least $n \\approx 7,850$ users per variant before asserting\
+    \ statistical significance.\n</div>\n</div>"
   predict:
     question: What p-value threshold is required to declare statistical significance in a production ML A/B test?
     answer: '0.05'
@@ -2143,17 +1930,47 @@ days:
     git_cmd: 'git add . && git commit -m "feat(day176): task-1-shadow-mode"'
     sol_id: sol-w24d176t1
     solution_title: ✅ COMPLETE SOLUTION — task_1_solution.py
-    solution_code: "# Step 1: Algorithmic Implementation & Core Transformations\nimport numpy as np\nfrom scipy import stats\n\
-      \ndef evaluate_ab_test_significance(\n    conversions_a: int, impressions_a: int,\n    conversions_b: int, impressions_b:\
-      \ int,\n    alpha: float = 0.05\n) -> dict:\n    \"\"\"\n    Two-Sample Z-Test for Model A/B Testing Conversion Rates.\n\
-      \    \"\"\"\n    p_a = conversions_a / impressions_a\n    p_b = conversions_b / impressions_b\n    p_pool = (conversions_a\
-      \ + conversions_b) / (impressions_a + impressions_b)\n    \n    se = np.sqrt(p_pool * (1 - p_pool) * (1/impressions_a\
-      \ + 1/impressions_b))\n    z_stat = (p_b - p_a) / se\n    p_value = 2 * (1 - stats.norm.cdf(abs(z_stat)))\n    \nreturn\
-      \ {\n        \"conversion_rate_a\": round(p_a, 4),\n        \"conversion_rate_b\": round(p_b, 4),\n        \"z_statistic\"\
-      : round(z_stat, 4),\n        \"p_value\": round(p_value, 5),\n        \"statistically_significant\": p_value < alpha\n\
-      \    }\n\nresults = evaluate_ab_test_significance(conversions_a=850, impressions_a=10000,\n                        \
-      \                conversions_b=980, impressions_b=10000)\nprint(\"A/B Testing Statistical Results:\", results)\nassert\
-      \ conversions_b is not None, \"conversions_b should not be None\"\n"
+    solution_code: |
+      # Day 176 Task 1: Statistical A/B Significance & Power Calculator
+      import numpy as np
+      from scipy import stats
+      from typing import Dict, Any
+
+      def calculate_min_sample_size(p_baseline: float, relative_mde: float, alpha: float = 0.05, power: float = 0.80) -> int:
+          """Calculates minimum sample size per variant for two-proportion A/B test."""
+          p_variant = p_baseline * (1 + relative_mde)
+          delta = abs(p_variant - p_baseline)
+          p_pool = (p_baseline + p_variant) / 2.0
+          z_alpha = stats.norm.ppf(1 - alpha / 2)
+          z_beta = stats.norm.ppf(power)
+          n = (2 * (z_alpha + z_beta)**2 * p_pool * (1 - p_pool)) / (delta**2)
+          return int(np.ceil(n))
+
+      def evaluate_ab_test_significance(conversions_a: int, visitors_a: int, conversions_b: int, visitors_b: int, alpha: float = 0.05) -> Dict[str, Any]:
+          """Computes pooled two-proportion z-test for production model A/B testing."""
+          p_a = conversions_a / visitors_a
+          p_b = conversions_b / visitors_b
+          p_pool = (conversions_a + conversions_b) / (visitors_a + visitors_b)
+          se_pool = np.sqrt(p_pool * (1 - p_pool) * (1 / visitors_a + 1 / visitors_b))
+          z_stat = (p_b - p_a) / se_pool
+          p_val = 2 * (1 - stats.norm.cdf(abs(z_stat)))
+          is_significant = bool(p_val < alpha)
+          lift = ((p_b - p_a) / p_a) * 100
+          return {
+              "variant_a_rate": round(p_a, 4),
+              "variant_b_rate": round(p_b, 4),
+              "relative_lift_pct": round(lift, 2),
+              "z_statistic": round(z_stat, 4),
+              "p_value": round(p_val, 5),
+              "statistically_significant": is_significant
+          }
+
+      # Self-test assertion
+      res = evaluate_ab_test_significance(850, 10000, 980, 10000)
+      min_n = calculate_min_sample_size(0.085, 0.15)
+      assert res["statistically_significant"] == True
+      print(f"A/B Test Evaluation: {res}")
+      print(f"Minimum required sample size per variant: {min_n}")
     solution_lang: python
   - title: Production Benchmark — Canary Deployments & Statistical A/B Testing
     solution_code: |
@@ -2416,11 +2233,11 @@ days:
   - 'Apply: Airflow running locally.'
   checklist:
   - id: chk_177_1
-    text: 'Derive and analyze mathematical and architectural principles for Capstone: End-to-End Enterprise MLOps Pipeline'
+    text: 'Master the core concepts, mathematical principles, and architecture of Capstone: End-to-End Enterprise MLOps Pipeline'
   - id: chk_177_2
-    text: 'Build and benchmark production coding pipelines for Capstone: End-to-End Enterprise MLOps Pipeline'
+    text: 'Complete hands-on implementation and test assertions for Task 1: Wire the Full Pipeline · MEDIUM'
   - id: chk_177_3
-    text: 'Execute and validate test verification suite for Task 1: Wire the Full Pipeline · MEDIUM'
+    text: Validate practical edge cases, performance trade-offs, and failure modes for Day 177
   - id: chk_177_4
     text: Evaluate conceptual mastery via interactive flashcards and quiz challenges
   concept_flow:

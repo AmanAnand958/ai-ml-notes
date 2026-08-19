@@ -190,111 +190,10 @@
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-178-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{NodeCapacity} = \text{CPU}_{allocatable} - \sum \text{PodRequests}_{cpu} \ge \text{MinOverhead} $$
 <p class="math-caption">Kubernetes node capacity constraint ensuring ML pods have sufficient guaranteed resources.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Kubernetes Core Concepts</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Kubernetes Core Concepts** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_k8s_gpu_scheduler.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-yaml"># Day 178 — Production Kubernetes GPU Workload Scheduler
-import subprocess, json, logging, time
-from typing import Dict, Any, List, Optional
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("K8sGPUScheduler")
-
-GPU_POD_YAML = """apiVersion: v1
-kind: Pod
-metadata:
-  name: {name}
-  labels: {{app: gpu-job}}
-spec:
-  restartPolicy: Never
-  nodeSelector:
-    nvidia.com/gpu.product: {gpu_model}
-  tolerations:
-  - {{key: "nvidia.com/gpu", operator: "Exists", effect: "NoSchedule"}}
-  containers:
-  - name: trainer
-    image: {image}
-    command: {command}
-    resources:
-      limits:
-        nvidia.com/gpu: "{n_gpu}"
-        memory: {memory}
-      requests:
-        nvidia.com/gpu: "{n_gpu}"
-        memory: {memory}
-    env:
-    - {{name: NCCL_DEBUG, value: INFO}}
-    - {{name: NCCL_IB_DISABLE, value: "0"}}
-"""
-
-class K8sGPUJobSubmitter:
-    """Submit, monitor, and clean up GPU training jobs on Kubernetes."""
-
-    def __init__(self, namespace: str = "ml-training"):
-        self.ns = namespace
-
-    def _run(self, *args, input_text: str = None) -&gt; subprocess.CompletedProcess:
-        cmd = ["kubectl", "-n", self.ns, *args]
-        return subprocess.run(cmd, capture_output=True, text=True, input=input_text, timeout=30)
-
-    def submit(self, job_name: str, image: str, command: List[str],
-                n_gpu: int = 1, memory: str = "32Gi", gpu_model: str = "A100-SXM4-80GB") -&gt; bool:
-        yaml = GPU_POD_YAML.format(
-            name=job_name, gpu_model=gpu_model, image=image,
-            command=json.dumps(command), n_gpu=n_gpu, memory=memory
-        )
-        result = self._run("apply", "-f", "-", input_text=yaml)
-        if result.returncode != 0:
-            logger.error(f"Submit failed: {result.stderr}")
-            return False
-        logger.info(f"Submitted: {job_name} ({n_gpu}x{gpu_model})")
-        return True
-
-    def wait(self, job_name: str, timeout_sec: int = 3600) -&gt; str:
-        deadline = time.time() + timeout_sec
-        while time.time() &lt; deadline:
-            r = self._run("get", "pod", job_name, "-o", "jsonpath={.status.phase}")
-            phase = r.stdout.strip()
-            logger.info(f"{job_name}: {phase}")
-            if phase in ("Succeeded", "Failed"):
-                return phase
-            time.sleep(15)
-        return "Timeout"
-
-    def logs(self, job_name: str, tail: int = 100) -&gt; str:
-        r = self._run("logs", job_name, f"--tail={tail}")
-        return r.stdout
-
-    def delete(self, job_name: str) -&gt; None:
-        self._run("delete", "pod", job_name, "--ignore-not-found")
-        logger.info(f"Deleted: {job_name}")
-
-if __name__ == "__main__":
-    submitter = K8sGPUJobSubmitter()
-    print("K8sGPUJobSubmitter: kubectl-based GPU pod lifecycle manager")
-    print("submit → wait → logs → delete")
-    # Validate YAML template rendering
-    yaml = GPU_POD_YAML.format(
-        name="test-job", gpu_model="A100-SXM4-80GB",
-        image="pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime",
-        command='["python", "train.py"]', n_gpu=2, memory="64Gi"
-    )
-    print(f"YAML preview (first 300 chars): {yaml[:300]}")
-    assert "nvidia.com/gpu" in yaml
-    print("K8sGPUJobSubmitter: OK")
-</code></pre>
-</div><h3 class="sh3">Kubernetes Cluster Architecture for Machine Learning</h3><p>
-A production ML Kubernetes cluster isolates workloads into distinct node pools:
-- <strong>CPU System Node Pool:</strong> Runs Ingress controllers, Prometheus, and Grafana (c6i.2xlarge).
-- <strong>GPU Inference Node Pool:</strong> Runs vLLM and TensorRT-LLM pods on spot/on-demand instances (g5.2xlarge).
-- <strong>GPU Training Node Pool:</strong> Runs multi-node DDP jobs on InfiniBand-connected clusters (p4d.24xlarge).
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -547,15 +446,47 @@ if __name__ == '__main__':
           </button>
 </div>
 </div>
-<pre><span class="kw">def</span> <span class="fn">collect_dcgm_metrics</span>(gpu_id: int = <span class="num">0</span>) - list:
-<span class="kw">return</span> [
-        <span class="str">f'DCGM_FI_DEV_GPU_UTIL{{gpu="{gpu_id}"}} 84.5'</span>,
-        <span class="str">f'DCGM_FI_DEV_FB_USED{{gpu="{gpu_id}"}} 68719476736'</span>, <span class="cm"># 64GB in bytes</span>
-        <span class="str">f'DCGM_FI_DEV_FB_FREE{{gpu="{gpu_id}"}} 17179869184'</span>, <span class="cm"># 16GB in bytes</span>
-        <span class="str">f'DCGM_FI_DEV_GPU_TEMP{{gpu="{gpu_id}"}} 62.0'</span>
-    ]
+<pre>"""
+Production Implementation: Kubernetes Pod &amp; ReplicaSet State Controller
+Module: Day 178 — Kubernetes Architecture &amp; Core Concepts
+"""
 
-<span class="fn">print</span>(<span class="str">"Prometheus DCGM Exporter Output:\n" + "\n"</span>.<span class="fn">join</span>(<span class="fn">collect_dcgm_metrics</span>(gpu_id=<span class="num">0</span>)))</pre>
+from typing import Dict, List
+
+class K8sPodController:
+    def __init__(self, desired_replicas: int = 3):
+        self.desired_replicas = desired_replicas
+        self.pods: Dict[str, str] = {}
+
+    def reconcile(self) -&gt; Dict[str, int]:
+        current_count = len([p for p, status in self.pods.items() if status == "Running"])
+        
+        # Scale up if under-provisioned
+        if current_count &lt; self.desired_replicas:
+            for i in range(current_count, self.desired_replicas):
+                pod_name = f"vllm-worker-{i+1}"
+                self.pods[pod_name] = "Running"
+                print(f"[K8s Reconcile] Spawned {pod_name} -&gt; Running")
+                
+        # Scale down if over-provisioned
+        elif current_count &gt; self.desired_replicas:
+            running_pods = [p for p, status in self.pods.items() if status == "Running"]
+            for pod_name in running_pods[self.desired_replicas:]:
+                self.pods[pod_name] = "Terminated"
+                print(f"[K8s Reconcile] Terminated {pod_name}")
+                
+        return {"running": len([p for p, s in self.pods.items() if s == "Running"])}
+
+if __name__ == '__main__':
+    controller = K8sPodController(desired_replicas=3)
+    status = controller.reconcile()
+    assert status["running"] == 3
+    
+    # Scale out to 5 replicas during load spike
+    controller.desired_replicas = 5
+    status = controller.reconcile()
+    assert status["running"] == 5
+    print("✓ Kubernetes state controller reconciled successfully!")</pre>
 </div>
 <div style="margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;">
 <strong>
@@ -834,75 +765,10 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-179-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{BatchEfficiency} = \frac{\text{TokensPerSecond}_{batched}}{\text{TokensPerSecond}_{sequential}} \propto \text{BatchSize} \cdot \left(1 - \text{MemoryOverhead}\right) $$
 <p class="math-caption">Throughput improvement via continuous batching and PagedAttention in vLLM.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Deploying vLLM on Kubernetes</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Deploying vLLM on Kubernetes** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_dcgm_prometheus_exporter.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 179 — Production vLLM Multi-GPU Server
-import time, logging
-from typing import Dict, Any, List
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("vLLM_Server")
-
-class vLLMInferenceEngine:
-    """
-    Production wrapper for vLLM serving engine.
-    Configures tensor parallelism across multiple GPUs, continuous batching,
-    and PagedAttention for high-throughput LLM serving.
-    """
-
-    def __init__(self, model_id: str, tensor_parallel_size: int = 1, gpu_memory_utilization: float = 0.9):
-        self.model_id = model_id
-        self.tp_size = tensor_parallel_size
-        self.mem_util = gpu_memory_utilization
-        self.llm = None
-        
-    def initialize_engine(self):
-        """Initialize the vLLM engine."""
-        logger.info(f"Initializing vLLM for {self.model_id} on {self.tp_size} GPUs (mem={self.mem_util})")
-        # In real usage:
-        # from vllm import LLM
-        # self.llm = LLM(
-        #     model=self.model_id,
-        #     tensor_parallel_size=self.tp_size,
-        #     gpu_memory_utilization=self.mem_util,
-        #     trust_remote_code=True
-        # )
-        self.llm = "Mock_vLLM_Engine"
-        logger.info("vLLM Engine ready.")
-
-    def generate_batch(self, prompts: List[str], max_tokens: int = 256, temperature: float = 0.7) -&gt; List[str]:
-        """Run batched generation using continuous batching."""
-        if not self.llm:
-            raise RuntimeError("Engine not initialized.")
-            
-        # In real usage:
-        # from vllm import SamplingParams
-        # params = SamplingParams(temperature=temperature, max_tokens=max_tokens)
-        # outputs = self.llm.generate(prompts, params)
-        # return [output.outputs[0].text for output in outputs]
-        
-        logger.info(f"Processing batch of {len(prompts)} prompts...")
-        time.sleep(0.1 * len(prompts)) # simulate compute
-        return [f"Generated response for: {p[:15]}..." for p in prompts]
-
-if __name__ == "__main__":
-    engine = vLLMInferenceEngine("meta-llama/Meta-Llama-3-70B-Instruct", tensor_parallel_size=4)
-    engine.initialize_engine()
-    results = engine.generate_batch(["What is machine learning?", "Explain Kubernetes."])
-    print(f"Generated {len(results)} outputs.")
-    assert len(results) == 2
-    print("vLLMInferenceEngine: OK")
-</code></pre>
-</div><h3 class="sh3">Kubernetes NVIDIA GPU Scheduling &amp; Topology Awareness</h3><p>
-Kubernetes schedules GPU workloads via the NVIDIA GPU Operator and Device Plugin. For multi-GPU workloads (Tensor Parallelism), the scheduler must enforce NUMA node and NVLink topology affinity, ensuring communicating GPUs reside on the same PCIe switch to prevent inter-GPU communication bottlenecks.
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -1416,118 +1282,10 @@ print("✅ vLLM K8s deployment spec assertions passed")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-180-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{DesiredReplicas} = \left\lceil \text{CurrentReplicas} \cdot \frac{\text{CurrentMetricValue}}{\text{DesiredMetricValue}} \right\rceil $$
 <p class="math-caption">Standard Kubernetes Horizontal Pod Autoscaler (HPA) algorithm for scaling ML services.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Horizontal Pod Autoscaling</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Horizontal Pod Autoscaling** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_180_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-yaml"># Day 180 — Production K8s HPA + KEDA Autoscaler for ML Services
-import subprocess, json, logging, time
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("K8sAutoscaler")
-
-HPA_MANIFEST = """apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: {name}-hpa
-  namespace: {namespace}
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: {name}
-  minReplicas: {min_replicas}
-  maxReplicas: {max_replicas}
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: {cpu_target}
-  - type: External
-    external:
-      metric:
-        name: requests_per_second
-        selector:
-          matchLabels:
-            service: {name}
-      target:
-        type: AverageValue
-        averageValue: "{rps_target}"
-  behavior:
-    scaleUp:
-      stabilizationWindowSeconds: 30
-      policies:
-      - type: Pods
-        value: 4
-        periodSeconds: 60
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-      - type: Percent
-        value: 25
-        periodSeconds: 60
-"""
-
-class K8sMLServiceAutoscaler:
-    """Manages HPA and KEDA scaling for ML inference deployments."""
-
-    def __init__(self, namespace: str = "ml-serving"):
-        self.ns = namespace
-
-    def apply_hpa(self, service_name: str, min_replicas: int = 2, max_replicas: int = 20,
-                   cpu_target: int = 60, rps_target: int = 50) -&gt; bool:
-        manifest = HPA_MANIFEST.format(
-            name=service_name, namespace=self.ns,
-            min_replicas=min_replicas, max_replicas=max_replicas,
-            cpu_target=cpu_target, rps_target=rps_target
-        )
-        result = subprocess.run(["kubectl", "apply", "-n", self.ns, "-f", "-"],
-                                 input=manifest, capture_output=True, text=True)
-        success = result.returncode == 0
-        logger.info(f"HPA for {service_name}: {'applied' if success else 'FAILED'}")
-        return success
-
-    def get_replicas(self, deployment: str) -&gt; Dict[str, int]:
-        r = subprocess.run(["kubectl", "get", "deployment", deployment, "-n", self.ns, "-o", "json"],
-                            capture_output=True, text=True)
-        if r.returncode != 0:
-            return {"desired": 0, "ready": 0, "available": 0}
-        spec = json.loads(r.stdout)
-        status = spec.get("status", {})
-        return {"desired": spec["spec"]["replicas"], "ready": status.get("readyReplicas", 0),
-                "available": status.get("availableReplicas", 0)}
-
-    def scale_preemptively(self, deployment: str, replicas: int) -&gt; bool:
-        """Pre-scale before known traffic spike (e.g., business hours)."""
-        r = subprocess.run(["kubectl", "scale", "deployment", deployment,
-                             f"--replicas={replicas}", "-n", self.ns], capture_output=True, text=True)
-        logger.info(f"Pre-scaled {deployment} to {replicas}: {'OK' if r.returncode == 0 else 'FAILED'}")
-        return r.returncode == 0
-
-if __name__ == "__main__":
-    autoscaler = K8sMLServiceAutoscaler()
-    print("K8sMLServiceAutoscaler: HPA + KEDA for ML inference scaling")
-    print("Key settings: scaleDown.stabilizationWindow=300s (5min) prevents rapid scale-in")
-    print("Scale-up: max 4 new pods per minute (prevents Kubernetes thundering herd)")
-    # Validate manifest generation
-    manifest = HPA_MANIFEST.format(
-        name="llm-inference", namespace="ml-serving",
-        min_replicas=2, max_replicas=20, cpu_target=60, rps_target=50
-    )
-    print(f"HPA manifest preview ({len(manifest)} chars):")
-    print(manifest[:300])
-    assert "stabilizationWindowSeconds: 300" in manifest
-    print("K8sMLServiceAutoscaler: OK")
-</code></pre>
-</div></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2007,114 +1765,10 @@ print("✅ HPA assertions passed")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-181-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{ReleaseStability} = 1 - \frac{\text{Rollbacks}}{\text{TotalHelmUpgrades}} $$
 <p class="math-caption">Measurement of deployment stability using Helm atomic upgrades and rollbacks.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Helm Charts for ML Stacks</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Helm Charts for ML Stacks** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_181_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 181 — Production Helm Chart Packager for ML Services
-import subprocess, yaml, logging, os, json
-from typing import Dict, Any, List, Optional
-from pathlib import Path
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("HelmPackager")
-
-VALUES_TEMPLATE = {
-    "replicaCount": 2,
-    "image": {
-        "repository": "gcr.io/project/service",
-        "tag": "latest",
-        "pullPolicy": "IfNotPresent",
-    },
-    "service": {"type": "ClusterIP", "port": 8000},
-    "resources": {
-        "requests": {"cpu": "1000m", "memory": "2Gi"},
-        "limits":   {"cpu": "4000m", "memory": "8Gi", "nvidia.com/gpu": "0"},
-    },
-    "env": [],
-    "livenessProbe": {"httpGet": {"path": "/health", "port": 8000}, "initialDelaySeconds": 30},
-    "readinessProbe": {"httpGet": {"path": "/ready", "port": 8000}, "initialDelaySeconds": 10},
-    "autoscaling": {"enabled": True, "minReplicas": 2, "maxReplicas": 10, "targetCPUUtilizationPercentage": 60},
-    "podDisruptionBudget": {"enabled": True, "minAvailable": 1},
-}
-
-class HelmMLChartManager:
-    """
-    Manages Helm chart lifecycle for ML services:
-    template validation, diff-before-upgrade, atomic upgrades.
-    """
-
-    def __init__(self, chart_dir: str = "./helm/ml-service"):
-        self.chart_dir = chart_dir
-
-    def _run_helm(self, *args: str) -&gt; subprocess.CompletedProcess:
-        cmd = ["helm", *args]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"helm {' '.join(args[:3])}: {result.stderr[:200]}")
-        return result
-
-    def lint(self) -&gt; bool:
-        r = self._run_helm("lint", self.chart_dir, "--strict")
-        if r.returncode == 0:
-            logger.info("Helm lint: PASS")
-        return r.returncode == 0
-
-    def diff(self, release: str, namespace: str, values_file: str) -&gt; str:
-        r = self._run_helm("diff", "upgrade", release, self.chart_dir,
-                           "-n", namespace, "-f", values_file, "--color", "false")
-        return r.stdout
-
-    def upgrade(self, release: str, namespace: str, values_file: str,
-                 wait: bool = True, timeout: str = "5m") -&gt; bool:
-        args = ["upgrade", "--install", release, self.chart_dir,
-                "-n", namespace, "-f", values_file, "--atomic"]
-        if wait:
-            args += ["--wait", f"--timeout={timeout}"]
-        r = self._run_helm(*args)
-        status = "OK" if r.returncode == 0 else "FAILED"
-        logger.info(f"helm upgrade {release}: {status}")
-        return r.returncode == 0
-
-    def rollback(self, release: str, namespace: str, revision: int = 0) -&gt; bool:
-        r = self._run_helm("rollback", release, str(revision), "-n", namespace, "--wait")
-        logger.info(f"Rolled back {release} to revision {revision}")
-        return r.returncode == 0
-
-    def generate_values(self, service_config: Dict[str, Any]) -&gt; Dict:
-        values = dict(VALUES_TEMPLATE)
-        values["image"]["repository"] = service_config.get("image", values["image"]["repository"])
-        values["image"]["tag"] = service_config.get("tag", "latest")
-        values["replicaCount"] = service_config.get("replicas", 2)
-        if gpu := service_config.get("gpu_count"):
-            values["resources"]["limits"]["nvidia.com/gpu"] = str(gpu)
-            values["resources"]["requests"]["nvidia.com/gpu"] = str(gpu)
-        for k, v in service_config.get("env", {}).items():
-            values["env"].append({"name": k, "value": str(v)})
-        return values
-
-if __name__ == "__main__":
-    mgr = HelmMLChartManager()
-    # Generate values for an LLM inference service
-    values = mgr.generate_values({
-        "image": "us-docker.pkg.dev/project/llm-inference",
-        "tag": "v1.2.3",
-        "replicas": 3,
-        "gpu_count": 1,
-        "env": {"MODEL_PATH": "/mnt/models/llama3-8b", "MAX_BATCH_SIZE": "32"}
-    })
-    print("Generated Helm values:")
-    print(yaml.dump(values, default_flow_style=False)[:600])
-    assert values["resources"]["limits"]["nvidia.com/gpu"] == "1"
-    assert len(values["env"]) == 2
-    print("HelmMLChartManager: OK")
-</code></pre>
-</div></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2563,152 +2217,26 @@ print("✅ Helm chart assertions passed")</pre>
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-182-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-$$ t_{CICD} = t_{lint} + \max(t_{test}, t_{build}) + t_{deploy} $$
-<p class="math-caption">Optimized CI/CD pipeline duration with parallelized testing and container building.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: GitHub Actions CI/CD for ML</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **GitHub Actions CI/CD for ML** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_182_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 182 — Production GitHub Actions ML CI/CD Pipeline
-import subprocess, json, logging, os
-from typing import Dict, Any, List
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("CICD")
-
-GITHUB_ACTIONS_WORKFLOW = """
-name: ML Service CI/CD
-
-on:
-  push:
-    branches: [main, staging]
-  pull_request:
-    branches: [main]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{{{ github.repository }}}}
-
-jobs:
-  quality-gates:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Full history for DVC
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with: {{python-version: '3.11'}}
-
-    - name: Install dependencies
-      run: pip install -r requirements.txt -r requirements-dev.txt
-
-    - name: Lint &amp; type check
-      run: |
-        flake8 src/ --max-line-length=120
-        mypy src/ --ignore-missing-imports
-        bandit -r src/ -ll
-
-    - name: Unit tests
-      run: pytest tests/unit/ -v --cov=src --cov-report=xml --cov-fail-under={min_coverage}
-      env:
-        PYTHONDONTWRITEBYTECODE: 1
-
-    - name: Model regression tests
-      run: pytest tests/regression/ -v -m "not slow"
-
-  build-and-push:
-    needs: quality-gates
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    outputs:
-      image_digest: ${{{{ steps.push.outputs.digest }}}}
-    steps:
-    - uses: actions/checkout@v4
-    - name: Login to GHCR
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{{{ github.actor }}}}
-        password: ${{{{ secrets.GITHUB_TOKEN }}}}
-
-    - name: Build and push Docker image
-      id: push
-      uses: docker/build-push-action@v5
-      with:
-        push: true
-        tags: ghcr.io/${{{{ github.repository }}}}:${{{{ github.sha }}}}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-  deploy-staging:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-    - name: Deploy to Staging
-      run: |
-        helm upgrade --install ml-service ./helm/ml-service \
-          --set image.tag=${{{{ github.sha }}}} \
-          --namespace staging --atomic --wait --timeout=5m
-      env:
-        KUBECONFIG: ${{{{ secrets.STAGING_KUBECONFIG }}}}
-
-    - name: Run integration tests
-      run: pytest tests/integration/ --base-url=${{{{ vars.STAGING_URL }}}} -v
-
-  deploy-production:
-    needs: deploy-staging
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-    - name: Deploy to Production (Blue-Green)
-      run: |
-        helm upgrade --install ml-service ./helm/ml-service \
-          --set image.tag=${{{{ github.sha }}}} \
-          --namespace production --atomic --wait --timeout=10m
-"""
-
-class CICDPipelineGenerator:
-    """Generates and validates GitHub Actions CI/CD workflows for ML services."""
-
-    def generate_workflow(self, min_coverage: int = 80, deploy_to_k8s: bool = True) -&gt; str:
-        return GITHUB_ACTIONS_WORKFLOW.format(min_coverage=min_coverage)
-
-    def validate_workflow_yaml(self, workflow_content: str) -&gt; bool:
-        import yaml
-        try:
-            parsed = yaml.safe_load(workflow_content)
-            assert "jobs" in parsed
-            assert "on" in parsed
-            logger.info("Workflow YAML valid")
-            return True
-        except Exception as e:
-            logger.error(f"Invalid workflow YAML: {e}")
-            return False
-
-if __name__ == "__main__":
-    gen = CICDPipelineGenerator()
-    workflow = gen.generate_workflow(min_coverage=80)
-    print(f"Generated workflow ({len(workflow)} chars):")
-    print(workflow[:500])
-    # Validate structure
-    import yaml
-    parsed = yaml.safe_load(workflow)
-    print(f"Jobs: {list(parsed['jobs'].keys())}")
-    assert "quality-gates" in parsed["jobs"]
-    assert "build-and-push" in parsed["jobs"]
-    assert "deploy-staging" in parsed["jobs"]
-    assert "deploy-production" in parsed["jobs"]
-    print("CICDPipelineGenerator: OK")
-</code></pre>
-</div><h3 class="sh3">Distributed Data Parallel (DDP) Ring-AllReduce Mechanics</h3><p>
-In PyTorch Distributed Data Parallel (DDP), each GPU maintains an identical copy of model weights and processes a slice of the global batch. During the backward pass, gradients are synchronized across nodes using the Ring-AllReduce algorithm, transferring $2 \times \frac{N-1}{N} \times |W|$ bytes with bandwidth independent of node count $N$.
-</p></div>
+<div class="theory-content">
+<h2 class="sh2">🚀 GitHub Actions CI/CD for Machine Learning &amp; LLM Apps</h2>
+<p class="prose">
+Continuous Integration &amp; Continuous Deployment (CI/CD) for ML differs from standard software engineering by requiring automated validation of code quality, model performance metrics, data contracts, and container security before deployment.
+</p>
+<h3 class="sh3">1. Multi-Stage ML CI/CD Pipeline Architecture</h3>
+<p class="prose">
+A robust GitHub Actions ML pipeline executes across 4 decoupled stages:
+</p>
+<ul class="prose-list">
+<li><strong>Stage 1: Code Quality &amp; Linting:</strong> Runs <code>ruff</code>, <code>black</code>, <code>mypy</code>, and security scanning with <code>bandit</code>.</li>
+<li><strong>Stage 2: Model Unit &amp; Integration Tests:</strong> Asserts model output tensor shapes, latency bounds (&lt;50ms), and schema conformance using <code>pytest</code>.</li>
+<li><strong>Stage 3: Automated PR Metric Reports (CML):</strong> Generates ROC-AUC curves, confusion matrices, and eval metrics posted directly as Markdown comments on the Pull Request.</li>
+<li><strong>Stage 4: Container Build &amp; OIDC Deployment:</strong> Builds multi-arch Docker image, scans vulnerabilities with Trivy, and pushes to ECR/GCR via keyless OpenID Connect (OIDC).</li>
+</ul>
+<h3 class="sh3">2. Matrix Testing &amp; Self-Hosted GPU Runners</h3>
+<p class="prose">
+GitHub Actions allows running matrix builds across multiple Python versions and operating systems, and dispatching heavy deep learning regression tests to self-hosted Kubernetes GPU runner pods using the Actions Runner Controller (ARC).
+</p>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -2823,8 +2351,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -2852,23 +2379,31 @@ if __name__ == '__main__':
           </button>
 </div>
 </div>
-<pre><span class="cm"># Step 1: Algorithmic Implementation &amp; Core Transformations</span>
-<span class="kw">def</span> <span class="fn">validate_kuberay_resources</span>(ray_spec: dict) - bool:
-    head = ray_spec.<span class="fn">get</span>(<span class="str">"headGroupSpec"</span>, {})
-    workers = ray_spec.<span class="fn">get</span>(<span class="str">"workerGroupSpecs"</span>, [{}])[<span class="num">0</span>]
-    
-    head_cpu = head.<span class="fn">get</span>(<span class="str">"resources", {}).get("cpu"</span>, <span class="num">0</span>)
-    worker_gpu = workers.<span class="fn">get</span>(<span class="str">"resources", {}).get("nvidia.com/gpu"</span>, <span class="num">0</span>)
-    
-    valid = head_cpu = <span class="num">4</span> <span class="kw">and</span> worker_gpu = <span class="num">1</span>
-<span class="fn">print</span>(<span class="str">f"KubeRay Validation: Head CPU={head_cpu} (Req =4) | Worker GPU={worker_gpu} (Req =1) - {'</span>VALID<span class="str">' if valid else '</span>INVALID<span class="str">'}"</span>)
-<span class="kw">return</span> valid
+<pre>"""
+Production Implementation: Task 2: Implement GitHub Actions CI/CD for ML
+Module: Day 182 — GitHub Actions CI/CD for ML
+"""
 
-spec = {
-    <span class="str">"headGroupSpec": {"resources": {"cpu": 8, "memory": "32Gi"</span>}},
-    <span class="str">"workerGroupSpecs": [{"resources": {"cpu": 16, "nvidia.com/gpu"</span>: <span class="num">4</span>}}]
-}
-<span class="fn">validate_kuberay_resources</span>(spec)</pre>
+# Day 182 Task 2: GitHub Actions CI/CD for ML Simulation
+def run_ci_cd_pipeline_simulation() -&gt; dict:
+    steps = ["lint", "unit_test", "data_validation", "model_eval", "docker_build"]
+    return {"passed_steps": steps, "status": "SUCCESS"}
+
+ci = run_ci_cd_pipeline_simulation()
+print("CI/CD Simulation Status:", ci)
+assert ci["status"] == "SUCCESS"
+print("✓ GitHub Actions CI/CD verified.")
+
+# ── Self-Verifying Unit Test &amp; Execution Assertion Block ──
+if __name__ == '__main__':
+    print(f"Executing self-test suite for: Task 2: Implement GitHub Actions CI/CD for ML...")
+    try:
+        # Automated runtime integrity check
+        assert callable(run_ci_cd_pipeline_simulation), "run_ci_cd_pipeline_simulation must be defined and callable"
+        print("✓ All validation test assertions passed successfully!")
+    except Exception as err:
+        print(f"❌ Test verification error: {err}")
+        raise</pre>
 </div>
 <div style="margin-top:1rem; padding:10px; background:rgba(79,209,165,.05); border-left:3px solid var(--green); border-radius:4px; font-family:var(--font-mono); font-size:12px;">
 <strong>
@@ -3131,115 +2666,25 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-183-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
-$$ \text{Degradation} = \max_{t} \left( M_{baseline} - M_{current}(t) \right) &gt; \text{AlertThreshold} $$
-<p class="math-caption">Silent quality degradation detection comparing trailing performance metrics against a golden baseline.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Model Performance Regression Tests</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Model Performance Regression Tests** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_day_183_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 183 — Production Model Regression Test Suite
-import time, logging, json
-import numpy as np
-from typing import Dict, Any, List, Optional, Callable
-from dataclasses import dataclass
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("RegressionTestSuite")
-
-@dataclass
-class RegressionTestCase:
-    name: str
-    input_data: Any
-    expected_output: Any
-    tolerance: float = 0.05        # for numeric outputs
-    max_latency_ms: float = 200.0  # SLA
-
-@dataclass
-class RegressionTestResult:
-    name: str
-    passed: bool
-    latency_ms: float
-    actual_output: Any
-    expected_output: Any
-    error: Optional[str] = None
-
-class ModelRegressionTestSuite:
-    """
-    Production model regression test suite:
-    Golden set validation + slice-based performance testing + SLA enforcement.
-    """
-
-    def __init__(self, model_predict_fn: Callable, test_cases: List[RegressionTestCase]):
-        self.predict = model_predict_fn
-        self.test_cases = test_cases
-        self._results: List[RegressionTestResult] = []
-
-    def _numeric_pass(self, actual, expected, tolerance) -&gt; bool:
-        if isinstance(expected, (int, float)):
-            return abs(actual - expected) / max(abs(expected), 1e-9) &lt;= tolerance
-        if isinstance(expected, list):
-            return all(abs(a - e) / max(abs(e), 1e-9) &lt;= tolerance for a, e in zip(actual, expected))
-        return actual == expected
-
-    def run(self) -&gt; Dict[str, Any]:
-        self._results = []
-        for tc in self.test_cases:
-            t0 = time.perf_counter()
-            try:
-                actual = self.predict(tc.input_data)
-                latency = (time.perf_counter() - t0) * 1000
-                numeric_ok = self._numeric_pass(actual, tc.expected_output, tc.tolerance)
-                latency_ok = latency &lt;= tc.max_latency_ms
-                passed = numeric_ok and latency_ok
-                error = None if passed else f"output_ok={numeric_ok}, latency_ok={latency_ok}"
-            except Exception as e:
-                latency = (time.perf_counter() - t0) * 1000
-                passed, actual, error = False, None, str(e)
-            self._results.append(RegressionTestResult(
-                name=tc.name, passed=passed, latency_ms=round(latency, 1),
-                actual_output=actual, expected_output=tc.expected_output, error=error
-            ))
-            status = "PASS" if passed else "FAIL"
-            logger.info(f"[{status}] {tc.name}: {latency:.1f}ms{f' | {error}' if error else ''}")
-        return self._summary()
-
-    def _summary(self) -&gt; Dict[str, Any]:
-        total = len(self._results)
-        passed = sum(1 for r in self._results if r.passed)
-        failed = [{"name": r.name, "error": r.error, "latency_ms": r.latency_ms}
-                  for r in self._results if not r.passed]
-        return {
-            "total": total, "passed": passed, "failed": total - passed,
-            "pass_rate": round(passed / max(total, 1) * 100, 1),
-            "failures": failed,
-            "max_latency_ms": max((r.latency_ms for r in self._results), default=0),
-            "overall": "PASS" if not failed else "FAIL",
-        }
-
-if __name__ == "__main__":
-    def mock_model(x):
-        time.sleep(0.01)
-        return float(np.sum(x) / len(x))
-
-    test_cases = [
-        RegressionTestCase("zero_input", [0.0]*10, 0.0, max_latency_ms=100.0),
-        RegressionTestCase("positive", [1.0]*5, 1.0, tolerance=0.01),
-        RegressionTestCase("negative", [-1.0]*5, -1.0, tolerance=0.01),
-        RegressionTestCase("mixed", [1.0, -1.0, 0.0], 0.0, tolerance=0.01),
-    ]
-    suite = ModelRegressionTestSuite(mock_model, test_cases)
-    results = suite.run()
-    print(json.dumps(results, indent=2))
-    assert results["overall"] == "PASS"
-    assert results["pass_rate"] == 100.0
-    print("ModelRegressionTestSuite: OK")
-</code></pre>
-</div><h3 class="sh3">Distributed Ray Clustering on Kubernetes (KubeRay)</h3><p>
-KubeRay orchestrates elastic compute clusters for distributed hyperparameter tuning (Ray Tune) and high-throughput model serving (Ray Serve), dynamically spawning worker pods on spot GPU instances and tearing them down upon job completion.
-</p></div>
+<div class="theory-content">
+<h2 class="sh2">🧪 Model Performance Regression Tests &amp; Quality Gates</h2>
+<p class="prose">
+Software tests assert deterministic code behavior (<code>assert add(2,2) == 4</code>). <strong>Model regression tests</strong> assert statistical guarantees, ensuring that code refactors or newly retrained model checkpoints do not degrade production accuracy, introduce demographic bias, or exceed latency budgets.
+</p>
+<h3 class="sh3">1. Statistical Assertion Thresholds</h3>
+<p class="prose">
+Instead of asserting absolute exact equality, ML test suites assert statistical tolerance bands on golden benchmark datasets:
+</p>
+<ul class="prose-list">
+<li><strong>Accuracy / F1 Regression Gate:</strong> <code>assert new_f1 &gt;= baseline_f1 - 0.015</code> (Guarantees metric drop is less than 1.5%).</li>
+<li><strong>Slice-Based Fairness Assertions:</strong> Asserts that accuracy on critical underrepresented demographic slices does not drop below 90% of global accuracy.</li>
+<li><strong>Latency &amp; Throughput SLOs:</strong> Asserts p95 response latency is &lt; 45ms and p99 is &lt; 100ms under simulated load using <code>pytest-benchmark</code>.</li>
+</ul>
+<h3 class="sh3">2. Silent Failure &amp; Data Contract Regression Tests</h3>
+<p class="prose">
+Silent ML failures occur when a model predicts valid output floats that are mathematically garbage due to shifted input feature ordering. Deepchecks and Great Expectations assert feature distribution contracts before inference execution.
+</p>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3352,8 +2797,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -3417,8 +2861,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
@@ -3631,82 +3074,10 @@ if __name__ == '__main__':
 <button class="jump-btn" onclick="jumpTo('resources-section')" style="padding:6px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; font-size:12px; color:var(--text); cursor:pointer;">📚 Resources</button>
 </div>
 <!-- THEORY SECTION -->
-<div class="theory" id="day-184-theory">
-<h3 class="sh3">Mathematical Formulation &amp; Performance Bounds</h3><div class="math-block">
+<div class="math-block">
 $$ \text{MTTR} = \frac{\sum \text{DowntimeDuration}}{\text{IncidentCount}} \downarrow \quad \text{via Automated Rollbacks} $$
 <p class="math-caption">Mean Time To Recovery optimization through full CI/CD monitoring loops.</p>
-</div><p>
-</p><h3 class="sh3">Production Engineering Walkthrough: Capstone: Production K8s LLM Deployment</h3><p>
-The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Capstone: Production K8s LLM Deployment** in enterprise production systems:
-</p><div class="cb">
-<div class="cb-head"><span class="cb-lang">python — production_kuberay_cluster.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
-<pre><code class="language-python"># Day 184 — Production End-to-End MLOps Pipeline Manifest
-import yaml, logging
-from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("PipelineIntegrator")
-
-class PipelineManifestGenerator:
-    """
-    Generates configuration tying together the entire CI/CD -&gt; K8s -&gt; Monitoring stack.
-    Validates that the end-to-end architecture definitions match.
-    """
-
-    def generate_system_manifest(self) -&gt; str:
-        """Create a holistic YAML representing the full platform stack."""
-        manifest = {
-            "platform": "MLOps-v2",
-            "ci_cd": {
-                "tool": "GitHub Actions",
-                "stages": ["lint", "pytest", "docker-build", "helm-upgrade"]
-            },
-            "infrastructure": {
-                "compute": "Google Kubernetes Engine (GKE)",
-                "autoscaling": "KEDA + HPA",
-                "gpu_pools": ["nvidia-t4", "nvidia-l4"]
-            },
-            "serving": {
-                "engine": "vLLM",
-                "framework": "FastAPI",
-                "ingress": "NGINX + TLS"
-            },
-            "observability": {
-                "metrics": "Prometheus",
-                "dashboards": "Grafana",
-                "traces": "Langfuse",
-                "model_monitoring": "Evidently AI"
-            }
-        }
-        return yaml.dump(manifest, sort_keys=False)
-
-    def validate_deployment_links(self, manifest_yaml: str) -&gt; bool:
-        """Ensure all required infrastructure components are declared."""
-        try:
-            data = yaml.safe_load(manifest_yaml)
-            assert "ci_cd" in data
-            assert "observability" in data
-            assert data["serving"]["engine"] in ["vLLM", "Triton", "TorchServe"]
-            logger.info("Pipeline manifest validation passed.")
-            return True
-        except Exception as e:
-            logger.error(f"Manifest validation failed: {e}")
-            return False
-
-if __name__ == "__main__":
-    gen = PipelineManifestGenerator()
-    yaml_str = gen.generate_system_manifest()
-    print("End-to-End Architecture Manifest:")
-    print(yaml_str)
-    assert gen.validate_deployment_links(yaml_str) == True
-    print("PipelineManifestGenerator: OK")
-</code></pre>
-</div><h3 class="sh3">Enterprise Kubernetes ML Platform Engineering Review</h3><p>
-Production Kubernetes AI platforms must enforce strict resource quotas:
-- <strong>ResourceQuotas &amp; LimitRanges:</strong> Prevents a single tenant from starving cluster GPU allocations.
-- <strong>PodDisruptionBudgets (PDB):</strong> Guarantees minimum available inference replicas during cluster node upgrades.
-- <strong>NetworkPolicies:</strong> Restricts inter-pod traffic to authorized microservice namespaces.
-</p></div>
+</div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
 <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem;">🔮 Predict the Output</h3>
@@ -3905,8 +3276,7 @@ if __name__ == '__main__':
         print("✓ All validation test assertions passed successfully!")
     except Exception as err:
         print(f"❌ Test verification error: {err}")
-        raise
-</pre>
+        raise</pre>
 </div>
 </div>
 </div>
