@@ -197,7 +197,6 @@
 $$ \text{RagasScore} = \frac{2 \cdot \text{Faithfulness} \cdot \text{AnswerRelevancy}}{\text{Faithfulness} + \text{AnswerRelevancy}} $$
 <p class="math-caption">Harmonic mean of Ragas core metrics to evaluate RAG system quality.</p>
 </div><p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
 </p><h3 class="sh3">Production Engineering Walkthrough: LLM Evaluation Metrics</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **LLM Evaluation Metrics** in enterprise production systems:
 </p><div class="cb">
@@ -810,6 +809,32 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-158-theory">
+<h3 class="sh3">1. Distributed Tracing for Compound AI Systems</h3>
+<p>
+Unlike monolithic REST APIs where request execution is linear, compound AI systems (multi-agent swarms, recursive RAG pipelines) execute branched, asynchronous, multi-hop calls across LLM providers, vector databases, cache layers, and code execution sandboxes.
+</p>
+<p>
+<strong>OpenTelemetry (OTel)</strong> establishes vendor-agnostic instrumentation capturing full execution graphs as distributed <strong>Traces</strong> composed of hierarchical <strong>Spans</strong>:
+</p>
+<div class="mermaid">
+graph TD
+    RootSpan["Trace: POST /api/v1/chat (Duration: 850ms | Cost: $0.0142)"] --&gt; CacheSpan["Span 1: Redis Semantic Cache Lookup (4ms - Cache Miss)"]
+    RootSpan --&gt; EmbedSpan["Span 2: Text Embedding Generation (28ms - text-embedding-3-large)"]
+    RootSpan --&gt; VectorSpan["Span 3: Qdrant Vector ANN Search (16ms - Retrieved 50 chunks)"]
+    RootSpan --&gt; RerankSpan["Span 4: BGE-Reranker Cross-Attention (35ms - Filtered to 5 chunks)"]
+    RootSpan --&gt; LLMSpan["Span 5: vLLM Chat Completion (760ms - TTFT: 45ms, 480 output tokens)"]
+</div>
+<div class="diagram-cap">Figure 158.1: OpenTelemetry Distributed Trace Graph for a RAG Request.</div>
+<h3 class="sh3">2. Core LLM Telemetry Attributes</h3>
+<p>
+Standardized GenAI OTel semantic conventions record:
+</p>
+<ul>
+<li><code>gen_ai.system</code>: Model provider (e.g. <code>vllm</code>, <code>openai</code>, <code>anthropic</code>).</li>
+<li><code>gen_ai.request.model</code>: Base model identifier (e.g. <code>llama-3-70b-instruct</code>).</li>
+<li><code>gen_ai.usage.prompt_tokens</code> &amp; <code>gen_ai.usage.completion_tokens</code>: Token consumption metrics for precise financial cost attribution.</li>
+<li><code>gen_ai.response.time_to_first_token</code> (TTFT): Critical user-perceived streaming latency.</li>
+</ul>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -1364,17 +1389,7 @@ print("✓ OpenTelemetry LLM span instrumenter verified.")</pre>
 $$ P(\text{Safe} \mid X) = \prod_{k=1}^{K} \mathbb{I}(\text{Guardrail}_k(X) = \text{PASS}) $$
 <p class="math-caption">Strict validation logic where a single guardrail failure rejects the generation.</p>
 </div><p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Output Guardrails</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: Output Guardrails</h3><p>
+</p><h3 class="sh3">Production Engineering Walkthrough: Output Guardrails</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Output Guardrails** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_159_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
@@ -1683,8 +1698,7 @@ class OutputSafetyGuardrail:
         return {"is_safe": True, "reason": "PASSED", "filtered_text": response_text}
 
 guard = OutputSafetyGuardrail()
-safe_res = guard.validate_response("FlashAttention uses SRAM memory.", ["FlashAttention is an SRAM tiling algorithm."])
-unsafe_res = guard.validate_response("Here is the secret password for admin.", ["Context"])
+safe_res = guard.validate_response("FlashAttention uses SRAM memory.", ["FlashAttention is an SRAM tiling algorithm."])\nunsafe_res = guard.validate_response("Here is the secret password for admin.", ["Context"])
 
 print(f"Safe Check: {safe_res['is_safe']} | Unsafe Check: {unsafe_res['is_safe']}")
 assert safe_res["is_safe"] is True and unsafe_res["is_safe"] is False
@@ -1973,17 +1987,7 @@ print("✓ Multi-layer output safety guardrail verified.")</pre>
 $$ \text{Latency}_{TTFT} \approx \frac{\text{PromptTokens}}{\text{PrefillBandwidth}} + \text{NetworkLatency} $$
 <p class="math-caption">Estimating Time To First Token (TTFT) as a function of prompt length and memory bandwidth.</p>
 </div><p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Semantic Caching</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: Semantic Caching</h3><p>
+</p><h3 class="sh3">Production Engineering Walkthrough: Semantic Caching</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Semantic Caching** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_160_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
@@ -2604,17 +2608,7 @@ print("✓ Semantic vector cache verified.")</pre>
 $$ \text{LoadBalancing} \to \arg\min_m \left( \alpha \cdot \text{Latency}_m + \beta \cdot \text{Cost}_m + \gamma \cdot \text{QueueDepth}_m \right) $$
 <p class="math-caption">Routing optimization function for LiteLLM load balancing across multiple API providers.</p>
 </div><p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: API Gateways &amp; Load Balancing</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: API Gateways &amp; Load Balancing</h3><p>
+</p><h3 class="sh3">Production Engineering Walkthrough: API Gateways &amp; Load Balancing</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **API Gateways &amp; Load Balancing** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_litellm_router.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
@@ -3206,16 +3200,7 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-162-theory">
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: System Design Math</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: System Design Math</h3><p>
+<h3 class="sh3">Production Engineering Walkthrough: System Design Math</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **System Design Math** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_gpu_capacity_planner.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
@@ -3815,17 +3800,7 @@ if __name__ == '__main__':
 $$ \text{SystemScore} = \min(\text{Precision}_{target}, \text{Recall}_{target}) \cdot \mathbb{I}(\text{P99} &lt; \text{SLA}) $$
 <p class="math-caption">Production checkpoint acceptance criteria combining IR metrics with strict latency SLAs.</p>
 </div><p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Advanced GenAI Milestone 🎉</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: Advanced GenAI Milestone 🎉</h3><p>
+</p><h3 class="sh3">Production Engineering Walkthrough: Advanced GenAI Milestone 🎉</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Advanced GenAI Milestone 🎉** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_163_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>

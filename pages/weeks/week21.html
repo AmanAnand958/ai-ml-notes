@@ -193,6 +193,46 @@
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-150-theory">
+<h3 class="sh3">1. GPU VRAM Memory Bottlenecks in LLM Serving</h3>
+<p>
+Serving large language models in production requires managing three distinct memory components:
+</p>
+<ol>
+<li><strong>Model Weights ($M_{\text{weights}}$):</strong> Fixed footprint ($P \times \text{bytes\_per\_param}$). A 70B parameter model in FP16 requires $70 \times 2\text{GB} = 140\text{GB}$ VRAM.</li>
+<li><strong>Activation Memory:</strong> Intermediate tensor activations during forward passes.</li>
+<li><strong>Key-Value (KV) Cache ($M_{\text{KV}}$):</strong> Dynamically grows with batch size and context length. For multi-head attention:
+    <div class="math-block">
+    $$M_{\text{KV}} = 2 \times n_{\text{layers}} \times n_{\text{heads}} \times d_{\text{head}} \times \text{bytes} \times B \times S$$
+    </div>
+</li>
+</ol>
+<p>
+In legacy serving engines (e.g. Hugging Face TGI 1.0), KV cache tensors were pre-allocated contiguously for the maximum sequence length (e.g. $S = 4096$). This led to massive <strong>internal memory fragmentation</strong> ($60\text{--}80\%$ of GPU VRAM wasted on unused reserved slots) and limited concurrency.
+</p>
+<h3 class="sh3">2. PagedAttention Architecture: Virtual Memory for KV Cache</h3>
+<p>
+Developed by Kwon et al. (UC Berkeley / vLLM), <strong>PagedAttention</strong> draws inspiration from operating system virtual memory paging:
+</p>
+<div class="mermaid">
+graph TD
+    LogicalTokens["Logical Sequence Tokens (0 to 63)"] --&gt; PageTable["Block Table / Page Directory\nMaps Logical Blocks -&gt; Physical Blocks"]
+    PageTable --&gt; Block0["Physical Block 7 (SRAM/HBM: Tokens 0-15)"]
+    PageTable --&gt; Block1["Physical Block 23 (Non-contiguous: Tokens 16-31)"]
+    PageTable --&gt; Block2["Physical Block 12 (Non-contiguous: Tokens 32-47)"]
+    PageTable --&gt; Block3["Physical Block 89 (Non-contiguous: Tokens 48-63)"]
+</div>
+<div class="diagram-cap">Figure 150.1: PagedAttention virtual block tables allocating non-contiguous physical GPU VRAM pages.</div>
+<p>
+By partitioning the KV cache into fixed-size physical blocks (e.g. 16 or 32 tokens per block), vLLM achieves:
+</p>
+<ul>
+<li><strong>Near-Zero Memory Waste:</strong> Reduces VRAM fragmentation to &lt;4%, allowing <strong>2x - 4x larger concurrent batch sizes</strong>.</li>
+<li><strong>Copy-on-Write Memory Sharing:</strong> Enables parallel speculative decoding and tree search without duplicating prompt KV cache in memory.</li>
+</ul>
+<h3 class="sh3">3. Continuous Batching (Iteration-Level Scheduling)</h3>
+<p>
+Traditional batching groups requests together until the entire batch finishes generating. Because sequence lengths vary widely, short requests are forced to wait for long requests to complete (the <em>tail latency problem</em>). <strong>Continuous Batching (Orca / vLLM)</strong> dynamically evicts completed sequences and schedules newly arriving requests at each token iteration step, boosting serving throughput by <strong>5x - 10x</strong>.
+</p>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -816,16 +856,7 @@ print("✓ Continuous iteration-level batching verified.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-151-theory">
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: FlashAttention &amp; Speculative Decoding</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: FlashAttention &amp; Speculative Decoding</h3><p>
+<h3 class="sh3">Production Engineering Walkthrough: FlashAttention &amp; Speculative Decoding</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **FlashAttention &amp; Speculative Decoding** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_151_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
@@ -1514,6 +1545,47 @@ print("✓ Speculative decoding verification passed.")</pre>
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-152-theory">
+<h3 class="sh3">1. Post-Training Quantization (PTQ): AWQ vs GPTQ vs GGUF</h3>
+<p>
+Quantization compresses 16-bit floating-point weights (FP16/BF16) to lower bitwidths (INT8, INT4, INT2), slashing memory requirements and memory bandwidth bottlenecks during autoregressive decoding:
+</p>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:13px;">
+<thead>
+<tr style="border-bottom:2px solid var(--border); text-align:left;">
+<th style="padding:8px;">Method</th>
+<th style="padding:8px;">Bitwidth</th>
+<th style="padding:8px;">Quantization Mechanism</th>
+<th style="padding:8px;">Target Hardware</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom:1px solid var(--border);">
+<td style="padding:8px;"><strong>AWQ (Activation-aware)</strong></td>
+<td style="padding:8px;">INT4 / W4A16</td>
+<td style="padding:8px;">Protects 1% salient weights based on activation magnitudes.</td>
+<td style="padding:8px;">NVIDIA Tensor Cores (vLLM, TensorRT-LLM)</td>
+</tr>
+<tr style="border-bottom:1px solid var(--border);">
+<td style="padding:8px;"><strong>GPTQ</strong></td>
+<td style="padding:8px;">INT4 / INT3</td>
+<td style="padding:8px;">Second-order Taylor expansion (Optimal Brain Surgeon) with Hessian inverse.</td>
+<td style="padding:8px;">NVIDIA GPUs / ExLlamaV2</td>
+</tr>
+<tr style="border-bottom:1px solid var(--border);">
+<td style="padding:8px;"><strong>GGUF / llama.cpp</strong></td>
+<td style="padding:8px;">Q2_K to Q8_0</td>
+<td style="padding:8px;">Non-uniform k-quants with dynamic block scaling.</td>
+<td style="padding:8px;">CPU / Apple Silicon / Metal / Edge</td>
+</tr>
+</tbody>
+</table>
+<h3 class="sh3">2. Uniform Quantization Mathematical Formulation</h3>
+<div class="math-block">
+$$X_{\text{quant}} = \text{clip}\left( \left\lfloor \frac{X}{\text{Scale}} \right\rceil + Z, -2^{b-1}, 2^{b-1}-1 \right)$$
+</div>
+<div class="math-block">
+$$\hat{X} = (X_{\text{quant}} - Z) \times \text{Scale}$$
+</div>
 </div>
 <!-- PREDICT THE OUTPUT -->
 <div class="predict-block" style="margin: 2rem 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
@@ -2660,16 +2732,7 @@ $$\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w,
 
 
 
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: DPO, ORPO &amp; GRPO</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: DPO, ORPO &amp; GRPO</h3><p>
+<h3 class="sh3">Production Engineering Walkthrough: DPO, ORPO &amp; GRPO</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **DPO, ORPO &amp; GRPO** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_dpo_trainer.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
@@ -3312,16 +3375,7 @@ if __name__ == '__main__':
 </div>
 <!-- THEORY SECTION -->
 <div class="theory" id="day-155-theory">
-<div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Synthetic Data &amp; Deduplication</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: Synthetic Data &amp; Deduplication</h3><p>
+<h3 class="sh3">Production Engineering Walkthrough: Synthetic Data &amp; Deduplication</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Synthetic Data &amp; Deduplication** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_155_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
@@ -3471,8 +3525,7 @@ if __name__ == "__main__":
 </pre>
 </div>
 </div>
-
-          <button class="complete-btn" id="btn-day-155" onclick="completeDay('155')">
+<button class="complete-btn" id="btn-day-155" onclick="completeDay('155')">
             Mark Day 155 Complete (+150 XP)
           </button>
 </div>
@@ -3549,17 +3602,7 @@ if __name__ == "__main__":
 $$ W_{Q} = \text{dequantize}(W_{4bit}) + A B \quad \text{where } A \in \mathbb{R}^{d \times r}, B \in \mathbb{R}^{r \times k} $$
 <p class="math-caption">QLoRA forward pass combining 4-bit base weights and low-rank adapters.</p>
 </div><p>
-This optimization metric balances raw computational throughput against per-token GPU memory consumption and cluster financial cost.
-</p><div class="diagram-container" style="background:var(--bg3); padding:1rem; border-radius:8px; margin:1rem 0; border:1px solid var(--border);">
-<p><strong>System Execution Flowchart: Capstone: Deploying a Custom Fine-Tuned Model</strong></p>
-<div class="mermaid">
-graph LR
-    Input["1. Client Ingress Request"] --&gt; Validate["2. Schema Validation &amp; Guardrails"]
-    Validate --&gt; Pipeline["3. Core Computational Engine"]
-    Pipeline --&gt; Cache["4. High-Speed Cache &amp; Telemetry"]
-    Cache --&gt; Egress["5. Verified Output Response"]
-</div>
-</div><h3 class="sh3">Production Engineering Walkthrough: Capstone: Deploying a Custom Fine-Tuned Model</h3><p>
+</p><h3 class="sh3">Production Engineering Walkthrough: Capstone: Deploying a Custom Fine-Tuned Model</h3><p>
 The following production implementation demonstrates the core architecture, defensive error handling, and telemetry integration required for **Capstone: Deploying a Custom Fine-Tuned Model** in enterprise production systems:
 </p><div class="cb">
 <div class="cb-head"><span class="cb-lang">python — production_day_156_implementation.py</span><div class="cb-btns"><button class="copy-btn" onclick="copyCode(this)">copy</button></div></div>
