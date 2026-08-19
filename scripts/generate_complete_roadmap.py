@@ -879,16 +879,32 @@ out.append('''    <!-- ALL PROJECTS -->
         <div>
           <div class="section-tag">CURATED REFERENCES</div>
           <h2>Free Resource Master List</h2>
-          <p>High-yield textbooks, research papers, and open-source GitHub repositories.</p>
+          <p>Curated video masterclasses, top educator channels, and official production documentation.</p>
         </div>
       </div>
 
+      <h3 style="font-family:var(--font-head); font-size:1.3rem; margin:1.5rem 0 1rem; color:var(--accent1);">Top Recommended Indian Educators &amp; Master Channels</h3>
       <table class="resource-table">
-        <tr><th>Resource</th><th>Author / Institution</th><th>Link</th></tr>
-        <tr><td><strong>Deep Learning Bible</strong></td><td>Ian Goodfellow, Yoshua Bengio, Aaron Courville</td><td><a href="https://www.deeplearningbook.org/" target="_blank">deeplearningbook.org →</a></td></tr>
-        <tr><td><strong>Mathematics for Machine Learning</strong></td><td>Deisenroth, Faisal, Ong</td><td><a href="https://mml-book.github.io/" target="_blank">mml-book.github.io →</a></td></tr>
-        <tr><td><strong>Attention Is All You Need (2017)</strong></td><td>Vaswani et al. (Google Brain)</td><td><a href="https://arxiv.org/abs/1706.03762" target="_blank">arXiv:1706.03762 →</a></td></tr>
-        <tr><td><strong>vLLM &amp; PagedAttention (2023)</strong></td><td>Woosuk Kwon et al. (UC Berkeley)</td><td><a href="https://arxiv.org/abs/2309.06180" target="_blank">arXiv:2309.06180 →</a></td></tr>
+        <tr><th>Channel / Educator</th><th>Specialty &amp; Highlights</th><th>Link</th></tr>
+        <tr><td><strong>Krish Naik</strong></td><td>Complete End-to-End ML, Deep Learning, NLP, Transformers, GenAI &amp; MLOps Playlists</td><td><a href="https://www.youtube.com/@krishnaik06" target="_blank">YouTube Channel →</a></td></tr>
+        <tr><td><strong>CampusX (Nitish Singh)</strong></td><td>100 Days of Machine Learning, Deep Learning, Mathematics &amp; Feature Engineering</td><td><a href="https://www.youtube.com/@campusx-official" target="_blank">YouTube Channel →</a></td></tr>
+        <tr><td><strong>Chai aur Code (Hitesh Choudhary)</strong></td><td>Python, Docker, Backend, Vector Databases &amp; Production Architecture</td><td><a href="https://www.youtube.com/@chaiaurcode" target="_blank">YouTube Channel →</a></td></tr>
+        <tr><td><strong>CodeWithHarry</strong></td><td>Python for Data Science, FastAPI &amp; Machine Learning Basics</td><td><a href="https://www.youtube.com/@CodeWithHarry" target="_blank">YouTube Channel →</a></td></tr>
+        <tr><td><strong>Andrej Karpathy</strong></td><td>Neural Networks: Zero to Hero &amp; Building GPT from Scratch in Code</td><td><a href="https://www.youtube.com/@AndrejKarpathy" target="_blank">YouTube Channel →</a></td></tr>
+        <tr><td><strong>StatQuest with Josh Starmer</strong></td><td>Visual Machine Learning, Statistics &amp; Transformer Intuitions</td><td><a href="https://www.youtube.com/@statquest" target="_blank">YouTube Channel →</a></td></tr>
+        <tr><td><strong>3Blue1Brown</strong></td><td>Essence of Linear Algebra, Calculus &amp; Neural Networks</td><td><a href="https://www.youtube.com/@3blue1brown" target="_blank">YouTube Channel →</a></td></tr>
+        <tr><td><strong>TechWorld with Nana</strong></td><td>Docker, Kubernetes, Helm Charts &amp; Cloud Infrastructure</td><td><a href="https://www.youtube.com/@TechWorldwithNana" target="_blank">YouTube Channel →</a></td></tr>
+      </table>
+
+      <h3 style="font-family:var(--font-head); font-size:1.3rem; margin:2rem 0 1rem; color:var(--accent2);">Official Production Documentation</h3>
+      <table class="resource-table">
+        <tr><th>Framework</th><th>Core Documentation Topic</th><th>Official Docs Link</th></tr>
+        <tr><td><strong>PyTorch 2.x</strong></td><td>Tensors, Autograd, Torchvision &amp; Distributed Training</td><td><a href="https://pytorch.org/docs/stable/index.html" target="_blank">pytorch.org/docs →</a></td></tr>
+        <tr><td><strong>Hugging Face</strong></td><td>Transformers, Datasets, TRL (DPO/PPO) &amp; PEFT (LoRA/QLoRA)</td><td><a href="https://huggingface.co/docs/transformers/index" target="_blank">huggingface.co/docs →</a></td></tr>
+        <tr><td><strong>LangGraph &amp; LangChain</strong></td><td>Cyclic Multi-Agent Workflows, StateGraphs &amp; Tool Gating</td><td><a href="https://langchain-ai.github.io/langgraph/" target="_blank">langchain-ai.github.io →</a></td></tr>
+        <tr><td><strong>vLLM Engine</strong></td><td>PagedAttention, Continuous Batching &amp; High-Throughput Serving</td><td><a href="https://docs.vllm.ai/en/latest/" target="_blank">docs.vllm.ai →</a></td></tr>
+        <tr><td><strong>Qdrant Vector DB</strong></td><td>Hybrid Search, Reciprocal Rank Fusion &amp; Payload Filtering</td><td><a href="https://qdrant.tech/documentation/" target="_blank">qdrant.tech/docs →</a></td></tr>
+        <tr><td><strong>Ragas Framework</strong></td><td>Automated RAG Evaluation (Faithfulness, Answer Relevance)</td><td><a href="https://docs.ragas.io/en/stable/" target="_blank">docs.ragas.io →</a></td></tr>
       </table>
     </div>
 
